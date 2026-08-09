@@ -6,8 +6,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDate;
-
 @Getter
 @Setter
 @NoArgsConstructor
@@ -22,8 +20,6 @@ public class EmployeeBasicInfoResponse {
     private String phoneNumber;
     private String ritId;
     private String csxRacfId;
-    private LocalDate joiningDate;
-    private String employmentType;
     private Long roleId;
     private String roleCode;
     private String roleName;

@@ -150,7 +150,7 @@ public class ReviewCyclePublishServiceImpl implements ReviewCyclePublishService 
     }
 
     private EmployeeReview newReview(PerformanceCycles cycle, Employee employee, Long publishedBy) {
-        return EmployeeReview.builder()
+        EmployeeReview review = EmployeeReview.builder()
                 .performanceCycle(cycle)
                 .employee(employee)
                 .status(EmployeeReviewStatus.NOT_STARTED)
@@ -158,6 +158,13 @@ public class ReviewCyclePublishServiceImpl implements ReviewCyclePublishService 
                 .createdBy(publishedBy)
                 .updatedBy(publishedBy)
                 .build();
+        employeeAssignmentRepository.findByEmployeeIdAndIsCurrentTrue(employee.getId())
+                .ifPresent(assignment -> applyAssignmentSnapshot(review, assignment));
+        return review;
+    }
+
+    private void applyAssignmentSnapshot(EmployeeReview review, EmployeeAssignment assignment) {
+        review.setProjectSnapshotId(assignment.getProjectId());
     }
 
     private EmployeeReviewAssessment newAssessment(EmployeeReview review, PerformanceCycleAssessor config,

@@ -1,5 +1,6 @@
 package com.rit.performance.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
@@ -22,14 +23,11 @@ public class EmployeeUpdateRequest {
     private String email;
     @Size(max = 20)
     private String phoneNumber;
+    @JsonAlias("ritEmployeeId")
     @Size(max = 50)
     private String ritId;
     @Size(max = 50)
     private String csxRacfId;
-    @PastOrPresent
-    private LocalDate joiningDate;
-    @Size(max = 30)
-    private String employmentType;
     @Size(max = 20)
     private String status;
 
@@ -49,6 +47,10 @@ public class EmployeeUpdateRequest {
     private Long managerId;
     @JsonIgnore
     private boolean managerIdPresent;
+    @Positive
+    private Long leadId;
+    @JsonIgnore
+    private boolean leadIdPresent;
     @Positive
     private Long projectId;
     @JsonIgnore
@@ -77,6 +79,11 @@ public class EmployeeUpdateRequest {
     public void setManagerId(Long managerId) {
         this.managerId = managerId;
         this.managerIdPresent = true;
+    }
+
+    public void setLeadId(Long leadId) {
+        this.leadId = leadId;
+        this.leadIdPresent = true;
     }
 
     public void setProjectId(Long projectId) {

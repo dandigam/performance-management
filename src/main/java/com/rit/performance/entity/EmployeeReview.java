@@ -31,6 +31,9 @@ public class EmployeeReview {
     @JoinColumn(name = "cycle_id", nullable = false)
     private PerformanceCycles performanceCycle;
 
+    @Column(name = "project_snapshot_id")
+    private Long projectSnapshotId;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     @Builder.Default

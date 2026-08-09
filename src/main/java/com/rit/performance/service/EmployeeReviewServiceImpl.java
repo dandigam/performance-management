@@ -74,9 +74,6 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
         Map<Long, FinalRating> ratingsByReview = reviewIds.isEmpty() ? Map.of()
                 : finalRatingRepository.findByEmployeeReviewIdIn(reviewIds).stream()
                     .collect(Collectors.toMap(rating -> rating.getEmployeeReview().getId(), Function.identity()));
-        Map<Long, EmployeeAssignment> assignments = employeeAssignmentRepository.findByIsCurrentTrue().stream()
-                .collect(Collectors.toMap(EmployeeAssignment::getEmployeeId, Function.identity(),
-                        (first, ignored) -> first));
         Map<Long, Employee> employees = employeeRepository.findAll().stream()
                 .collect(Collectors.toMap(Employee::getId, Function.identity()));
         Map<Long, LookupValue> lookups = lookupValueRepository.findAll().stream()
@@ -96,8 +93,8 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
         List<ReviewProgressEmployeeResponse> employeeRows = reviews.stream()
                 .sorted(java.util.Comparator.comparing(review -> employeeName(review.getEmployee()),
                         String.CASE_INSENSITIVE_ORDER))
-                .map(review -> toProgressEmployee(review, assignments.get(review.getEmployee().getId()),
-                        employees, lookups, projects, ratingsByReview.get(review.getId()),
+                .map(review -> toProgressEmployee(review, legacyAssignment(review), employees, lookups, projects,
+                        ratingsByReview.get(review.getId()),
                         dueDatesByRole, dueDatesByLevel))
                 .toList();
         ReviewProgressSummaryResponse summary = ReviewProgressSummaryResponse.builder()
@@ -119,15 +116,21 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
     }
 
     private ReviewProgressEmployeeResponse toProgressEmployee(EmployeeReview review,
-            EmployeeAssignment assignment, Map<Long, Employee> employees, Map<Long, LookupValue> lookups,
+            EmployeeAssignment legacyAssignment, Map<Long, Employee> employees, Map<Long, LookupValue> lookups,
             Map<Long, Projects> projects, FinalRating rating, Map<Long, LocalDate> dueDatesByRole,
             Map<Integer, LocalDate> dueDatesByLevel) {
         Employee employee = review.getEmployee();
-        LookupValue department = assignment == null ? null : lookups.get(assignment.getDepartmentId());
-        LookupValue designation = assignment == null ? null : lookups.get(assignment.getDesignationId());
-        Projects project = assignment == null ? null : projects.get(assignment.getProjectId());
-        Employee manager = assignment == null ? null : employees.get(assignment.getManagerId());
-        Employee lead = assignment == null ? null : employees.get(assignment.getLeadId());
+        Long departmentId = legacyAssignment == null ? null : legacyAssignment.getDepartmentId();
+        Long designationId = legacyAssignment == null ? null : legacyAssignment.getDesignationId();
+        Long projectId = snapshotOrLegacy(review.getProjectSnapshotId(),
+                legacyAssignment == null ? null : legacyAssignment.getProjectId());
+        Long managerId = legacyAssignment == null ? null : legacyAssignment.getManagerId();
+        Long leadId = legacyAssignment == null ? null : legacyAssignment.getLeadId();
+        LookupValue department = lookups.get(departmentId);
+        LookupValue designation = lookups.get(designationId);
+        Projects project = projects.get(projectId);
+        Employee manager = employees.get(managerId);
+        Employee lead = employees.get(leadId);
         EmployeeReviewAssessment self = assessmentByRole(review, "EMPLOYEE");
         EmployeeReviewAssessment teamLead = assessmentByRole(review, "TEAM_LEAD");
         EmployeeReviewAssessment managerAssessment = assessmentByRole(review, "MANAGER");
@@ -139,9 +142,9 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
                 .designationName(designation == null ? null : designation.getName())
                 .departmentName(department == null ? null : department.getName())
                 .projectName(project == null ? null : project.getProjectName())
-                .managerId(assignment == null ? null : assignment.getManagerId())
+                .managerId(managerId)
                 .managerName(manager == null ? null : employeeName(manager))
-                .leadId(assignment == null ? null : assignment.getLeadId())
+                .leadId(leadId)
                 .leadName(lead == null ? null : employeeName(lead))
                 .reviewId(review.getId()).currentStage(currentStage(review, published))
                 .pendingWithEmployeeId(pending == null || pending.getAssessorEmployee() == null
@@ -395,6 +398,19 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
         return (employee.getFirstName() + " " + (employee.getLastName() == null ? "" : employee.getLastName())).trim();
     }
 
+    private Long snapshotOrLegacy(Long snapshotValue, Long legacyValue) {
+        return snapshotValue == null ? legacyValue : snapshotValue;
+    }
+
+    private EmployeeAssignment legacyAssignment(EmployeeReview review) {
+        LocalDate reviewDate = review.getCreatedDate() == null ? LocalDate.now()
+                : review.getCreatedDate().toLocalDate();
+        return employeeAssignmentRepository.findEffectiveOnDate(review.getEmployee().getId(), reviewDate).stream()
+                .findFirst()
+                .orElseGet(() -> employeeAssignmentRepository
+                        .findByEmployeeIdAndIsCurrentTrue(review.getEmployee().getId()).orElse(null));
+    }
+
     @Override @Transactional(readOnly = true)
     public EmployeeReviewResponse getReviewById(Long id) { return EmployeeReviewMapper.toResponse(findReview(id)); }
 
@@ -623,6 +639,10 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
             if (!section.getPerformanceCycleId().equals(assessment.getEmployeeReview().getPerformanceCycle().getId()))
                 throw new InvalidOperationException("Section does not belong to the review cycle");
             EmployeeReviewAnswer answer = EmployeeReviewMapper.toAnswerEntity(assessment, request);
+            answer.setSectionSnapshotName(section.getSectionName());
+            answer.setQuestionSnapshotText(question.getQuestionText());
+            answer.setResponseTypeSnapshot(question.getResponseType());
+            answer.setRequiredSnapshot(question.getRequired());
             answer.setPerformanceCycleSection(section); answer.setPerformanceCycleQuestion(question); answers.add(answer);
         }
         return answerRepository.saveAll(answers);

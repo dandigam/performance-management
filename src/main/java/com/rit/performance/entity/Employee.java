@@ -6,7 +6,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -38,12 +37,6 @@ public class Employee {
 
     @Column(name = "csx_racf_id", unique = true, length = 50)
     private String csxRacfId;
-
-    @Column(name = "joining_date", nullable = false)
-    private LocalDate joiningDate;
-
-    @Column(name = "employment_type", length = 30)
-    private String employmentType;
 
     @Column(name = "status", length = 20)
     private String status;

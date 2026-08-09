@@ -16,6 +16,8 @@ public interface EmployeeService {
 
     List<EmployeeBasicInfoResponse> getBasicInfo();
 
+    EmployeeBasicInfoResponse getById(Long employeeId);
+
     List<EmployeeInformationResponse> getEmployeeInformation();
 
     EmployeeBasicInfoResponse update(Long employeeId, EmployeeUpdateRequest request);

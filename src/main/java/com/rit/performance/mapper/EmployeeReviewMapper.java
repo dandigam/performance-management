@@ -67,11 +67,15 @@ public final class EmployeeReviewMapper {
         PerformanceCycleQuestion question = entity.getPerformanceCycleQuestion();
         return EmployeeReviewAnswerResponse.builder()
                 .id(entity.getId()).sectionId(section == null ? null : section.getId())
-                .sectionName(section == null ? null : section.getSectionName())
+                .sectionName(entity.getSectionSnapshotName() == null
+                        ? section == null ? null : section.getSectionName() : entity.getSectionSnapshotName())
                 .questionId(question == null ? null : question.getId())
-                .questionText(question == null ? null : question.getQuestionText())
-                .responseType(question == null ? null : question.getResponseType())
-                .required(question == null ? null : question.getRequired())
+                .questionText(entity.getQuestionSnapshotText() == null
+                        ? question == null ? null : question.getQuestionText() : entity.getQuestionSnapshotText())
+                .responseType(entity.getResponseTypeSnapshot() == null
+                        ? question == null ? null : question.getResponseType() : entity.getResponseTypeSnapshot())
+                .required(entity.getRequiredSnapshot() == null
+                        ? question == null ? null : question.getRequired() : entity.getRequiredSnapshot())
                 .rating(entity.getRating()).comment(entity.getComment())
                 .createdBy(entity.getCreatedBy()).createdDate(entity.getCreatedDate())
                 .updatedBy(entity.getUpdatedBy()).updatedDate(entity.getUpdatedDate()).build();

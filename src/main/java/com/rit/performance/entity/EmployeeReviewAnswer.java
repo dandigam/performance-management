@@ -31,6 +31,18 @@ public class EmployeeReviewAnswer {
     @JoinColumn(name = "performance_cycle_question_id", nullable = false)
     private PerformanceCycleQuestion performanceCycleQuestion;
 
+    @Column(name = "section_snapshot_name", length = 200)
+    private String sectionSnapshotName;
+
+    @Column(name = "question_snapshot_text", length = 1000)
+    private String questionSnapshotText;
+
+    @Column(name = "response_type_snapshot", length = 30)
+    private String responseTypeSnapshot;
+
+    @Column(name = "required_snapshot")
+    private Boolean requiredSnapshot;
+
     @Column
     private Integer rating;
 

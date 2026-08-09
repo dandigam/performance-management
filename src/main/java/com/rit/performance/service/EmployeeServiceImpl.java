@@ -75,15 +75,13 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setPhoneNumber(request.getPhoneNumber() == null ? null : request.getPhoneNumber().trim());
         employee.setRitId(ritId);
         employee.setCsxRacfId(csxRacfId);
-        employee.setJoiningDate(request.getJoiningDate());
-        employee.setEmploymentType(request.getEmploymentType() == null ? null : request.getEmploymentType().trim());
         employee.setStatus(request.getStatus() == null ? "ACTIVE" : request.getStatus().trim().toUpperCase());
         employee.setCreatedBy(request.getCreatedBy());
         employee.setUpdatedBy(request.getCreatedBy());
         employee = employeeRepository.save(employee);
         EmployeeAssignment assignment = createInitialAssignment(employee.getId(), request);
         LookupValue role = requestedEmployeeRole(request.getRoleId());
-        createEmployeeRole(employee, role, employee.getJoiningDate(), request.getCreatedBy());
+        createEmployeeRole(employee, role, LocalDate.now(), request.getCreatedBy());
         User user = new User();
         user.setUsername(email);
         user.setPassword(DEFAULT_PASSWORD);
@@ -101,7 +99,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         ProjectAssignmentRequest nested = request.getProjectAssignment();
         Long departmentId = nested == null ? request.getDepartmentId() : nested.getDepartmentId();
         Long projectId = nested == null ? request.getProjectId() : nested.getProjectId();
-        Long leadId = nested == null ? null : nested.getLeadId();
+        Long leadId = nested == null ? request.getLeadId() : nested.getLeadId();
         Long managerId = nested == null ? request.getManagerId() : nested.getManagerId();
         LocalDate effectiveFrom = nested != null && nested.getEffectiveFrom() != null
                 ? nested.getEffectiveFrom() : request.getAssignmentEffectiveFrom();
@@ -117,7 +115,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         assignment.setLeadId(leadId);
         assignment.setManagerId(managerId);
         assignment.setProjectId(projectId);
-        assignment.setEffectiveFrom(effectiveFrom == null ? request.getJoiningDate() : effectiveFrom);
+        assignment.setEffectiveFrom(effectiveFrom == null ? LocalDate.now() : effectiveFrom);
         assignment.setIsCurrent(true);
         assignment.setCreatedBy(request.getCreatedBy());
         assignment.setUpdatedBy(request.getCreatedBy());
@@ -149,6 +147,16 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional(readOnly = true)
+    public EmployeeBasicInfoResponse getById(Long employeeId) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found: " + employeeId));
+        EmployeeAssignment assignment = assignmentRepository.findByEmployeeIdAndIsCurrentTrue(employeeId)
+                .orElse(null);
+        return currentEmployeeResponse(employee, assignment);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<EmployeeInformationResponse> getEmployeeInformation() {
         return employeeRepository.findAll().stream()
                 .sorted(Comparator.comparing(EmployeeServiceImpl::employeeName, String.CASE_INSENSITIVE_ORDER))
@@ -161,8 +169,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .phoneNumber(employee.getPhoneNumber())
                         .ritId(employee.getRitId())
                         .csxRacfId(employee.getCsxRacfId())
-                        .joiningDate(employee.getJoiningDate())
-                        .employmentType(employee.getEmploymentType())
                         .status(employee.getStatus())
                         .build())
                 .toList();
@@ -397,9 +403,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeAssignment assignment = assignmentRepository.findByEmployeeIdAndIsCurrentTrue(employeeId)
                 .orElse(null);
         boolean hasAssignmentUpdate = request.getProjectAssignment() != null
-                || request.isDepartmentIdPresent() || request.isDesignationIdPresent()
-                || request.isManagerIdPresent() || request.isProjectIdPresent()
-                || request.getAssignmentEffectiveFrom() != null;
+                 || request.isDepartmentIdPresent() || request.isDesignationIdPresent()
+                 || request.isManagerIdPresent() || request.isLeadIdPresent() || request.isProjectIdPresent()
+                 || request.getAssignmentEffectiveFrom() != null;
         if (hasAssignmentUpdate)
             assignment = replaceAssignmentWhenChanged(employeeId, assignment, request);
 
@@ -508,8 +514,6 @@ public class EmployeeServiceImpl implements EmployeeService {
             validateIdentifiersAvailable(null, csxRacfId, employee.getId());
             employee.setCsxRacfId(csxRacfId);
         }
-        if (request.getJoiningDate() != null) employee.setJoiningDate(request.getJoiningDate());
-        if (request.getEmploymentType() != null) employee.setEmploymentType(request.getEmploymentType().trim());
         if (request.getStatus() != null) employee.setStatus(request.getStatus().trim().toUpperCase());
         employee.setUpdatedBy(request.getUpdatedBy());
     }
@@ -523,6 +527,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         Long designationId = request.isDesignationIdPresent() ? request.getDesignationId()
                 : current == null ? null : current.getDesignationId();
         Long leadId = nested != null && nested.isLeadIdPresent() ? nested.getLeadId()
+                : request.isLeadIdPresent() ? request.getLeadId()
                 : current == null ? null : current.getLeadId();
         Long managerId = nested != null && nested.isManagerIdPresent() ? nested.getManagerId()
                 : request.isManagerIdPresent() ? request.getManagerId()
@@ -571,15 +576,15 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (designationId != null) requireLookup(designationId, "DESIGNATION");
         if (projectId != null && !projectRepository.existsById(projectId))
             throw new ResourceNotFoundException("Project not found: " + projectId);
-        validateSupervisor(employeeId, leadId, "LEAD", "Team Lead");
-        validateSupervisor(employeeId, managerId, "MANAGER", "Manager");
+        validateSupervisor(employeeId, leadId, "Team Lead");
+        validateSupervisor(employeeId, managerId, "Manager");
         if (leadId != null && leadId.equals(managerId))
             throw new InvalidOperationException("Team Lead and Manager must be different employees");
         validateReportingHierarchy(employeeId, leadId);
         validateReportingHierarchy(employeeId, managerId);
     }
 
-    private void validateSupervisor(Long employeeId, Long supervisorId, String expectedRole, String label) {
+    private void validateSupervisor(Long employeeId, Long supervisorId, String label) {
         if (supervisorId == null) return;
         if (employeeId.equals(supervisorId))
             throw new InvalidOperationException("Employee cannot be their own " + label.toLowerCase());
@@ -587,13 +592,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .orElseThrow(() -> new ResourceNotFoundException(label + " employee not found: " + supervisorId));
         if (!"ACTIVE".equalsIgnoreCase(supervisor.getStatus()))
             throw new InvalidOperationException(label + " employee is not active: " + supervisorId);
-        EmployeeRole currentRole = employeeRoleRepository
-                .findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDesc(supervisorId)
-                .orElseThrow(() -> new InvalidOperationException(label + " has no current role: " + supervisorId));
-        LookupValue role = requireLookup(currentRole.getRoleId(), "ROLE");
-        String normalized = normalizeAssessmentRole(role);
-        if (!(expectedRole.equals(normalized) || ("LEAD".equals(expectedRole) && "TEAM_LEAD".equals(normalized))))
-            throw new InvalidOperationException(label + " employee does not have the required role: " + supervisorId);
     }
 
     private void validateReportingHierarchy(Long employeeId, Long supervisorId) {
@@ -658,7 +656,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .firstName(employee.getFirstName()).lastName(employee.getLastName())
                 .email(employee.getEmail()).phoneNumber(employee.getPhoneNumber())
                 .ritId(employee.getRitId()).csxRacfId(employee.getCsxRacfId())
-                .joiningDate(employee.getJoiningDate()).employmentType(employee.getEmploymentType())
                 .roleId(role == null ? null : role.getRoleId())
                 .roleCode(roleLookup == null ? null : roleLookup.getCode())
                 .roleName(roleLookup == null ? null : roleLookup.getName())

@@ -22,8 +22,6 @@ class EmployeeRequestJsonTest {
                   "firstName": "John",
                   "lastName": "Doe",
                   "email": "john.doe@rit.com",
-                  "joiningDate": "2026-07-15",
-                  "employmentType": "Permanent",
                   "roleId": 29,
                   "designationId": 19,
                   "projectAssignment": {
@@ -41,6 +39,27 @@ class EmployeeRequestJsonTest {
         assertEquals(5L, request.getProjectAssignment().getManagerId());
         assertTrue(request.getProjectAssignment().isLeadIdPresent());
         assertTrue(request.getProjectAssignment().isManagerIdPresent());
+    }
+
+    @Test
+    void readsFlatEmployeeUpdatePayloadAliases() throws Exception {
+        EmployeeUpdateRequest request = objectMapper.readValue("""
+                {
+                  "firstName": "Venkatesh",
+                  "ritEmployeeId": "RIT100",
+                  "projectId": 1,
+                  "leadId": 2,
+                  "managerId": 5
+                }
+                """, EmployeeUpdateRequest.class);
+
+        assertEquals("RIT100", request.getRitId());
+        assertEquals(1L, request.getProjectId());
+        assertEquals(2L, request.getLeadId());
+        assertEquals(5L, request.getManagerId());
+        assertTrue(request.isProjectIdPresent());
+        assertTrue(request.isLeadIdPresent());
+        assertTrue(request.isManagerIdPresent());
     }
 
     @Test

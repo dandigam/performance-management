@@ -40,6 +40,11 @@ public class EmployeeController {
         return ResponseEntity.ok(employeeService.getBasicInfo());
     }
 
+    @GetMapping("/{employeeId}")
+    public ResponseEntity<EmployeeBasicInfoResponse> getById(@PathVariable Long employeeId) {
+        return ResponseEntity.ok(employeeService.getById(employeeId));
+    }
+
     @GetMapping("/information")
     public ResponseEntity<List<EmployeeInformationResponse>> getEmployeeInformation() {
         return ResponseEntity.ok(employeeService.getEmployeeInformation());
