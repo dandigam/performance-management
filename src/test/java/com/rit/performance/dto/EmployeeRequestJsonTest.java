@@ -63,6 +63,23 @@ class EmployeeRequestJsonTest {
     }
 
     @Test
+    void readsEmployeeEmploymentAndVendorFields() throws Exception {
+        EmployeeCreateRequest request = objectMapper.readValue("""
+                {
+                  "firstName": "Venkatesh",
+                  "email": "dandigam@gmail.com",
+                  "employmentType": "Contract",
+                  "workMode": "Onsite",
+                  "vendorId": 7
+                }
+                """, EmployeeCreateRequest.class);
+
+        assertEquals("Contract", request.getEmploymentType());
+        assertEquals("Onsite", request.getWorkMode());
+        assertEquals(7L, request.getVendorId());
+    }
+
+    @Test
     void hierarchyResponseUsesOnlyFlatEmployeesList() throws Exception {
         EmployeeHierarchyResponse response = EmployeeHierarchyResponse.builder()
                 .viewerEmployeeId(5L)

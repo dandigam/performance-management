@@ -38,6 +38,7 @@ public class DocumentService {
         Document document = Document.builder()
                 .documentName(trimToNull(request.getDocumentName()))
                 .fileType(trimToNull(request.getFileType()))
+                .documentType(trimToNull(request.getDocumentType()))
                 .fileUrl(trimToNull(request.getFileUrl()))
                 .module(trimToNull(request.getModule()))
                 .uploadedAt(request.getUploadedAt() == null
@@ -46,7 +47,7 @@ public class DocumentService {
         return toResponse(repository.save(document));
     }
 
-    public DocumentResponse upload(MultipartFile file, String module) {
+    public DocumentResponse upload(MultipartFile file, String module, String documentType) {
         if (file == null || file.isEmpty()) {
             throw new InvalidOperationException("file is required and must not be empty");
         }
@@ -67,6 +68,7 @@ public class DocumentService {
             Document document = Document.builder()
                     .documentName(originalName)
                     .fileType(trimToNull(file.getContentType()))
+                    .documentType(trimToNull(documentType))
                     .fileUrl(storedFile.toString())
                     .module(trimToNull(module))
                     .uploadedAt(LocalDateTime.now())
@@ -126,6 +128,7 @@ public class DocumentService {
                 .id(document.getId())
                 .documentName(document.getDocumentName())
                 .fileType(document.getFileType())
+                .documentType(document.getDocumentType())
                 .fileUrl(document.getFileUrl())
                 .module(document.getModule())
                 .uploadedAt(document.getUploadedAt())

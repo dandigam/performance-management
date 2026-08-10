@@ -28,6 +28,14 @@ public class EmployeeUpdateRequest {
     private String ritId;
     @Size(max = 50)
     private String csxRacfId;
+    @Size(max = 50)
+    private String employmentType;
+    @Size(max = 50)
+    private String workMode;
+    @Positive
+    private Long vendorId;
+    @JsonIgnore
+    private boolean vendorIdPresent;
     @Size(max = 20)
     private String status;
 
@@ -89,5 +97,10 @@ public class EmployeeUpdateRequest {
     public void setProjectId(Long projectId) {
         this.projectId = projectId;
         this.projectIdPresent = true;
+    }
+
+    public void setVendorId(Long vendorId) {
+        this.vendorId = vendorId;
+        this.vendorIdPresent = true;
     }
 }

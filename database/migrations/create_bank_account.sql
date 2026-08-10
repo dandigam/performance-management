@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS bank_account (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    owner_type ENUM('EMPLOYEE', 'VENDOR') NOT NULL,
+    owner_id BIGINT NOT NULL,
+    bank_country VARCHAR(100),
+    currency VARCHAR(10),
+    payment_method VARCHAR(50),
+    account_holder_name VARCHAR(200),
+    bank_name VARCHAR(200),
+    account_type VARCHAR(50),
+    account_number_encrypted TEXT,
+    account_number_last4 VARCHAR(4),
+    routing_number_encrypted TEXT,
+    ifsc_code VARCHAR(20),
+    branch_name VARCHAR(200),
+    remittance_email VARCHAR(150),
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    PRIMARY KEY (id),
+    INDEX idx_bank_account_owner (owner_type, owner_id)
+);

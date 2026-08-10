@@ -2,6 +2,8 @@ package com.rit.performance.repository;
 
 import com.rit.performance.entity.EmployeeAssignment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,7 +16,13 @@ public interface EmployeeAssignmentRepository extends JpaRepository<EmployeeAssi
 
     List<EmployeeAssignment> findByEmployeeId(Long employeeId);
 
-    Optional<EmployeeAssignment> findByEmployeeIdAndIsCurrentTrue(Long employeeId);
+    Optional<EmployeeAssignment> findFirstByEmployeeIdOrderByEffectiveFromDescIdDesc(Long employeeId);
+
+    Optional<EmployeeAssignment> findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDescIdDesc(Long employeeId);
+
+    default Optional<EmployeeAssignment> findByEmployeeIdAndIsCurrentTrue(Long employeeId) {
+        return findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDescIdDesc(employeeId);
+    }
 
     @Query("""
             select assignment from EmployeeAssignment assignment
@@ -43,6 +51,16 @@ public interface EmployeeAssignmentRepository extends JpaRepository<EmployeeAssi
     List<EmployeeAssignment> findByDesignationIdInAndIsCurrentTrue(List<Long> designationIds);
 
     List<EmployeeAssignment> findByProjectId(Long projectId);
+
+    Page<EmployeeAssignment> findByProjectIdAndIsCurrentTrue(Long projectId, Pageable pageable);
+
+    boolean existsByProjectIdAndEmployeeIdAndIsCurrentTrue(Long projectId, Long employeeId);
+
+    boolean existsByProjectIdAndEmployeeIdAndIsCurrentTrueAndIdNot(
+            Long projectId, Long employeeId, Long assignmentId);
+
+    Optional<EmployeeAssignment> findFirstByProjectIdAndEmployeeIdOrderByEffectiveFromDescIdDesc(
+            Long projectId, Long employeeId);
 
     List<EmployeeAssignment> findByProjectIdAndDepartmentIdAndDesignationIdAndIsCurrentTrue(
             Long projectId, Long departmentId, Long designationId);

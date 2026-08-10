@@ -20,6 +20,7 @@ import com.rit.performance.entity.LookupValue;
 import com.rit.performance.entity.PerformanceCycles;
 import com.rit.performance.entity.Projects;
 import com.rit.performance.entity.User;
+import com.rit.performance.entity.Vendor;
 import com.rit.performance.repository.EmployeeAssignmentRepository;
 import com.rit.performance.repository.EmployeeRepository;
 import com.rit.performance.repository.EmployeeRoleRepository;
@@ -29,6 +30,7 @@ import com.rit.performance.repository.LookupValueRepository;
 import com.rit.performance.repository.PerformanceCycleConfigRepository;
 import com.rit.performance.repository.ProjectRepository;
 import com.rit.performance.repository.UserRepository;
+import com.rit.performance.repository.VendorRepository;
 import com.rit.performance.exception.InvalidOperationException;
 import com.rit.performance.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -58,6 +60,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeReviewAssessmentRepository employeeReviewAssessmentRepository;
     private final EmployeeReviewRepository employeeReviewRepository;
     private final PerformanceCycleConfigRepository cycleRepository;
+    private final VendorRepository vendorRepository;
 
     @Override
     @Transactional
@@ -75,6 +78,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setPhoneNumber(request.getPhoneNumber() == null ? null : request.getPhoneNumber().trim());
         employee.setRitId(ritId);
         employee.setCsxRacfId(csxRacfId);
+        employee.setEmploymentType(normalizeRequiredValue(request.getEmploymentType(), "employmentType"));
+        employee.setWorkMode(normalizeRequiredValue(request.getWorkMode(), "workMode"));
+        employee.setVendor(resolveVendor(request.getVendorId(), employee.getEmploymentType()));
         employee.setStatus(request.getStatus() == null ? "ACTIVE" : request.getStatus().trim().toUpperCase());
         employee.setCreatedBy(request.getCreatedBy());
         employee.setUpdatedBy(request.getCreatedBy());
@@ -104,7 +110,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         LocalDate effectiveFrom = nested != null && nested.getEffectiveFrom() != null
                 ? nested.getEffectiveFrom() : request.getAssignmentEffectiveFrom();
         boolean hasAssignment = departmentId != null || request.getDesignationId() != null
-                || leadId != null || managerId != null || projectId != null || effectiveFrom != null;
+                || leadId != null || managerId != null || projectId != null || effectiveFrom != null
+                || nested != null;
         if (!hasAssignment) return null;
         validateAssignmentValues(employeeId, departmentId, request.getDesignationId(), projectId, leadId, managerId);
 
@@ -116,6 +123,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         assignment.setManagerId(managerId);
         assignment.setProjectId(projectId);
         assignment.setEffectiveFrom(effectiveFrom == null ? LocalDate.now() : effectiveFrom);
+        assignment.setEffectiveTo(nested == null ? null : nested.getAssignmentEndDate());
+        validateAssignmentDates(assignment.getEffectiveFrom(), assignment.getEffectiveTo());
+        assignment.setAllocationPercentage(nested == null || nested.getAllocationPercentage() == null
+                ? 100 : nested.getAllocationPercentage());
+        assignment.setStatus(normalizeAssignmentStatus(nested == null ? null : nested.getStatus()));
         assignment.setIsCurrent(true);
         assignment.setCreatedBy(request.getCreatedBy());
         assignment.setUpdatedBy(request.getCreatedBy());
@@ -169,6 +181,11 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .phoneNumber(employee.getPhoneNumber())
                         .ritId(employee.getRitId())
                         .csxRacfId(employee.getCsxRacfId())
+                        .employmentType(employee.getEmploymentType())
+                        .workMode(employee.getWorkMode())
+                        .vendorId(employee.getVendor() == null ? null : employee.getVendor().getId())
+                        .vendorCode(employee.getVendor() == null ? null : employee.getVendor().getVendorCode())
+                        .vendorCompanyName(employee.getVendor() == null ? null : employee.getVendor().getCompanyName())
                         .status(employee.getStatus())
                         .build())
                 .toList();
@@ -402,12 +419,26 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeAssignment assignment = assignmentRepository.findByEmployeeIdAndIsCurrentTrue(employeeId)
                 .orElse(null);
+        boolean reactivatingProjectAssignment = false;
+        Long requestedProjectId = requestedProjectId(request);
+        if (requestedProjectId != null
+                && (assignment == null || !requestedProjectId.equals(assignment.getProjectId()))) {
+            EmployeeAssignment projectAssignment = assignmentRepository
+                    .findFirstByProjectIdAndEmployeeIdOrderByEffectiveFromDescIdDesc(
+                            requestedProjectId, employeeId)
+                    .orElse(null);
+            if (projectAssignment != null) {
+                assignment = projectAssignment;
+                reactivatingProjectAssignment = !Boolean.TRUE.equals(projectAssignment.getIsCurrent());
+            }
+        }
         boolean hasAssignmentUpdate = request.getProjectAssignment() != null
                  || request.isDepartmentIdPresent() || request.isDesignationIdPresent()
                  || request.isManagerIdPresent() || request.isLeadIdPresent() || request.isProjectIdPresent()
                  || request.getAssignmentEffectiveFrom() != null;
         if (hasAssignmentUpdate)
-            assignment = replaceAssignmentWhenChanged(employeeId, assignment, request);
+            assignment = replaceAssignmentWhenChanged(
+                    employeeId, assignment, request, reactivatingProjectAssignment);
 
         employeeRepository.save(employee);
         LookupValue role = updateEmployeeRoleWhenChanged(employee, request);
@@ -514,12 +545,21 @@ public class EmployeeServiceImpl implements EmployeeService {
             validateIdentifiersAvailable(null, csxRacfId, employee.getId());
             employee.setCsxRacfId(csxRacfId);
         }
+        if (request.getEmploymentType() != null)
+            employee.setEmploymentType(normalizeRequiredValue(request.getEmploymentType(), "employmentType"));
+        if (request.getWorkMode() != null)
+            employee.setWorkMode(normalizeRequiredValue(request.getWorkMode(), "workMode"));
+        if (request.isVendorIdPresent() || request.getEmploymentType() != null) {
+            Long vendorId = request.isVendorIdPresent() ? request.getVendorId()
+                    : employee.getVendor() == null ? null : employee.getVendor().getId();
+            employee.setVendor(resolveVendor(vendorId, employee.getEmploymentType()));
+        }
         if (request.getStatus() != null) employee.setStatus(request.getStatus().trim().toUpperCase());
         employee.setUpdatedBy(request.getUpdatedBy());
     }
 
     private EmployeeAssignment replaceAssignmentWhenChanged(Long employeeId, EmployeeAssignment current,
-            EmployeeUpdateRequest request) {
+            EmployeeUpdateRequest request, boolean reactivating) {
         ProjectAssignmentRequest nested = request.getProjectAssignment();
         Long departmentId = nested != null && nested.isDepartmentIdPresent() ? nested.getDepartmentId()
                 : request.isDepartmentIdPresent() ? request.getDepartmentId()
@@ -535,23 +575,55 @@ public class EmployeeServiceImpl implements EmployeeService {
         Long projectId = nested != null && nested.isProjectIdPresent() ? nested.getProjectId()
                 : request.isProjectIdPresent() ? request.getProjectId()
                 : current == null ? null : current.getProjectId();
+        Integer allocationPercentage = nested != null && nested.getAllocationPercentage() != null
+                ? nested.getAllocationPercentage()
+                : current == null || current.getAllocationPercentage() == null ? 100 : current.getAllocationPercentage();
+        LocalDate assignmentEndDate = nested != null && nested.getAssignmentEndDate() != null
+                ? nested.getAssignmentEndDate() : current == null ? null : current.getEffectiveTo();
+        String assignmentStatus = nested != null && nested.getStatus() != null
+                ? normalizeAssignmentStatus(nested.getStatus())
+                : current == null || current.getStatus() == null ? "ACTIVE" : current.getStatus();
+        if (reactivating) {
+            assignmentEndDate = null;
+            assignmentStatus = "ACTIVE";
+        }
         validateAssignmentValues(employeeId, departmentId, designationId, projectId, leadId, managerId);
+
+        LocalDate effectiveFrom = nested != null && nested.getEffectiveFrom() != null
+                ? nested.getEffectiveFrom()
+                : request.getAssignmentEffectiveFrom() == null ? LocalDate.now() : request.getAssignmentEffectiveFrom();
+        validateAssignmentDates(effectiveFrom, assignmentEndDate);
+        if (reactivating) {
+            current.setDepartmentId(departmentId);
+            current.setDesignationId(designationId);
+            current.setLeadId(leadId);
+            current.setManagerId(managerId);
+            current.setProjectId(projectId);
+            current.setAllocationPercentage(allocationPercentage);
+            current.setEffectiveFrom(effectiveFrom);
+            current.setEffectiveTo(null);
+            current.setStatus("ACTIVE");
+            current.setIsCurrent(true);
+            current.setUpdatedBy(request.getUpdatedBy());
+            return assignmentRepository.save(current);
+        }
 
         boolean changed = current == null
                 || !Objects.equals(current.getDepartmentId(), departmentId)
                 || !Objects.equals(current.getDesignationId(), designationId)
                 || !Objects.equals(current.getLeadId(), leadId)
                 || !Objects.equals(current.getManagerId(), managerId)
-                || !Objects.equals(current.getProjectId(), projectId);
+                || !Objects.equals(current.getProjectId(), projectId)
+                || !Objects.equals(current.getAllocationPercentage(), allocationPercentage)
+                || !Objects.equals(current.getEffectiveTo(), assignmentEndDate)
+                || !Objects.equals(current.getStatus(), assignmentStatus);
         if (!changed) return current;
 
-        LocalDate effectiveFrom = nested != null && nested.getEffectiveFrom() != null
-                ? nested.getEffectiveFrom()
-                : request.getAssignmentEffectiveFrom() == null ? LocalDate.now() : request.getAssignmentEffectiveFrom();
         if (current != null) {
             validateEffectiveDate(effectiveFrom, current.getEffectiveFrom(), "assignment");
             current.setEffectiveTo(effectiveFrom);
             current.setIsCurrent(false);
+            current.setStatus("INACTIVE");
             current.setUpdatedBy(request.getUpdatedBy());
             assignmentRepository.save(current);
         }
@@ -564,10 +636,19 @@ public class EmployeeServiceImpl implements EmployeeService {
         replacement.setManagerId(managerId);
         replacement.setProjectId(projectId);
         replacement.setEffectiveFrom(effectiveFrom);
+        replacement.setEffectiveTo(assignmentEndDate);
+        replacement.setAllocationPercentage(allocationPercentage);
+        replacement.setStatus(assignmentStatus);
         replacement.setIsCurrent(true);
         replacement.setCreatedBy(request.getUpdatedBy());
         replacement.setUpdatedBy(request.getUpdatedBy());
         return assignmentRepository.save(replacement);
+    }
+
+    private Long requestedProjectId(EmployeeUpdateRequest request) {
+        ProjectAssignmentRequest nested = request.getProjectAssignment();
+        if (nested != null && nested.isProjectIdPresent()) return nested.getProjectId();
+        return request.isProjectIdPresent() ? request.getProjectId() : null;
     }
 
     private void validateAssignmentValues(Long employeeId, Long departmentId, Long designationId,
@@ -656,13 +737,27 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .firstName(employee.getFirstName()).lastName(employee.getLastName())
                 .email(employee.getEmail()).phoneNumber(employee.getPhoneNumber())
                 .ritId(employee.getRitId()).csxRacfId(employee.getCsxRacfId())
+                .employmentType(employee.getEmploymentType())
+                .workMode(employee.getWorkMode())
+                .vendorId(employee.getVendor() == null ? null : employee.getVendor().getId())
+                .vendorCode(employee.getVendor() == null ? null : employee.getVendor().getVendorCode())
+                .vendorCompanyName(employee.getVendor() == null ? null : employee.getVendor().getCompanyName())
                 .roleId(role == null ? null : role.getRoleId())
                 .roleCode(roleLookup == null ? null : roleLookup.getCode())
                 .roleName(roleLookup == null ? null : roleLookup.getName())
                 .designationId(assignment == null ? null : assignment.getDesignationId())
                 .designationName(designation == null ? null : designation.getName())
+                .assignmentId(assignment == null ? null : assignment.getId())
                 .projectId(assignment == null ? null : assignment.getProjectId())
+                .projectCode(project == null ? null : project.getProjectCode())
                 .projectName(project == null ? null : project.getProjectName())
+                .allocationPercentage(assignment == null ? null : assignment.getAllocationPercentage())
+                .assignmentStartDate(assignment == null ? null : assignment.getEffectiveFrom())
+                .assignmentEndDate(assignment == null ? null : assignment.getEffectiveTo())
+                .assignmentStatus(assignment == null ? null
+                        : assignment.getStatus() == null
+                        ? Boolean.TRUE.equals(assignment.getIsCurrent()) ? "ACTIVE" : "INACTIVE"
+                        : assignment.getStatus())
                 .departmentId(assignment == null ? null : assignment.getDepartmentId())
                 .departmentName(department == null ? null : department.getName())
                 .managerId(assignment == null ? null : assignment.getManagerId())
@@ -684,6 +779,39 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (value == null) return null;
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private static String normalizeRequiredValue(String value, String fieldName) {
+        if (value == null || value.isBlank())
+            throw new InvalidOperationException(fieldName + " cannot be blank");
+        return value.trim().toUpperCase().replace(' ', '_');
+    }
+
+    private static String normalizeAssignmentStatus(String value) {
+        if (value == null || value.isBlank()) return "ACTIVE";
+        String normalized = value.trim().toUpperCase();
+        if (!"ACTIVE".equals(normalized) && !"INACTIVE".equals(normalized))
+            throw new InvalidOperationException("assignment status must be ACTIVE or INACTIVE");
+        return normalized;
+    }
+
+    private static void validateAssignmentDates(LocalDate startDate, LocalDate endDate) {
+        if (endDate != null && endDate.isBefore(startDate))
+            throw new InvalidOperationException("assignmentEndDate cannot be before assignmentStartDate");
+    }
+
+    private Vendor resolveVendor(Long vendorId, String employmentType) {
+        boolean contractEmployee = "CONTRACT".equalsIgnoreCase(employmentType);
+        if (vendorId == null) {
+            if (contractEmployee)
+                throw new InvalidOperationException("vendorId is required for contract employees");
+            return null;
+        }
+        Vendor vendor = vendorRepository.findById(vendorId)
+                .orElseThrow(() -> new ResourceNotFoundException("Vendor not found: " + vendorId));
+        if (!"ACTIVE".equalsIgnoreCase(vendor.getStatus()))
+            throw new InvalidOperationException("Vendor is inactive: " + vendorId);
+        return vendor;
     }
 
     private void validateIdentifiersAvailable(String ritId, String csxRacfId, Long excludedEmployeeId) {

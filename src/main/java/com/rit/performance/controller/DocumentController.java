@@ -43,9 +43,14 @@ public class DocumentController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<DocumentResponse> upload(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "module", required = false) String module
+            @RequestParam(value = "module", required = false) String module,
+            @RequestParam(value = "documentType", required = false) String documentType,
+            @RequestParam(value = "type", required = false) String type
     ) {
-        DocumentResponse created = service.upload(file, module);
+        DocumentResponse created = service.upload(
+                file,
+                module,
+                documentType == null || documentType.isBlank() ? type : documentType);
         return ResponseEntity.created(
                 URI.create("/api/v1/documents/" + created.getId())
         ).body(created);

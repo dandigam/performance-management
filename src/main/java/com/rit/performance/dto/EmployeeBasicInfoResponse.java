@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -20,13 +22,24 @@ public class EmployeeBasicInfoResponse {
     private String phoneNumber;
     private String ritId;
     private String csxRacfId;
+    private String employmentType;
+    private String workMode;
+    private Long vendorId;
+    private String vendorCode;
+    private String vendorCompanyName;
     private Long roleId;
     private String roleCode;
     private String roleName;
     private Long designationId;
     private String designationName;
+    private Long assignmentId;
     private Long projectId;
+    private String projectCode;
     private String projectName;
+    private Integer allocationPercentage;
+    private LocalDate assignmentStartDate;
+    private LocalDate assignmentEndDate;
+    private String assignmentStatus;
     private Long departmentId;
     private String departmentName;
     private Long managerId;

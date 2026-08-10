@@ -3,6 +3,9 @@ package com.rit.performance.dto;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -19,6 +22,11 @@ public class ProjectAssignmentRequest {
     private Long managerId;
     @PastOrPresent
     private LocalDate effectiveFrom;
+    private LocalDate assignmentEndDate;
+    @Min(1) @Max(100)
+    private Integer allocationPercentage;
+    @Size(max = 20)
+    private String status;
 
     @JsonIgnore private boolean departmentIdPresent;
     @JsonIgnore private boolean projectIdPresent;
@@ -47,5 +55,17 @@ public class ProjectAssignmentRequest {
 
     public void setEffectiveFrom(LocalDate effectiveFrom) {
         this.effectiveFrom = effectiveFrom;
+    }
+
+    public void setAssignmentEndDate(LocalDate assignmentEndDate) {
+        this.assignmentEndDate = assignmentEndDate;
+    }
+
+    public void setAllocationPercentage(Integer allocationPercentage) {
+        this.allocationPercentage = allocationPercentage;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 }

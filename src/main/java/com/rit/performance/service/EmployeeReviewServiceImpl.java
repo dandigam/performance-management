@@ -105,8 +105,15 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
                 .ratingsPublished(ratingsByReview.values().stream()
                         .filter(rating -> Boolean.TRUE.equals(rating.getPublished())).count())
                 .build();
+        java.time.LocalDateTime publishedDate = ratingsByReview.values().stream()
+                .filter(rating -> Boolean.TRUE.equals(rating.getPublished()))
+                .map(FinalRating::getPublishedDate)
+                .filter(java.util.Objects::nonNull)
+                .max(java.time.LocalDateTime::compareTo)
+                .orElse(null);
         return ReviewProgressResponse.builder().cycleId(cycleId).cycleName(cycle.getCycleName())
-                .cycleStatus(cycle.getStatus()).summary(summary).employees(employeeRows).build();
+                .cycleStatus(cycle.getStatus()).publishedDate(publishedDate)
+                .summary(summary).employees(employeeRows).build();
     }
 
     private long countSubmitted(List<EmployeeReview> reviews, String roleType) {

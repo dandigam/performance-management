@@ -27,6 +27,12 @@ public class EmployeeCreateRequest {
     private String ritId;
     @Size(max = 50)
     private String csxRacfId;
+    @NotBlank @Size(max = 50)
+    private String employmentType;
+    @NotBlank @Size(max = 50)
+    private String workMode;
+    @Positive
+    private Long vendorId;
     @Size(max = 20)
     private String status;
     @Positive

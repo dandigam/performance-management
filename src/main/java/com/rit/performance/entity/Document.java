@@ -33,6 +33,9 @@ public class Document {
     @Column(name = "file_type", length = 255)
     private String fileType;
 
+    @Column(name = "document_type", length = 255)
+    private String documentType;
+
     @Column(name = "file_url", length = 255)
     private String fileUrl;
 

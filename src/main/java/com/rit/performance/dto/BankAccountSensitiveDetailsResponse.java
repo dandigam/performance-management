@@ -1,24 +1,21 @@
 package com.rit.performance.dto;
 
+import com.rit.performance.entity.BankAccountOwnerType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class DocumentResponse {
+public class BankAccountSensitiveDetailsResponse {
     private Long id;
-    private String documentName;
-    private String fileType;
-    private String documentType;
-    private String fileUrl;
-    private String module;
-    private LocalDateTime uploadedAt;
+    private BankAccountOwnerType ownerType;
+    private Long ownerId;
+    private String accountNumber;
+    private String routingNumber;
 }

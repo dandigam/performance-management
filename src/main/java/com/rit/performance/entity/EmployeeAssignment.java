@@ -39,6 +39,12 @@ public class EmployeeAssignment {
     @Column(name = "project_id")
     private Long projectId;
 
+    @Column(name = "allocation_percentage")
+    private Integer allocationPercentage;
+
+    @Column(name = "status", length = 20)
+    private String status;
+
     @Column(name = "effective_from", nullable = false)
     private LocalDate effectiveFrom;
 

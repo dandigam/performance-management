@@ -20,5 +20,10 @@ public class EmployeeInformationResponse {
     private String phoneNumber;
     private String ritId;
     private String csxRacfId;
+    private String employmentType;
+    private String workMode;
+    private Long vendorId;
+    private String vendorCode;
+    private String vendorCompanyName;
     private String status;
 }

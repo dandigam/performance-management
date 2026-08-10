@@ -65,6 +65,7 @@ public final class SowMapper {
                 .id(document.getId())
                 .documentName(document.getDocumentName())
                 .fileType(document.getFileType())
+                .documentType(document.getDocumentType())
                 .fileUrl(document.getFileUrl())
                 .module(document.getModule())
                 .uploadedAt(document.getUploadedAt())

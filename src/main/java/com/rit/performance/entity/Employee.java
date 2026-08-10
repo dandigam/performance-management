@@ -38,6 +38,16 @@ public class Employee {
     @Column(name = "csx_racf_id", unique = true, length = 50)
     private String csxRacfId;
 
+    @Column(name = "employment_type", length = 50)
+    private String employmentType;
+
+    @Column(name = "work_mode", length = 50)
+    private String workMode;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendor_id", foreignKey = @ForeignKey(name = "fk_employee_vendor"))
+    private Vendor vendor;
+
     @Column(name = "status", length = 20)
     private String status;
 

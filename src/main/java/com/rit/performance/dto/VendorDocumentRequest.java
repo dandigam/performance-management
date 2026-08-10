@@ -1,4 +1,4 @@
-package com.rit.performance.dto.request;
+package com.rit.performance.dto;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SowDocumentRequest {
+public class VendorDocumentRequest {
     @NotNull(message = "document id is required")
     @Positive(message = "document id must be positive")
     private Long id;
