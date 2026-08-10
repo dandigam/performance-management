@@ -11,7 +11,6 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +18,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.net.URI;
 
-@CrossOrigin("*")
 @RestController
 @RequestMapping({"/api/projects", "/api/v1/projects"})
 @RequiredArgsConstructor

@@ -9,7 +9,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.CacheControl;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.net.URI;
 import java.util.List;
 
-@CrossOrigin("*")
 @RestController
 @RequestMapping("/api/v1/bank-accounts")
 @RequiredArgsConstructor
@@ -48,8 +46,6 @@ public class BankAccountController {
         return ResponseEntity.ok(service.getById(id));
     }
 
-    // Temporary public endpoint. Restrict to authorized finance/admin users when
-    // application authentication is integrated.
     @GetMapping("/{id}/sensitive-details")
     public ResponseEntity<BankAccountSensitiveDetailsResponse> getSensitiveDetails(
             @PathVariable Long id) {
