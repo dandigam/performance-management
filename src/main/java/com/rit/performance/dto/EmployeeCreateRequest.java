@@ -31,6 +31,8 @@ public class EmployeeCreateRequest {
     private String employmentType;
     @NotBlank @Size(max = 50)
     private String workMode;
+    @PastOrPresent
+    private LocalDate joiningDate;
     @Positive
     private Long vendorId;
     @Size(max = 20)

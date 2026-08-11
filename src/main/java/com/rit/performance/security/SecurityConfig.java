@@ -45,8 +45,7 @@ public class SecurityConfig {
             JwtAuthenticationFilter jwtAuthenticationFilter,
             ApiAuthenticationEntryPoint authenticationEntryPoint,
             ApiAccessDeniedHandler accessDeniedHandler,
-            CorsConfigurationSource corsConfigurationSource,
-            @Value("${app.security.swagger-public:false}") boolean swaggerPublic
+            CorsConfigurationSource corsConfigurationSource
     ) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -61,18 +60,23 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/auth/login", "/api/auth/refresh", "/api/auth/logout")
-                                .permitAll();
-                    if (swaggerPublic) {
-                        auth.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
-                                .permitAll();
-                    } else {
-                        auth.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
-                                .hasRole("ADMIN");
-                    }
-                    auth
+                                .permitAll()
+                        .requestMatchers(
+                                "/",
+                                "/login",
+                                "/index.html",
+                                "/favicon.ico",
+                                "/assets/**",
+                                "/rail-infotech-logo.svg",
+                                "/rit-favicon.svg",
+                                "/rit-mark.svg"
+                        ).permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
+                                .permitAll()
                         .requestMatchers("/api/v1/bank-accounts/**", "/api/v1/vendors/**")
                                 .hasAnyRole("ADMIN", "FINANCE")
-                        .anyRequest().authenticated();
+                        .requestMatchers("/api/**").authenticated()
+                        .anyRequest().permitAll();
                 })
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())

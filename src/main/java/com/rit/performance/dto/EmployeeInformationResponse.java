@@ -21,6 +21,7 @@ public class EmployeeInformationResponse {
     private String ritId;
     private String csxRacfId;
     private String employmentType;
+    private java.time.LocalDate joiningDate;
     private String workMode;
     private Long vendorId;
     private String vendorCode;

@@ -32,6 +32,8 @@ public class EmployeeUpdateRequest {
     private String employmentType;
     @Size(max = 50)
     private String workMode;
+    @PastOrPresent
+    private LocalDate joiningDate;
     @Positive
     private Long vendorId;
     @JsonIgnore

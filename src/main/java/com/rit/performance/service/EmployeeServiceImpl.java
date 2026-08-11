@@ -11,22 +11,14 @@ import com.rit.performance.dto.EmployeeHierarchyMemberResponse;
 import com.rit.performance.dto.EmployeeHierarchyResponse;
 import com.rit.performance.dto.EmployeeInformationResponse;
 import com.rit.performance.dto.ProjectAssignmentRequest;
-import com.rit.performance.entity.Employee;
-import com.rit.performance.entity.EmployeeAssignment;
-import com.rit.performance.entity.EmployeeRole;
-import com.rit.performance.entity.EmployeeReview;
-import com.rit.performance.entity.EmployeeReviewAssessment;
-import com.rit.performance.entity.LookupValue;
-import com.rit.performance.entity.PerformanceCycles;
-import com.rit.performance.entity.Projects;
-import com.rit.performance.entity.User;
-import com.rit.performance.entity.Vendor;
+import com.rit.performance.entity.*;
 import com.rit.performance.repository.EmployeeAssignmentRepository;
 import com.rit.performance.repository.EmployeeRepository;
 import com.rit.performance.repository.EmployeeRoleRepository;
 import com.rit.performance.repository.EmployeeReviewAssessmentRepository;
 import com.rit.performance.repository.EmployeeReviewRepository;
 import com.rit.performance.repository.LookupValueRepository;
+import com.rit.performance.repository.PerformanceCycleAssessorRepository;
 import com.rit.performance.repository.PerformanceCycleConfigRepository;
 import com.rit.performance.repository.ProjectRepository;
 import com.rit.performance.repository.UserRepository;
@@ -37,6 +29,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -60,7 +53,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeReviewAssessmentRepository employeeReviewAssessmentRepository;
     private final EmployeeReviewRepository employeeReviewRepository;
     private final PerformanceCycleConfigRepository cycleRepository;
+    private final PerformanceCycleAssessorRepository assessorConfigRepository;
     private final VendorRepository vendorRepository;
+    private final AssessmentAssigneeResolver assigneeResolver;
 
     @Override
     @Transactional
@@ -79,6 +74,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setRitId(ritId);
         employee.setCsxRacfId(csxRacfId);
         employee.setEmploymentType(normalizeRequiredValue(request.getEmploymentType(), "employmentType"));
+        employee.setJoiningDate(request.getJoiningDate());
         employee.setWorkMode(normalizeRequiredValue(request.getWorkMode(), "workMode"));
         employee.setVendor(resolveVendor(request.getVendorId(), employee.getEmploymentType()));
         employee.setStatus(request.getStatus() == null ? "ACTIVE" : request.getStatus().trim().toUpperCase());
@@ -96,9 +92,81 @@ public class EmployeeServiceImpl implements EmployeeService {
         user.setEmployee(employee);
         user = userRepository.save(user);
 
+        seedReviewsForNewEmployee(employee, request.getCreatedBy(), assignment);
+
         return EmployeeCreateResponse.builder().employee(currentEmployeeResponse(employee, assignment))
                 .userId(user.getId()).username(user.getUsername()).password(DEFAULT_PASSWORD)
                 .roleName(role.getName()).build();
+    }
+
+    private void seedReviewsForNewEmployee(Employee employee, Long actorId, EmployeeAssignment assignment) {
+        List<PerformanceCycles> cycles = cycleRepository.findAll().stream()
+                .filter(cycle -> "PUBLISHED".equalsIgnoreCase(cycle.getStatus())
+                        || "ACTIVE".equalsIgnoreCase(cycle.getStatus()))
+                .toList();
+        for (PerformanceCycles cycle : cycles) {
+            if (employeeReviewRepository.existsByPerformanceCycleIdAndEmployeeId(cycle.getId(), employee.getId())) {
+                continue;
+            }
+            if (!employeeIsEligibleForCycle(employee, cycle)) {
+                continue;
+            }
+            EmployeeReview review = EmployeeReview.builder()
+                    .performanceCycle(cycle)
+                    .employee(employee)
+                    .status(EmployeeReviewStatus.NOT_STARTED)
+                    .progressPercentage(BigDecimal.ZERO)
+                    .createdBy(actorId)
+                    .updatedBy(actorId)
+                    .build();
+            if (assignment != null) {
+                review.setProjectSnapshotId(assignment.getProjectId());
+            }
+            EmployeeReview savedReview = employeeReviewRepository.save(review);
+
+            List<PerformanceCycleAssessor> assessorConfigs = assessorConfigRepository
+                    .findByPerformanceCycleIdOrderByDisplayOrderAsc(cycle.getId()).stream()
+                    .filter(config -> Boolean.TRUE.equals(config.getActive())).toList();
+            List<EmployeeReviewAssessment> assessments = assessorConfigs.stream()
+                    .map(config -> newAssessment(savedReview, config, actorId))
+                    .filter(Objects::nonNull)
+                    .toList();
+            if (!assessments.isEmpty()) {
+                employeeReviewAssessmentRepository.saveAll(assessments);
+            }
+        }
+    }
+
+    private boolean employeeIsEligibleForCycle(Employee employee, PerformanceCycles cycle) {
+        LookupValue applicableType = lookupValueRepository.findById(cycle.getApplicableTypeId())
+                .orElseThrow(() -> new InvalidOperationException(
+                        "Cycle has an invalid applicable type: " + cycle.getId()));
+        String code = applicableType.getCode() == null ? "" : applicableType.getCode().toUpperCase();
+        List<Long> scopeIds = cycle.getScopeValueIds() == null ? List.of() : cycle.getScopeValueIds();
+        return switch (code) {
+            case "ALL" -> true;
+            case "DEPARTMENT" -> assignmentRepository.findByDepartmentIdInAndIsCurrentTrue(scopeIds).stream()
+                    .map(EmployeeAssignment::getEmployeeId)
+                    .anyMatch(employee.getId()::equals);
+            case "DESIGNATION" -> assignmentRepository.findByDesignationIdInAndIsCurrentTrue(scopeIds).stream()
+                    .map(EmployeeAssignment::getEmployeeId)
+                    .anyMatch(employee.getId()::equals);
+            case "EMPLOYEE" -> scopeIds.contains(employee.getId());
+            default -> false;
+        };
+    }
+
+    private EmployeeReviewAssessment newAssessment(EmployeeReview review, PerformanceCycleAssessor config,
+            Long createdBy) {
+        LookupValue role = lookupValueRepository.findById(config.getRoleId())
+                .orElseThrow(() -> new InvalidOperationException(
+                        "Invalid assessor role: " + config.getRoleId()));
+        if (!assigneeResolver.isApplicable(review.getEmployee(), role)) return null;
+        Employee assessor = assigneeResolver.resolve(review.getEmployee(), role);
+        return EmployeeReviewAssessment.builder().employeeReview(review)
+                .assessmentLevel(config.getDisplayOrder()).assessorRole(role).assessorEmployee(assessor)
+                .status(EmployeeReviewStatus.NOT_STARTED).progressPercentage(BigDecimal.ZERO)
+                .createdBy(createdBy).updatedBy(createdBy).build();
     }
 
     private EmployeeAssignment createInitialAssignment(Long employeeId, EmployeeCreateRequest request) {
@@ -547,6 +615,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         if (request.getEmploymentType() != null)
             employee.setEmploymentType(normalizeRequiredValue(request.getEmploymentType(), "employmentType"));
+        if (request.getJoiningDate() != null)
+            employee.setJoiningDate(request.getJoiningDate());
         if (request.getWorkMode() != null)
             employee.setWorkMode(normalizeRequiredValue(request.getWorkMode(), "workMode"));
         if (request.isVendorIdPresent() || request.getEmploymentType() != null) {
@@ -738,6 +808,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .email(employee.getEmail()).phoneNumber(employee.getPhoneNumber())
                 .ritId(employee.getRitId()).csxRacfId(employee.getCsxRacfId())
                 .employmentType(employee.getEmploymentType())
+                .joiningDate(employee.getJoiningDate())
+                .joiningDate(employee.getJoiningDate())
                 .workMode(employee.getWorkMode())
                 .vendorId(employee.getVendor() == null ? null : employee.getVendor().getId())
                 .vendorCode(employee.getVendor() == null ? null : employee.getVendor().getVendorCode())

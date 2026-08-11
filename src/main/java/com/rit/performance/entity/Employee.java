@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -40,6 +41,9 @@ public class Employee {
 
     @Column(name = "employment_type", length = 50)
     private String employmentType;
+
+    @Column(name = "joining_date", nullable = false)
+    private LocalDate joiningDate;
 
     @Column(name = "work_mode", length = 50)
     private String workMode;

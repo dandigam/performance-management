@@ -2,11 +2,13 @@ package com.rit.performance.controller;
 
 import com.rit.performance.dto.LoginRequest;
 import com.rit.performance.dto.LoginResponse;
+import com.rit.performance.exception.AuthenticationException;
 import com.rit.performance.service.AuthenticationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -40,9 +42,16 @@ public class AuthenticationController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<LoginResponse> refresh(
+    public ResponseEntity<?> refresh(
             @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
-        return authenticationResponse(authenticationService.refresh(refreshToken));
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return unauthorizedRefresh();
+        }
+        try {
+            return authenticationResponse(authenticationService.refresh(refreshToken));
+        } catch (AuthenticationException exception) {
+            return unauthorizedRefresh();
+        }
     }
 
     @PostMapping("/logout")
@@ -84,6 +93,12 @@ public class AuthenticationController {
                 .sameSite("Strict")
                 .path("/api/auth")
                 .maxAge(Duration.ZERO)
+                .build();
+    }
+
+    private ResponseEntity<Void> unauthorizedRefresh() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .header(HttpHeaders.SET_COOKIE, clearRefreshCookie().toString())
                 .build();
     }
 }
