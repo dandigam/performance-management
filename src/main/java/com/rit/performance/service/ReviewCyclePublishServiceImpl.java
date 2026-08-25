@@ -124,11 +124,10 @@ public class ReviewCyclePublishServiceImpl implements ReviewCyclePublishService 
         return switch (code) {
             case "ALL" -> employeeRepository.findAll();
             case "DEPARTMENT" -> employeesForAssignments(
-                    employeeAssignmentRepository.findByDepartmentIdInAndIsCurrentTrue(
-                            requireScope(scopeIds, code)));
-            case "DESIGNATION" -> employeesForAssignments(
-                    employeeAssignmentRepository.findByDesignationIdInAndIsCurrentTrue(
-                            requireScope(scopeIds, code)));
+                    employeeAssignmentRepository.findByDepartmentIdInAndStatusIgnoreCase(
+                            requireScope(scopeIds, code), "ACTIVE"));
+            case "DESIGNATION" -> employeeRepository.findByDesignationIdInAndStatusIgnoreCase(
+                    requireScope(scopeIds, code), "ACTIVE");
             case "EMPLOYEE" -> employeeRepository.findByIdIn(requireScope(scopeIds, code));
             default -> throw new IllegalStateException("Unsupported applicable type: " + code);
         };
@@ -158,21 +157,23 @@ public class ReviewCyclePublishServiceImpl implements ReviewCyclePublishService 
                 .createdBy(publishedBy)
                 .updatedBy(publishedBy)
                 .build();
-        employeeAssignmentRepository.findByEmployeeIdAndIsCurrentTrue(employee.getId())
+        employeeAssignmentRepository.findActiveByEmployeeId(employee.getId())
                 .ifPresent(assignment -> applyAssignmentSnapshot(review, assignment));
         return review;
     }
 
     private void applyAssignmentSnapshot(EmployeeReview review, EmployeeAssignment assignment) {
-        review.setProjectSnapshotId(assignment.getProjectId());
+        review.setSowId(assignment.getSowId());
     }
 
     private EmployeeReviewAssessment newAssessment(EmployeeReview review, PerformanceCycleAssessor config,
             Long createdBy) {
         LookupValue role = lookupValueRepository.findById(config.getRoleId())
                 .orElseThrow(() -> new IllegalStateException("Invalid assessor role: " + config.getRoleId()));
+        if (assigneeResolver.isPublishOnly(role)) return null;
         if (!assigneeResolver.isApplicable(review.getEmployee(), role)) return null;
-        Employee assessor = assigneeResolver.resolve(review.getEmployee(), role);
+        Employee assessor = assigneeResolver.resolveIfAvailable(review.getEmployee(), role).orElse(null);
+        if (assessor == null) return null;
         return EmployeeReviewAssessment.builder().employeeReview(review)
                 .assessmentLevel(config.getDisplayOrder()).assessorRole(role).assessorEmployee(assessor)
                 .status(EmployeeReviewStatus.NOT_STARTED).progressPercentage(BigDecimal.ZERO)

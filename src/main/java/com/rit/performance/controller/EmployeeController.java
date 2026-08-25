@@ -7,6 +7,8 @@ import com.rit.performance.dto.DirectReportsResponse;
 import com.rit.performance.dto.EmployeeUpdateRequest;
 import com.rit.performance.dto.EmployeeHierarchyResponse;
 import com.rit.performance.dto.EmployeeInformationResponse;
+import com.rit.performance.dto.EmployeeFinanceHistoryResponse;
+import com.rit.performance.dto.EmployeeAssignmentsResponse;
 import com.rit.performance.service.EmployeeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,18 @@ public class EmployeeController {
     @GetMapping("/{employeeId}")
     public ResponseEntity<EmployeeBasicInfoResponse> getById(@PathVariable Long employeeId) {
         return ResponseEntity.ok(employeeService.getById(employeeId));
+    }
+
+    @GetMapping("/{employeeId}/assignments")
+    public ResponseEntity<EmployeeAssignmentsResponse> getAssignmentsByEmployeeId(
+            @PathVariable Long employeeId) {
+        return ResponseEntity.ok(employeeService.getAssignmentsByEmployeeId(employeeId));
+    }
+
+    @GetMapping("/{employeeId}/finance-history")
+    public ResponseEntity<List<EmployeeFinanceHistoryResponse>> getFinanceHistory(
+            @PathVariable Long employeeId) {
+        return ResponseEntity.ok(employeeService.getFinanceHistory(employeeId));
     }
 
     @GetMapping("/information")

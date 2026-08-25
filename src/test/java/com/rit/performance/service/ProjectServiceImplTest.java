@@ -42,11 +42,10 @@ class ProjectServiceImplTest {
         EmployeeAssignment historical = new EmployeeAssignment();
         historical.setId(101L);
         historical.setEmployeeId(12L);
-        historical.setProjectId(1L);
+        historical.setSowId(1L);
         historical.setDesignationId(4L);
         historical.setDepartmentId(48L);
         historical.setStatus("INACTIVE");
-        historical.setIsCurrent(false);
         historical.setEffectiveFrom(LocalDate.of(2026, 7, 1));
         historical.setEffectiveTo(LocalDate.of(2026, 8, 1));
         ProjectEmployeeCreateRequest request = new ProjectEmployeeCreateRequest();
@@ -55,8 +54,8 @@ class ProjectServiceImplTest {
 
         when(projects.findById(1L)).thenReturn(Optional.of(project()));
         when(employees.findById(12L)).thenReturn(Optional.of(employee));
-        when(assignments.findByEmployeeIdAndIsCurrentTrue(12L)).thenReturn(Optional.empty());
-        when(assignments.findFirstByProjectIdAndEmployeeIdOrderByEffectiveFromDescIdDesc(1L, 12L))
+        when(assignments.findActiveByEmployeeId(12L)).thenReturn(Optional.empty());
+        when(assignments.findFirstBySowIdAndEmployeeIdOrderByEffectiveFromDescIdDesc(1L, 12L))
                 .thenReturn(Optional.of(historical));
         when(assignments.save(historical)).thenReturn(historical);
 
@@ -65,7 +64,7 @@ class ProjectServiceImplTest {
         assertEquals(101L, response.getAssignmentId());
         assertEquals(4L, response.getDesignationId());
         assertEquals("ACTIVE", response.getStatus());
-        assertTrue(historical.getIsCurrent());
+        assertEquals("ACTIVE", historical.getStatus());
         assertEquals(LocalDate.of(2026, 8, 9), historical.getEffectiveFrom());
         assertNull(historical.getEffectiveTo());
     }
@@ -79,10 +78,9 @@ class ProjectServiceImplTest {
         ProjectServiceImpl service = new ProjectServiceImpl(projects, assignments, employees, lookups);
         EmployeeAssignment assignment = new EmployeeAssignment();
         assignment.setId(101L);
-        assignment.setProjectId(1L);
+        assignment.setSowId(1L);
         assignment.setEmployeeId(12L);
         assignment.setEffectiveFrom(LocalDate.of(2026, 8, 1));
-        assignment.setIsCurrent(true);
         assignment.setStatus("ACTIVE");
         Employee employee = new Employee();
         employee.setId(12L);
@@ -99,7 +97,7 @@ class ProjectServiceImplTest {
         var response = service.updateEmployeeAssignmentStatus(1L, 101L, request);
 
         assertEquals("INACTIVE", response.getStatus());
-        assertFalse(assignment.getIsCurrent());
+        assertFalse(assignment.getIsPrimaryAssignment());
         assertNotNull(assignment.getEffectiveTo());
     }
 
@@ -129,7 +127,7 @@ class ProjectServiceImplTest {
 
         when(projects.findById(1L)).thenReturn(Optional.of(project()));
         when(employees.findById(12L)).thenReturn(Optional.of(employee));
-        when(assignments.findByEmployeeIdAndIsCurrentTrue(12L)).thenReturn(Optional.of(current));
+        when(assignments.findActiveByEmployeeId(12L)).thenReturn(Optional.of(current));
         when(assignments.save(any(EmployeeAssignment.class))).thenAnswer(invocation -> {
             EmployeeAssignment saved = invocation.getArgument(0);
             saved.setId(101L);
@@ -162,7 +160,7 @@ class ProjectServiceImplTest {
 
         when(projects.findById(1L)).thenReturn(Optional.of(project()));
         when(employees.findById(12L)).thenReturn(Optional.of(employee));
-        when(assignments.existsByProjectIdAndEmployeeIdAndIsCurrentTrue(1L, 12L)).thenReturn(true);
+        when(assignments.existsBySowIdAndEmployeeIdAndStatusIgnoreCase(1L, 12L, "ACTIVE")).thenReturn(true);
 
         assertThrows(DuplicateResourceException.class, () -> service.addEmployee(1L, request));
     }
@@ -180,7 +178,7 @@ class ProjectServiceImplTest {
         EmployeeAssignment assignment = new EmployeeAssignment();
         assignment.setId(101L);
         assignment.setEmployeeId(12L);
-        assignment.setProjectId(1L);
+        assignment.setSowId(1L);
         assignment.setDesignationId(4L);
         assignment.setDepartmentId(48L);
         assignment.setAllocationPercentage(100);
@@ -201,7 +199,7 @@ class ProjectServiceImplTest {
         department.setName("Car Management");
 
         when(projects.findById(1L)).thenReturn(Optional.of(project));
-        when(assignments.findByProjectIdAndIsCurrentTrue(eq(1L), any(Pageable.class)))
+        when(assignments.findBySowIdAndStatusIgnoreCase(eq(1L), eq("ACTIVE"), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(assignment), PageRequest.of(0, 10), 1));
         when(employees.findByIdIn(List.of(12L))).thenReturn(List.of(employee));
         when(lookups.findAllById(List.of(4L, 48L))).thenReturn(List.of(designation, department));
@@ -233,7 +231,7 @@ class ProjectServiceImplTest {
         ProjectServiceImpl service = new ProjectServiceImpl(projects, assignments, employees, lookups);
 
         when(projects.findById(1L)).thenReturn(Optional.of(project()));
-        when(assignments.findByProjectIdAndIsCurrentTrue(eq(1L), any(Pageable.class)))
+        when(assignments.findBySowIdAndStatusIgnoreCase(eq(1L), eq("ACTIVE"), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
         when(employees.findByIdIn(List.of())).thenReturn(List.of());
         when(lookups.findAllById(List.of())).thenReturn(List.of());

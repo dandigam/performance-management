@@ -14,6 +14,8 @@ import com.rit.performance.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 public class AssessmentAssigneeResolver {
@@ -25,6 +27,14 @@ public class AssessmentAssigneeResolver {
 
     public Employee resolve(Employee subject, LookupValue role) {
         return resolve(subject, role, false);
+    }
+
+    public Optional<Employee> resolveIfAvailable(Employee subject, LookupValue role) {
+        try {
+            return Optional.of(resolve(subject, role));
+        } catch (InvalidOperationException | IllegalStateException exception) {
+            return Optional.empty();
+        }
     }
 
     public Employee resolve(Employee subject, LookupValue role, boolean teamLeadPrecedes) {
@@ -43,6 +53,10 @@ public class AssessmentAssigneeResolver {
 
     public boolean isTeamLead(LookupValue role) {
         return "TEAMLEAD".equals(normalize(role));
+    }
+
+    public boolean isPublishOnly(LookupValue role) {
+        return "HR".equals(normalize(role));
     }
 
     public boolean isApplicable(Employee subject, LookupValue assessorRole) {
@@ -68,7 +82,7 @@ public class AssessmentAssigneeResolver {
     }
 
     private Employee managerOf(Long employeeId, String roleName) {
-        Long managerId = assignmentRepository.findByEmployeeIdAndIsCurrentTrue(employeeId)
+        Long managerId = assignmentRepository.findActiveByEmployeeId(employeeId)
                 .map(EmployeeAssignment::getManagerId).orElseThrow(() -> new InvalidOperationException(
                         "No current manager found for employee " + employeeId
                                 + " while resolving assessor role " + roleName));
@@ -77,7 +91,7 @@ public class AssessmentAssigneeResolver {
     }
 
     private Employee leadOf(Long employeeId, String roleName) {
-        Long leadId = assignmentRepository.findByEmployeeIdAndIsCurrentTrue(employeeId)
+        Long leadId = assignmentRepository.findActiveByEmployeeId(employeeId)
                 .map(EmployeeAssignment::getLeadId).orElseThrow(() -> new InvalidOperationException(
                         "No current team lead found for employee " + employeeId
                                 + " while resolving assessor role " + roleName));

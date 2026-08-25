@@ -36,8 +36,14 @@ public class EmployeeAssignment {
     @Column(name = "lead_id")
     private Long leadId;
 
-    @Column(name = "project_id")
-    private Long projectId;
+    @Column(name = "sow_id")
+    private Long sowId;
+
+    @Column(name = "milestone_id")
+    private Long milestoneId;
+
+    @Column(name = "position_type", length = 20)
+    private String positionType;
 
     @Column(name = "allocation_percentage")
     private Integer allocationPercentage;
@@ -51,8 +57,8 @@ public class EmployeeAssignment {
     @Column(name = "effective_to")
     private LocalDate effectiveTo;
 
-    @Column(name = "is_current")
-    private Boolean isCurrent;
+    @Column(name = "is_primary_assignment", nullable = false)
+    private Boolean isPrimaryAssignment;
 
     @Column(name = "created_by")
     private Long createdBy;
@@ -65,4 +71,9 @@ public class EmployeeAssignment {
 
     @Column(name = "updated_date", insertable = false, updatable = false)
     private LocalDateTime updatedDate;
+
+    @PrePersist
+    void applyDefaults() {
+        if (isPrimaryAssignment == null) isPrimaryAssignment = false;
+    }
 }

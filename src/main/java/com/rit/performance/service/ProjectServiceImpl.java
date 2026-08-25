@@ -81,7 +81,7 @@ public class ProjectServiceImpl implements ProjectsService {
         PageRequest pageable = PageRequest.of(page, size,
                 Sort.by(Sort.Order.desc("effectiveFrom"), Sort.Order.asc("id")));
         Page<EmployeeAssignment> assignments =
-                assignmentRepository.findByProjectIdAndIsCurrentTrue(projectId, pageable);
+                assignmentRepository.findBySowIdAndStatusIgnoreCase(projectId, "ACTIVE", pageable);
 
         List<Long> employeeIds = assignments.getContent().stream()
                 .map(EmployeeAssignment::getEmployeeId).distinct().toList();
@@ -129,8 +129,8 @@ public class ProjectServiceImpl implements ProjectsService {
                         "Employee not found: " + request.getEmployeeId()));
         if (!"ACTIVE".equalsIgnoreCase(employee.getStatus()))
             throw new InvalidOperationException("Employee is not active: " + employee.getId());
-        if (assignmentRepository.existsByProjectIdAndEmployeeIdAndIsCurrentTrue(
-                projectId, employee.getId()))
+        if (assignmentRepository.existsBySowIdAndEmployeeIdAndStatusIgnoreCase(
+                projectId, employee.getId(), "ACTIVE"))
             throw new DuplicateResourceException(
                     "Employee " + employee.getId() + " is already assigned to project " + projectId);
         validateAssignmentStartDate(project, request.getAssignmentStartDate());
@@ -140,14 +140,17 @@ public class ProjectServiceImpl implements ProjectsService {
                     "status must be ACTIVE when adding an employee to a project");
 
         EmployeeAssignment previous = assignmentRepository
-                .findFirstByProjectIdAndEmployeeIdOrderByEffectiveFromDescIdDesc(
+                .findFirstBySowIdAndEmployeeIdOrderByEffectiveFromDescIdDesc(
                         projectId, employee.getId())
                 .orElse(null);
         if (previous != null && "ACTIVE".equals(status)) {
             previous.setEffectiveFrom(request.getAssignmentStartDate());
             previous.setEffectiveTo(null);
             previous.setStatus("ACTIVE");
-            previous.setIsCurrent(true);
+            if (!assignmentRepository
+                    .existsByEmployeeIdAndStatusIgnoreCaseAndIsPrimaryAssignmentTrue(employee.getId(), "ACTIVE")) {
+                previous.setIsPrimaryAssignment(true);
+            }
             if (previous.getAllocationPercentage() == null)
                 previous.setAllocationPercentage(100);
             previous = assignmentRepository.save(previous);
@@ -159,13 +162,13 @@ public class ProjectServiceImpl implements ProjectsService {
         }
 
         EmployeeAssignment current = assignmentRepository
-                .findByEmployeeIdAndIsCurrentTrue(employee.getId())
+                .findActiveByEmployeeId(employee.getId())
                 .orElseGet(() -> assignmentRepository
                         .findFirstByEmployeeIdOrderByEffectiveFromDescIdDesc(employee.getId())
                         .orElse(null));
         EmployeeAssignment assignment = new EmployeeAssignment();
         assignment.setEmployeeId(employee.getId());
-        assignment.setProjectId(projectId);
+        assignment.setSowId(projectId);
         assignment.setDepartmentId(current == null ? null : current.getDepartmentId());
         assignment.setDesignationId(current == null ? null : current.getDesignationId());
         assignment.setManagerId(current == null ? null : current.getManagerId());
@@ -173,7 +176,9 @@ public class ProjectServiceImpl implements ProjectsService {
         assignment.setAllocationPercentage(100);
         assignment.setEffectiveFrom(request.getAssignmentStartDate());
         assignment.setStatus(status);
-        assignment.setIsCurrent("ACTIVE".equals(status));
+        assignment.setIsPrimaryAssignment("ACTIVE".equals(status)
+                && !assignmentRepository
+                        .existsByEmployeeIdAndStatusIgnoreCaseAndIsPrimaryAssignmentTrue(employee.getId(), "ACTIVE"));
         assignment = assignmentRepository.save(assignment);
 
         LookupValue designation = assignment.getDesignationId() == null ? null
@@ -190,7 +195,7 @@ public class ProjectServiceImpl implements ProjectsService {
         repository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project not found: " + projectId));
         EmployeeAssignment assignment = assignmentRepository.findById(assignmentId)
-                .filter(value -> projectId.equals(value.getProjectId()))
+                .filter(value -> projectId.equals(value.getSowId()))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Assignment " + assignmentId + " not found for project " + projectId));
         Long employeeId = assignment.getEmployeeId();
@@ -202,14 +207,13 @@ public class ProjectServiceImpl implements ProjectsService {
         if ("ACTIVE".equals(status)) {
             if (!"ACTIVE".equalsIgnoreCase(employee.getStatus()))
                 throw new InvalidOperationException("Employee is not active: " + employee.getId());
-            if (assignmentRepository.existsByProjectIdAndEmployeeIdAndIsCurrentTrueAndIdNot(
-                    projectId, employee.getId(), assignmentId))
+            if (assignmentRepository.existsBySowIdAndEmployeeIdAndStatusIgnoreCaseAndIdNot(
+                    projectId, employee.getId(), "ACTIVE", assignmentId))
                 throw new DuplicateResourceException(
                         "Employee " + employee.getId() + " is already assigned to project " + projectId);
-            assignment.setIsCurrent(true);
             assignment.setEffectiveTo(null);
         } else {
-            assignment.setIsCurrent(false);
+            assignment.setIsPrimaryAssignment(false);
             if (assignment.getEffectiveTo() == null) {
                 LocalDate today = LocalDate.now();
                 assignment.setEffectiveTo(assignment.getEffectiveFrom() != null
@@ -259,9 +263,7 @@ public class ProjectServiceImpl implements ProjectsService {
                 .allocationPercentage(assignment.getAllocationPercentage())
                 .assignmentStartDate(assignment.getEffectiveFrom())
                 .assignmentEndDate(assignment.getEffectiveTo())
-                .status(assignment.getStatus() == null
-                        ? Boolean.TRUE.equals(assignment.getIsCurrent()) ? "ACTIVE" : "INACTIVE"
-                        : assignment.getStatus())
+                .status(assignment.getStatus() == null ? "INACTIVE" : assignment.getStatus())
                 .build();
     }
 

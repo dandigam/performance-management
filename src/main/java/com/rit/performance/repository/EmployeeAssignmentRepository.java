@@ -18,11 +18,22 @@ public interface EmployeeAssignmentRepository extends JpaRepository<EmployeeAssi
 
     Optional<EmployeeAssignment> findFirstByEmployeeIdOrderByEffectiveFromDescIdDesc(Long employeeId);
 
-    Optional<EmployeeAssignment> findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDescIdDesc(Long employeeId);
+    Optional<EmployeeAssignment> findFirstByEmployeeIdAndStatusIgnoreCaseOrderByEffectiveFromDescIdDesc(
+            Long employeeId, String status);
 
-    default Optional<EmployeeAssignment> findByEmployeeIdAndIsCurrentTrue(Long employeeId) {
-        return findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDescIdDesc(employeeId);
+    default Optional<EmployeeAssignment> findActiveByEmployeeId(Long employeeId) {
+        return findFirstByEmployeeIdAndStatusIgnoreCaseAndIsPrimaryAssignmentTrueOrderByEffectiveFromDescIdDesc(
+                employeeId, "ACTIVE")
+                .or(() -> findFirstByEmployeeIdAndStatusIgnoreCaseOrderByEffectiveFromDescIdDesc(
+                        employeeId, "ACTIVE"));
     }
+
+    Optional<EmployeeAssignment> findFirstByEmployeeIdAndStatusIgnoreCaseAndIsPrimaryAssignmentTrueOrderByEffectiveFromDescIdDesc(
+            Long employeeId, String status);
+
+    List<EmployeeAssignment> findAllByEmployeeIdAndStatusIgnoreCase(Long employeeId, String status);
+
+    boolean existsByEmployeeIdAndStatusIgnoreCaseAndIsPrimaryAssignmentTrue(Long employeeId, String status);
 
     @Query("""
             select assignment from EmployeeAssignment assignment
@@ -34,36 +45,42 @@ public interface EmployeeAssignmentRepository extends JpaRepository<EmployeeAssi
     List<EmployeeAssignment> findEffectiveOnDate(@Param("employeeId") Long employeeId,
             @Param("onDate") java.time.LocalDate onDate);
 
-    List<EmployeeAssignment> findByIsCurrentTrue();
+    List<EmployeeAssignment> findByStatusIgnoreCase(String status);
+
+    List<EmployeeAssignment> findByStatusIgnoreCaseOrderByIsPrimaryAssignmentDescEffectiveFromDesc(String status);
 
     List<EmployeeAssignment> findByManagerId(Long managerId);
 
-    List<EmployeeAssignment> findByManagerIdAndIsCurrentTrue(Long managerId);
+    List<EmployeeAssignment> findByManagerIdAndStatusIgnoreCase(Long managerId, String status);
 
     List<EmployeeAssignment> findByLeadId(Long leadId);
 
-    List<EmployeeAssignment> findByLeadIdAndIsCurrentTrue(Long leadId);
+    List<EmployeeAssignment> findByLeadIdAndStatusIgnoreCase(Long leadId, String status);
 
     List<EmployeeAssignment> findByDepartmentId(Long departmentId);
 
-    List<EmployeeAssignment> findByDepartmentIdInAndIsCurrentTrue(List<Long> departmentIds);
+    List<EmployeeAssignment> findByDepartmentIdInAndStatusIgnoreCase(List<Long> departmentIds, String status);
 
-    List<EmployeeAssignment> findByDesignationIdInAndIsCurrentTrue(List<Long> designationIds);
+    List<EmployeeAssignment> findByDesignationIdInAndStatusIgnoreCase(List<Long> designationIds, String status);
 
-    List<EmployeeAssignment> findByProjectId(Long projectId);
+    Optional<EmployeeAssignment> findFirstBySowIdAndEmployeeIdOrderByEffectiveFromDescIdDesc(
+            Long sowId, Long employeeId);
 
-    Page<EmployeeAssignment> findByProjectIdAndIsCurrentTrue(Long projectId, Pageable pageable);
+    Optional<EmployeeAssignment> findFirstBySowIdAndEmployeeIdAndStatusIgnoreCaseOrderByEffectiveFromDescIdDesc(
+            Long sowId, Long employeeId, String status);
 
-    boolean existsByProjectIdAndEmployeeIdAndIsCurrentTrue(Long projectId, Long employeeId);
+    Page<EmployeeAssignment> findBySowIdAndStatusIgnoreCase(Long sowId, String status, Pageable pageable);
 
-    boolean existsByProjectIdAndEmployeeIdAndIsCurrentTrueAndIdNot(
-            Long projectId, Long employeeId, Long assignmentId);
+    List<EmployeeAssignment> findBySowIdAndStatusIgnoreCaseOrderByIsPrimaryAssignmentDescEffectiveFromDescIdDesc(
+            Long sowId, String status);
 
-    Optional<EmployeeAssignment> findFirstByProjectIdAndEmployeeIdOrderByEffectiveFromDescIdDesc(
-            Long projectId, Long employeeId);
+    boolean existsBySowIdAndEmployeeIdAndStatusIgnoreCase(Long sowId, Long employeeId, String status);
 
-    List<EmployeeAssignment> findByProjectIdAndDepartmentIdAndDesignationIdAndIsCurrentTrue(
-            Long projectId, Long departmentId, Long designationId);
+    boolean existsBySowIdAndEmployeeIdAndStatusIgnoreCaseAndIdNot(
+            Long sowId, Long employeeId, String status, Long assignmentId);
 
-    boolean existsByEmployeeIdAndIsCurrentTrue(Long employeeId);
+    List<EmployeeAssignment> findBySowIdAndDepartmentIdAndDesignationIdAndStatusIgnoreCase(
+            Long sowId, Long departmentId, Long designationId, String status);
+
+    boolean existsByEmployeeIdAndStatusIgnoreCase(Long employeeId, String status);
 }

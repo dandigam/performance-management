@@ -7,9 +7,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SowFeatureRepository extends JpaRepository<SowFeature, Long> {
-    List<SowFeature> findBySow_IdAndActiveTrueOrderByDisplayOrderAscIdAsc(Long sowId);
+    List<SowFeature> findBySow_IdOrderByIdAsc(Long sowId);
 
-    Optional<SowFeature> findByIdAndSow_IdAndActiveTrue(Long id, Long sowId);
+    Optional<SowFeature> findByIdAndSow_Id(Long id, Long sowId);
 
     boolean existsBySow_IdAndFeatureCodeIgnoreCase(Long sowId, String featureCode);
 
@@ -18,4 +18,6 @@ public interface SowFeatureRepository extends JpaRepository<SowFeature, Long> {
             String featureCode,
             Long id
     );
+
+    boolean existsByMilestone_Id(Long milestoneId);
 }

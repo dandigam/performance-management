@@ -8,6 +8,8 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "employees")
@@ -33,6 +35,12 @@ public class Employee {
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
+    @Column(length = 30)
+    private String gender;
+
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
+
     @Column(name = "rit_id", unique = true, length = 50)
     private String ritId;
 
@@ -52,6 +60,9 @@ public class Employee {
     @JoinColumn(name = "vendor_id", foreignKey = @ForeignKey(name = "fk_employee_vendor"))
     private Vendor vendor;
 
+    @Column(name = "designation_id")
+    private Long designationId;
+
     @Column(name = "status", length = 20)
     private String status;
 
@@ -66,4 +77,16 @@ public class Employee {
 
     @Column(name = "updated_date", insertable = false, updatable = false)
     private LocalDateTime updatedDate;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "employee_documents",
+            joinColumns = @JoinColumn(name = "employee_id",
+                    foreignKey = @ForeignKey(name = "fk_employee_documents_employee")),
+            inverseJoinColumns = @JoinColumn(name = "document_id",
+                    foreignKey = @ForeignKey(name = "fk_employee_documents_document")),
+            uniqueConstraints = @UniqueConstraint(name = "uk_employee_documents",
+                    columnNames = {"employee_id", "document_id"})
+    )
+    private Set<Document> documents = new LinkedHashSet<>();
 }

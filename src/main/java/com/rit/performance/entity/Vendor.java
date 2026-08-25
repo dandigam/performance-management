@@ -8,10 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Entity
-@Table(
-        name = "vendors",
-        uniqueConstraints = @UniqueConstraint(name = "uk_vendor_code", columnNames = "vendor_code")
-)
+@Table(name = "vendors")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,11 +20,17 @@ public class Vendor {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "vendor_code", nullable = false, length = 50)
-    private String vendorCode;
-
     @Column(name = "company_name", nullable = false, length = 150)
     private String companyName;
+
+    @Column(name = "vendor_location", length = 20)
+    private String vendorLocation;
+
+    @Column(name = "vendor_type", length = 50)
+    private String vendorType;
+
+    @Column(name = "tax_identifier", unique = true, length = 50)
+    private String taxIdentifier;
 
     @Column(name = "primary_contact", length = 100)
     private String primaryContact;

@@ -1,9 +1,12 @@
 package com.rit.performance.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rit.performance.dto.FinalRatingResponse;
 import com.rit.performance.entity.EmployeeReview;
 import com.rit.performance.entity.EmployeeReviewAssessment;
+import com.rit.performance.entity.Employee;
 import com.rit.performance.entity.FinalRating;
+import com.rit.performance.entity.PerformanceCycles;
 import com.rit.performance.entity.User;
 import com.rit.performance.repository.EmployeeRepository;
 import com.rit.performance.repository.EmployeeReviewRepository;
@@ -64,6 +67,38 @@ class FinalRatingServiceImplTest {
         assertEquals(new BigDecimal("4.50"), response.getFinalRating());
     }
 
+    @Test
+    void returnsAllEmployeesAndGroupsTheirPerformanceHistory() {
+        Employee employee = new Employee();
+        employee.setId(4L);
+        employee.setFirstName("Dinakar");
+        employee.setLastName("kalaga");
+        Employee unratedEmployee = new Employee();
+        unratedEmployee.setId(5L);
+        unratedEmployee.setFirstName("Srini");
+        unratedEmployee.setLastName("N");
+        FinalRating june = rating(3L, 8L, employee, 6L, "RIT 2026 - June | Reviews", "2.0");
+        FinalRating july = rating(4L, 43L, employee, 12L, "July Reviews", "2.0");
+        FinalRating august = rating(5L, 48L, employee, 13L,
+                "RIT 2026 - Test Reviews for August Period", "2.0");
+        when(finalRatingRepository.findAll()).thenReturn(List.of(june, july, august));
+        when(employeeRepository.findAll()).thenReturn(List.of(employee, unratedEmployee));
+
+        List<FinalRatingResponse> response = service.getAllFinalRatings();
+
+        assertEquals(2, response.size());
+        assertEquals(4L, response.get(0).getEmployeeId());
+        assertEquals(3, response.get(0).getPerformance().size());
+        assertEquals(List.of(6L, 12L, 13L), response.get(0).getPerformance().stream()
+                .map(FinalRatingResponse::getCycleId)
+                .toList());
+        assertEquals(5L, response.get(1).getEmployeeId());
+        assertEquals("Srini N", response.get(1).getEmployeeName());
+        assertEquals(List.of(), response.get(1).getPerformance());
+        assertEquals("[]", new ObjectMapper().valueToTree(response.get(1))
+                .get("performance").toString());
+    }
+
     private void preparePublish(EmployeeReview review) {
         User publisher = new User();
         publisher.setId(3L);
@@ -90,6 +125,21 @@ class FinalRatingServiceImplTest {
                 .assessmentLevel(level)
                 .status(EmployeeReviewStatus.SUBMITTED)
                 .overallRating(new BigDecimal(rating))
+                .build();
+    }
+
+    private FinalRating rating(Long id, Long reviewId, Employee employee, Long cycleId,
+            String cycleName, String value) {
+        EmployeeReview review = EmployeeReview.builder()
+                .id(reviewId)
+                .employee(employee)
+                .performanceCycle(PerformanceCycles.builder().id(cycleId).cycleName(cycleName).build())
+                .build();
+        return FinalRating.builder()
+                .id(id)
+                .employeeReview(review)
+                .finalRating(new BigDecimal(value))
+                .published(true)
                 .build();
     }
 }

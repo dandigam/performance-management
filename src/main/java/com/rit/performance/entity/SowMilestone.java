@@ -6,12 +6,11 @@ import lombok.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
-@Table(
-        name = "sow_milestones",
-        indexes = @Index(name = "idx_sow_milestone_sow_id", columnList = "sow_id")
-)
+@Table(name = "sow_milestones")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,10 +29,16 @@ public class SowMilestone {
     @Column(name = "milestone_name", nullable = false, length = 200)
     private String milestoneName;
 
-    @Column(name = "start_date")
+    @Column(name = "description", length = 2000)
+    private String description;
+
+    @Column(name = "estimated_hours")
+    private Integer estimatedHours;
+
+    @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
-    @Column(name = "end_date")
+    @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
     @Column(name = "invoice_date")
@@ -44,6 +49,24 @@ public class SowMilestone {
 
     @Column(nullable = false, length = 30)
     private String status;
+
+    @OneToMany(mappedBy = "milestone", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<SowMilestonePosition> positions = new LinkedHashSet<>();
+
+    public void addPosition(SowMilestonePosition position) {
+        positions.add(position);
+        position.setMilestone(this);
+        position.setSow(sow);
+    }
+
+    public void clearPositions() {
+        positions.forEach(position -> {
+            position.setMilestone(null);
+            position.setSow(null);
+        });
+        positions.clear();
+    }
 
     @Column(name = "created_by")
     private Long createdBy;

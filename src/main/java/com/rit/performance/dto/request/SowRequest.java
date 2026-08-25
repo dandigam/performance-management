@@ -23,6 +23,14 @@ public class SowRequest {
     @Size(max = 200, message = "sowName must not exceed 200 characters")
     private String sowName;
 
+    @NotBlank(message = "sowType is required")
+    @Size(max = 100, message = "sowType must not exceed 100 characters")
+    private String sowType;
+
+    @NotBlank(message = "engagementType is required")
+    @Size(max = 100, message = "engagementType must not exceed 100 characters")
+    private String engagementType;
+
     @NotNull(message = "businessUnitId is required")
     private Long businessUnitId;
 
@@ -31,6 +39,7 @@ public class SowRequest {
     @Size(max = 100, message = "csxProjectId must not exceed 100 characters")
     private String csxProjectId;
 
+    private Long projectOwnerEmployeeId;
     private Long csxContactEmployeeId;
     private Long csxEscalationEmployeeId;
     private Long ritContactEmployeeId;
@@ -39,6 +48,14 @@ public class SowRequest {
 
     @Size(max = 30, message = "status must not exceed 30 characters")
     private String status;
+
+    @Size(max = 2000, message = "remarks must not exceed 2000 characters")
+    private String remarks;
+
+    @Size(max = 20, message = "signedStatus must not exceed 20 characters")
+    private String signedStatus;
+
+    private LocalDate signedDate;
 
     @Valid
     private List<SowMilestoneRequest> milestones;

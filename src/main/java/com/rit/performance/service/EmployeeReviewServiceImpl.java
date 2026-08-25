@@ -29,7 +29,7 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
     private final EmployeeReviewAnswerRepository answerRepository;
     private final EmployeeRepository employeeRepository;
     private final EmployeeAssignmentRepository employeeAssignmentRepository;
-    private final ProjectRepository projectRepository;
+    private final SowRepository sowRepository;
     private final FinalRatingRepository finalRatingRepository;
     private final PerformanceCycleTimelineRepository timelineRepository;
     private final PerformanceCycleQuestionRepository questionRepository;
@@ -43,7 +43,7 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
     public EmployeeReviewServiceImpl(EmployeeReviewRepository reviewRepository,
             EmployeeReviewAssessmentRepository assessmentRepository,
             EmployeeReviewAnswerRepository answerRepository, EmployeeRepository employeeRepository,
-            EmployeeAssignmentRepository employeeAssignmentRepository, ProjectRepository projectRepository,
+            EmployeeAssignmentRepository employeeAssignmentRepository, SowRepository sowRepository,
             FinalRatingRepository finalRatingRepository, PerformanceCycleTimelineRepository timelineRepository,
             PerformanceCycleConfigRepository cycleRepository,
             PerformanceCycleQuestionRepository questionRepository,
@@ -55,7 +55,7 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
         this.reviewRepository = reviewRepository; this.assessmentRepository = assessmentRepository;
         this.answerRepository = answerRepository; this.employeeRepository = employeeRepository;
         this.employeeAssignmentRepository = employeeAssignmentRepository;
-        this.projectRepository = projectRepository; this.finalRatingRepository = finalRatingRepository;
+        this.sowRepository = sowRepository; this.finalRatingRepository = finalRatingRepository;
         this.timelineRepository = timelineRepository;
         this.questionRepository = questionRepository; this.sectionRepository = sectionRepository;
         this.lookupValueRepository = lookupValueRepository;
@@ -78,8 +78,8 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
                 .collect(Collectors.toMap(Employee::getId, Function.identity()));
         Map<Long, LookupValue> lookups = lookupValueRepository.findAll().stream()
                 .collect(Collectors.toMap(LookupValue::getId, Function.identity()));
-        Map<Long, Projects> projects = projectRepository.findAll().stream()
-                .collect(Collectors.toMap(Projects::getId, Function.identity()));
+        Map<Long, Sow> sows = sowRepository.findAll().stream()
+                .collect(Collectors.toMap(Sow::getId, Function.identity()));
         List<PerformanceCycleTimeline> timelines = timelineRepository
                 .findByPerformanceCycleIdOrderByDisplayOrderAsc(cycleId);
         Map<Long, LocalDate> dueDatesByRole = timelines.stream()
@@ -93,7 +93,7 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
         List<ReviewProgressEmployeeResponse> employeeRows = reviews.stream()
                 .sorted(java.util.Comparator.comparing(review -> employeeName(review.getEmployee()),
                         String.CASE_INSENSITIVE_ORDER))
-                .map(review -> toProgressEmployee(review, legacyAssignment(review), employees, lookups, projects,
+                .map(review -> toProgressEmployee(review, legacyAssignment(review), employees, lookups, sows,
                         ratingsByReview.get(review.getId()),
                         dueDatesByRole, dueDatesByLevel))
                 .toList();
@@ -124,18 +124,18 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
 
     private ReviewProgressEmployeeResponse toProgressEmployee(EmployeeReview review,
             EmployeeAssignment legacyAssignment, Map<Long, Employee> employees, Map<Long, LookupValue> lookups,
-            Map<Long, Projects> projects, FinalRating rating, Map<Long, LocalDate> dueDatesByRole,
+            Map<Long, Sow> sows, FinalRating rating, Map<Long, LocalDate> dueDatesByRole,
             Map<Integer, LocalDate> dueDatesByLevel) {
         Employee employee = review.getEmployee();
         Long departmentId = legacyAssignment == null ? null : legacyAssignment.getDepartmentId();
         Long designationId = legacyAssignment == null ? null : legacyAssignment.getDesignationId();
-        Long projectId = snapshotOrLegacy(review.getProjectSnapshotId(),
-                legacyAssignment == null ? null : legacyAssignment.getProjectId());
+        Long sowId = snapshotOrLegacy(review.getSowId(),
+                legacyAssignment == null ? null : legacyAssignment.getSowId());
         Long managerId = legacyAssignment == null ? null : legacyAssignment.getManagerId();
         Long leadId = legacyAssignment == null ? null : legacyAssignment.getLeadId();
         LookupValue department = lookups.get(departmentId);
         LookupValue designation = lookups.get(designationId);
-        Projects project = projects.get(projectId);
+        Sow sow = sows.get(sowId);
         Employee manager = employees.get(managerId);
         Employee lead = employees.get(leadId);
         EmployeeReviewAssessment self = assessmentByRole(review, "EMPLOYEE");
@@ -148,7 +148,7 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
                 .employeeName(employeeName(employee))
                 .designationName(designation == null ? null : designation.getName())
                 .departmentName(department == null ? null : department.getName())
-                .projectName(project == null ? null : project.getProjectName())
+                .projectName(sow == null ? null : sow.getSowName())
                 .managerId(managerId)
                 .managerName(manager == null ? null : employeeName(manager))
                 .leadId(leadId)
@@ -415,7 +415,7 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
         return employeeAssignmentRepository.findEffectiveOnDate(review.getEmployee().getId(), reviewDate).stream()
                 .findFirst()
                 .orElseGet(() -> employeeAssignmentRepository
-                        .findByEmployeeIdAndIsCurrentTrue(review.getEmployee().getId()).orElse(null));
+                        .findActiveByEmployeeId(review.getEmployee().getId()).orElse(null));
     }
 
     @Override @Transactional(readOnly = true)
@@ -721,25 +721,26 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
                 .findByPerformanceCycleIdOrderByDisplayOrderAsc(review.getPerformanceCycle().getId()).stream()
                 .filter(config -> Boolean.TRUE.equals(config.getActive()))
                 .toList();
-        configs.stream()
-                .filter(config -> config.getDisplayOrder() > current.getAssessmentLevel())
-                .filter(config -> {
-                    LookupValue role = lookupValueRepository.findById(config.getRoleId())
-                            .orElseThrow(() -> new InvalidOperationException("Invalid assessor role: " + config.getRoleId()));
-                    return assigneeResolver.isApplicable(review.getEmployee(), role);
-                })
-                .findFirst().ifPresent(config -> {
-                    if (assessmentRepository.existsByEmployeeReviewIdAndAssessmentLevel(review.getId(), config.getDisplayOrder())) return;
-                    LookupValue role = lookupValueRepository.findById(config.getRoleId())
-                            .orElseThrow(() -> new InvalidOperationException("Invalid assessor role: " + config.getRoleId()));
-                    EmployeeReviewAssessment next = EmployeeReviewAssessment.builder().employeeReview(review)
-                            .assessmentLevel(config.getDisplayOrder()).assessorRole(role)
-                            .assessorEmployee(assigneeResolver.resolve(review.getEmployee(), role))
-                            .status(EmployeeReviewStatus.NOT_STARTED).progressPercentage(BigDecimal.ZERO)
-                            .createdBy(createdBy).updatedBy(createdBy).build();
-                    assessmentRepository.save(next);
-                    review.getAssessments().add(next);
-                });
+        for (PerformanceCycleAssessor config : configs) {
+            if (config.getDisplayOrder() <= current.getAssessmentLevel()) continue;
+            LookupValue role = lookupValueRepository.findById(config.getRoleId())
+                    .orElseThrow(() -> new InvalidOperationException(
+                            "Invalid assessor role: " + config.getRoleId()));
+            if (assigneeResolver.isPublishOnly(role)
+                    || !assigneeResolver.isApplicable(review.getEmployee(), role)) continue;
+            Employee assessor = assigneeResolver.resolveIfAvailable(review.getEmployee(), role).orElse(null);
+            if (assessor == null) continue;
+            if (assessmentRepository.existsByEmployeeReviewIdAndAssessmentLevel(
+                    review.getId(), config.getDisplayOrder())) return;
+            EmployeeReviewAssessment next = EmployeeReviewAssessment.builder().employeeReview(review)
+                    .assessmentLevel(config.getDisplayOrder()).assessorRole(role)
+                    .assessorEmployee(assessor)
+                    .status(EmployeeReviewStatus.NOT_STARTED).progressPercentage(BigDecimal.ZERO)
+                    .createdBy(createdBy).updatedBy(createdBy).build();
+            assessmentRepository.save(next);
+            review.getAssessments().add(next);
+            return;
+        }
     }
 
     void applyStageExtension(EmployeeReview review, EmployeeReviewAssessment assessment) {

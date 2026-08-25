@@ -2,8 +2,9 @@ package com.rit.performance.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -37,11 +38,22 @@ public class SowFeature {
     )
     private Sow sow;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @NotFound(action = NotFoundAction.IGNORE)
+    @JoinColumn(
+            name = "milestone_id",
+            foreignKey = @ForeignKey(name = "fk_sow_features_milestone")
+    )
+    private SowMilestone milestone;
+
     @Column(name = "feature_code", nullable = false, length = 50)
     private String featureCode;
 
     @Column(name = "feature_name", nullable = false, length = 200)
     private String featureName;
+
+    @Column(name = "description", length = 1000)
+    private String description;
 
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
@@ -51,24 +63,6 @@ public class SowFeature {
 
     @Column(nullable = false, length = 30)
     private String status;
-
-    @Column(name = "completion_percentage", nullable = false, precision = 5, scale = 2)
-    private BigDecimal completionPercentage;
-
-    @Column(name = "risk_percentage", nullable = false, precision = 5, scale = 2)
-    private BigDecimal riskPercentage;
-
-    @Column(name = "productivity_percentage", nullable = false, precision = 5, scale = 2)
-    private BigDecimal productivityPercentage;
-
-    @Column(length = 1000)
-    private String remarks;
-
-    @Column(name = "display_order", nullable = false)
-    private Integer displayOrder;
-
-    @Column(name = "is_active", nullable = false)
-    private boolean active;
 
     @Column(name = "created_by")
     private Long createdBy;
@@ -87,12 +81,7 @@ public class SowFeature {
         LocalDateTime now = LocalDateTime.now();
         createdDate = now;
         updatedDate = now;
-        if (status == null || status.isBlank()) status = "NOT_STARTED";
-        if (completionPercentage == null) completionPercentage = BigDecimal.ZERO;
-        if (riskPercentage == null) riskPercentage = BigDecimal.ZERO;
-        if (productivityPercentage == null) productivityPercentage = BigDecimal.ZERO;
-        if (displayOrder == null) displayOrder = 1;
-        active = true;
+        if (status == null || status.isBlank()) status = "TODO";
     }
 
     @PreUpdate

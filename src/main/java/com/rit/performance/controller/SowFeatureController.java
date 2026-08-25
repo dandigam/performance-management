@@ -2,7 +2,6 @@ package com.rit.performance.controller;
 
 import com.rit.performance.dto.request.SowFeatureRequest;
 import com.rit.performance.dto.response.SowFeatureResponse;
-import com.rit.performance.dto.response.SowProgressSummaryResponse;
 import com.rit.performance.service.SowFeatureService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -60,8 +59,4 @@ public class SowFeatureController {
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/progress")
-    public ResponseEntity<SowProgressSummaryResponse> getProgress(@PathVariable Long sowId) {
-        return ResponseEntity.ok(featureService.getProgress(sowId));
-    }
 }

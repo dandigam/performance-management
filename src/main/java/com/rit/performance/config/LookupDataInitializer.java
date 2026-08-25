@@ -28,6 +28,10 @@ public class LookupDataInitializer implements ApplicationRunner {
         type("RATING_SCALE", "Rating Scale");
         type("PIP_STATUS", "PIP Status");
         LookupType reviewStatus = type("REVIEW_STATUS", "Review Status");
+        LookupType seniority = type("SENIORITY", "Seniority");
+        LookupType location = type("LOCATION", "Location");
+        LookupType sowType = type("SOW_TYPE", "SOW Type");
+        LookupType designation = type("DESIGNATION", "Designation");
 
         value(reviewType, "ANNUAL", "Annual Review", 1);
         value(reviewType, "MID_YEAR", "Mid-Year Review", 2);
@@ -44,6 +48,31 @@ public class LookupDataInitializer implements ApplicationRunner {
         value(reviewStatus, "ACTIVE", "Active", 2);
         value(reviewStatus, "COMPLETED", "Completed", 3);
         value(reviewStatus, "ARCHIVED", "Archived", 4);
+
+        value(seniority, "ASSOCIATE", "Associate", 1);
+        value(seniority, "JUNIOR", "Junior", 2);
+        value(seniority, "MID_LEVEL", "Mid-Level", 3);
+        value(seniority, "SENIOR", "Senior", 4);
+        value(seniority, "LEAD", "Lead", 5);
+        value(seniority, "STAFF", "Staff", 6);
+        value(seniority, "PRINCIPAL", "Principal", 7);
+        value(seniority, "ARCHITECT", "Architect", 8);
+        value(seniority, "MANAGER", "Manager", 9);
+        value(seniority, "DIRECTOR", "Director", 10);
+
+        value(location, "ONSITE", "Onsite", 1);
+        value(location, "OFFSHORE", "Offshore", 2);
+
+        value(sowType, "SUPPORT", "Support", 1);
+        value(sowType, "DEVELOPMENT", "Development", 2);
+        value(sowType, "DISCOVERY", "Discovery", 3);
+
+        value(designation, "JAVA_DEVELOPER", "Java Developer", 1);
+        value(designation, "REACT_DEVELOPER", "React Developer", 2);
+        value(designation, "FULL_STACK_DEVELOPER", "Full Stack Developer", 3);
+        value(designation, "QA_AUTOMATION_ENGINEER", "QA Automation Engineer", 4);
+        value(designation, "DEVOPS_ENGINEER", "DevOps Engineer", 5);
+        value(designation, "L2_SUPPORT_ENGINEER", "L2 Support Engineer", 6);
 
     }
 

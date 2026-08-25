@@ -11,17 +11,12 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class VendorPaymentDetailsResponse {
+public class EmployeeBankDetailsResponse {
     private Long id;
     private String bankCountry;
     private String currency;
-    private String paymentMethod;
-    private String accountType;
     private String accountHolderName;
     private String bankName;
     private String accountNumberLast4;
-    private String routingNumberLast4;
     private String ifscCode;
-    private String branch;
-    private String remittanceEmail;
 }

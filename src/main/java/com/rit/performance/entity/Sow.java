@@ -27,6 +27,12 @@ public class Sow {
     @Column(name = "sow_name", nullable = false, length = 200)
     private String sowName;
 
+    @Column(name = "sow_type", nullable = false, length = 100)
+    private String sowType;
+
+    @Column(name = "engagement_type", nullable = false, length = 100)
+    private String engagementType;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "business_unit_id", foreignKey = @ForeignKey(name = "fk_sow_business_unit"))
     private LookupValue businessUnit;
@@ -36,6 +42,9 @@ public class Sow {
 
     @Column(name = "csx_project_id", length = 100)
     private String csxProjectId;
+
+    @Column(name = "project_owner_employee_id")
+    private Long projectOwnerEmployeeId;
 
     @Column(name = "csx_contact_employee_id")
     private Long csxContactEmployeeId;
@@ -55,6 +64,15 @@ public class Sow {
 
     @Column(length = 30)
     private String status;
+
+    @Column(length = 2000)
+    private String remarks;
+
+    @Column(name = "signed_status", length = 20)
+    private String signedStatus;
+
+    @Column(name = "signed_date")
+    private LocalDate signedDate;
 
     @Column(name = "created_by")
     private Long createdBy;
@@ -112,6 +130,9 @@ public class Sow {
         updatedDate = now;
         if (status == null || status.isBlank()) {
             status = "DRAFT";
+        }
+        if (signedStatus == null || signedStatus.isBlank()) {
+            signedStatus = "UNSIGNED";
         }
     }
 

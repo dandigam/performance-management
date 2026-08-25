@@ -1,0 +1,6 @@
+UPDATE sow_features
+SET status = CASE
+    WHEN UPPER(status) = 'COMPLETED' THEN 'COMPLETED'
+    WHEN UPPER(status) = 'IN_PROGRESS' THEN 'IN_PROGRESS'
+    ELSE 'TODO'
+END;

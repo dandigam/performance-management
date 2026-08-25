@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,14 +33,37 @@ class AssessmentAssigneeResolverTest {
         assignment.setEmployeeId(subject.getId());
         assignment.setLeadId(lead.getId());
         assignment.setManagerId(manager.getId());
-        assignment.setIsCurrent(true);
+        assignment.setStatus("ACTIVE");
 
-        when(assignments.findByEmployeeIdAndIsCurrentTrue(subject.getId())).thenReturn(Optional.of(assignment));
+        when(assignments.findActiveByEmployeeId(subject.getId())).thenReturn(Optional.of(assignment));
         when(employees.findById(lead.getId())).thenReturn(Optional.of(lead));
         when(employees.findById(manager.getId())).thenReturn(Optional.of(manager));
 
         assertSame(lead, resolver.resolve(subject, role("LEAD", "Team Lead")));
         assertSame(manager, resolver.resolve(subject, role("MANAGER", "Manager")));
+    }
+
+    @Test
+    void returnsEmptyWhenEmployeeHasNoCurrentManagerAssignment() {
+        EmployeeAssignmentRepository assignments = mock(EmployeeAssignmentRepository.class);
+        AssessmentAssigneeResolver resolver = new AssessmentAssigneeResolver(assignments,
+                mock(EmployeeRepository.class), mock(EmployeeRoleRepository.class),
+                mock(LookupValueRepository.class), mock(UserRepository.class));
+        Employee subject = employee(6L);
+
+        when(assignments.findActiveByEmployeeId(subject.getId())).thenReturn(Optional.empty());
+
+        assertTrue(resolver.resolveIfAvailable(subject, role("MANAGER", "Manager")).isEmpty());
+    }
+
+    @Test
+    void identifiesHrAsPublishOnly() {
+        AssessmentAssigneeResolver resolver = new AssessmentAssigneeResolver(
+                mock(EmployeeAssignmentRepository.class), mock(EmployeeRepository.class),
+                mock(EmployeeRoleRepository.class), mock(LookupValueRepository.class),
+                mock(UserRepository.class));
+
+        assertTrue(resolver.isPublishOnly(role("HR", "HR")));
     }
 
     private static Employee employee(Long id) {

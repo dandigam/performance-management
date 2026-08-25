@@ -24,7 +24,7 @@ import com.rit.performance.repository.PerformanceCycleConfigRepository;
 import com.rit.performance.repository.PerformanceCycleQuestionRepository;
 import com.rit.performance.repository.PerformanceCycleSectionRepository;
 import com.rit.performance.repository.PerformanceCycleTimelineRepository;
-import com.rit.performance.repository.ProjectRepository;
+import com.rit.performance.repository.SowRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +40,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,7 +54,7 @@ class EmployeeReviewReopenAssessmentsTest {
     @Mock private EmployeeReviewAnswerRepository answerRepository;
     @Mock private EmployeeRepository employeeRepository;
     @Mock private EmployeeAssignmentRepository employeeAssignmentRepository;
-    @Mock private ProjectRepository projectRepository;
+    @Mock private SowRepository sowRepository;
     @Mock private FinalRatingRepository finalRatingRepository;
     @Mock private PerformanceCycleTimelineRepository timelineRepository;
     @Mock private PerformanceCycleConfigRepository cycleRepository;
@@ -69,7 +70,7 @@ class EmployeeReviewReopenAssessmentsTest {
     @BeforeEach
     void setUp() {
         service = new EmployeeReviewServiceImpl(reviewRepository, assessmentRepository, answerRepository,
-                employeeRepository, employeeAssignmentRepository, projectRepository, finalRatingRepository,
+                employeeRepository, employeeAssignmentRepository, sowRepository, finalRatingRepository,
                 timelineRepository, cycleRepository, questionRepository, sectionRepository,
                 lookupValueRepository, assessorConfigRepository, assigneeResolver, emailNotificationService);
     }
@@ -193,6 +194,49 @@ class EmployeeReviewReopenAssessmentsTest {
         assertEquals(LocalDate.now().plusDays(2), tlStage.getDueDate());
         verify(assessmentRepository).save(tlStage);
         verify(emailNotificationService).queueAssessmentReady(review, tlStage);
+    }
+
+    @Test
+    void submittingSelfReviewSkipsUnavailableLeadAndPublishOnlyHr() {
+        Long cycleId = 15L;
+        EmployeeReviewAssessment self = assessment(74L, 1,
+                EmployeeReviewStatus.IN_PROGRESS, LocalDate.now().plusDays(1));
+        EmployeeReview review = review(2L, self);
+        self.setAssessorEmployee(review.getEmployee());
+        review.setId(40L);
+        review.setPerformanceCycle(PerformanceCycles.builder().id(cycleId).build());
+        LookupValue lead = LookupValue.builder().id(30L).code("LEAD").name("Team Lead").build();
+        LookupValue hr = LookupValue.builder().id(32L).code("HR").name("HR").build();
+        com.rit.performance.entity.PerformanceCycleAssessor leadConfig =
+                com.rit.performance.entity.PerformanceCycleAssessor.builder()
+                        .performanceCycleId(cycleId).roleId(30L).displayOrder(2).active(true).build();
+        com.rit.performance.entity.PerformanceCycleAssessor hrConfig =
+                com.rit.performance.entity.PerformanceCycleAssessor.builder()
+                        .performanceCycleId(cycleId).roleId(32L).displayOrder(4).active(true).build();
+
+        when(reviewRepository.findByEmployeeIdAndPerformanceCycleId(2L, cycleId))
+                .thenReturn(Optional.of(review));
+        when(assessmentRepository.findById(74L)).thenReturn(Optional.of(self));
+        when(timelineRepository.findByPerformanceCycleIdOrderByDisplayOrderAsc(cycleId))
+                .thenReturn(List.of());
+        when(assessorConfigRepository.findByPerformanceCycleIdOrderByDisplayOrderAsc(cycleId))
+                .thenReturn(List.of(leadConfig, hrConfig));
+        when(lookupValueRepository.findById(30L)).thenReturn(Optional.of(lead));
+        when(lookupValueRepository.findById(32L)).thenReturn(Optional.of(hr));
+        when(assigneeResolver.isApplicable(review.getEmployee(), lead)).thenReturn(true);
+        when(assigneeResolver.resolveIfAvailable(review.getEmployee(), lead)).thenReturn(Optional.empty());
+        when(assigneeResolver.isPublishOnly(any(LookupValue.class)))
+                .thenAnswer(invocation -> "HR".equals(
+                        ((LookupValue) invocation.getArgument(0)).getCode()));
+        when(reviewRepository.save(review)).thenReturn(review);
+
+        service.saveAssessment(EmployeeAssessmentRequest.builder()
+                .employeeId(2L).cycleId(cycleId).assessmentId(74L).assessorEmployeeId(2L)
+                .status(EmployeeReviewStatus.SUBMITTED).answers(List.of()).updatedBy(1L).build());
+
+        assertEquals(EmployeeReviewStatus.SUBMITTED, self.getStatus());
+        assertEquals(EmployeeReviewStatus.SUBMITTED, review.getStatus());
+        assertEquals(1, review.getAssessments().size());
     }
 
     @Test

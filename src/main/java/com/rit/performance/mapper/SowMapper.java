@@ -3,14 +3,17 @@ package com.rit.performance.mapper;
 import com.rit.performance.dto.DocumentResponse;
 import com.rit.performance.dto.response.SowMilestoneResponse;
 import com.rit.performance.dto.response.SowResponse;
+import com.rit.performance.dto.response.SowMilestonePositionResponse;
 import com.rit.performance.entity.CsxEmployee;
 import com.rit.performance.entity.Document;
 import com.rit.performance.entity.Employee;
 import com.rit.performance.entity.Sow;
 import com.rit.performance.entity.SowMilestone;
+import com.rit.performance.entity.SowMilestonePosition;
 
 import java.util.Comparator;
 import java.util.Map;
+import java.util.List;
 
 public final class SowMapper {
     private SowMapper() {
@@ -18,6 +21,8 @@ public final class SowMapper {
 
     public static SowResponse toResponse(Sow sow, Map<Long, CsxEmployee> csxEmployees) {
         Employee ritContact = sow.getRitContactEmployee();
+        CsxEmployee projectOwner = findCsxEmployee(
+                csxEmployees, sow.getProjectOwnerEmployeeId());
         CsxEmployee csxContact = findCsxEmployee(csxEmployees, sow.getCsxContactEmployeeId());
         CsxEmployee csxEscalation = findCsxEmployee(
                 csxEmployees, sow.getCsxEscalationEmployeeId());
@@ -25,10 +30,15 @@ public final class SowMapper {
                 .id(sow.getId())
                 .sowCode(sow.getSowCode())
                 .sowName(sow.getSowName())
+                .sowType(sow.getSowType())
+                .engagementType(sow.getEngagementType())
                 .businessUnitId(sow.getBusinessUnit() == null ? null : sow.getBusinessUnit().getId())
                 .businessUnitName(sow.getBusinessUnit() == null ? null : sow.getBusinessUnit().getName())
                 .submittedDate(sow.getSubmittedDate())
                 .csxProjectId(sow.getCsxProjectId())
+                .projectOwnerEmployeeId(sow.getProjectOwnerEmployeeId())
+                .projectOwnerEmployeeName(employeeName(projectOwner))
+                .projectOwnerEmployeeEmail(projectOwner == null ? null : projectOwner.getEmail())
                 .csxContactEmployeeId(sow.getCsxContactEmployeeId())
                 .csxContactEmployeeName(employeeName(csxContact))
                 .csxContactEmployeeEmail(csxContact == null ? null : csxContact.getEmail())
@@ -41,6 +51,9 @@ public final class SowMapper {
                 .startDate(sow.getStartDate())
                 .endDate(sow.getEndDate())
                 .status(sow.getStatus())
+                .remarks(sow.getRemarks())
+                .signedStatus(sow.getSignedStatus() == null ? "UNSIGNED" : sow.getSignedStatus())
+                .signedDate(sow.getSignedDate())
                 .milestones(sow.getMilestones().stream()
                         .sorted(Comparator.comparing(
                                 SowMilestone::getId,
@@ -76,16 +89,47 @@ public final class SowMapper {
         return SowMilestoneResponse.builder()
                 .id(milestone.getId())
                 .milestoneName(milestone.getMilestoneName())
+                .description(milestone.getDescription())
+                .estimatedHours(milestone.getEstimatedHours())
                 .startDate(milestone.getStartDate())
                 .endDate(milestone.getEndDate())
                 .invoiceDate(milestone.getInvoiceDate())
                 .amount(milestone.getAmount())
                 .status(milestone.getStatus())
+                .positions(toPositionResponses(milestone))
                 .createdBy(milestone.getCreatedBy())
                 .createdDate(milestone.getCreatedDate())
                 .updatedBy(milestone.getUpdatedBy())
                 .updatedDate(milestone.getUpdatedDate())
                 .build();
+    }
+
+    private static java.util.List<SowMilestonePositionResponse> toPositionResponses(
+            SowMilestone milestone) {
+        return milestone.getPositions().stream()
+                        .sorted(Comparator.comparing(SowMilestonePosition::getPositionName,
+                                String.CASE_INSENSITIVE_ORDER))
+                        .map(position -> SowMilestonePositionResponse.builder()
+                                .milestonePositionId(position.getId())
+                                .positionId(position.getPosition() == null
+                                        ? null : position.getPosition().getId())
+                                .positionName(position.getPositionName())
+                                .seniority(position.getSeniority())
+                                .rateCardId(position.getRateCard() == null
+                                        ? null : position.getRateCard().getId())
+                                .hourlyRate(position.getRateCard() == null
+                                        ? null : position.getRateCard().getHourlyRate())
+                                .currency(position.getRateCard() == null
+                                        ? null : position.getRateCard().getCurrency())
+                                .positionType(position.getPositionType())
+                                .locationType(position.getLocationType())
+                                .startDate(position.getStartDate())
+                                .endDate(position.getEndDate())
+                                .hours(position.getHours())
+                                .amount(position.getAmount())
+                                .assignments(List.of())
+                                .build())
+                        .toList();
     }
 
     private static String employeeName(Employee employee) {

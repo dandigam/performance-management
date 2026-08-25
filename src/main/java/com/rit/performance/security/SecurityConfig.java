@@ -45,7 +45,8 @@ public class SecurityConfig {
             JwtAuthenticationFilter jwtAuthenticationFilter,
             ApiAuthenticationEntryPoint authenticationEntryPoint,
             ApiAccessDeniedHandler accessDeniedHandler,
-            CorsConfigurationSource corsConfigurationSource
+            CorsConfigurationSource corsConfigurationSource,
+            @Value("${app.security.authentication-required:true}") boolean authenticationRequired
     ) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
@@ -72,11 +73,15 @@ public class SecurityConfig {
                                 "/rit-mark.svg"
                         ).permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
-                                .permitAll()
-                        .requestMatchers("/api/v1/bank-accounts/**", "/api/v1/vendors/**")
+                                .permitAll();
+                    if (authenticationRequired) {
+                        auth.requestMatchers("/api/v1/bank-accounts/**", "/api/v1/vendors/**")
                                 .hasAnyRole("ADMIN", "FINANCE")
-                        .requestMatchers("/api/**").authenticated()
-                        .anyRequest().permitAll();
+                                .requestMatchers("/api/**").authenticated();
+                    } else {
+                        auth.requestMatchers("/api/**").permitAll();
+                    }
+                    auth.anyRequest().permitAll();
                 })
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())

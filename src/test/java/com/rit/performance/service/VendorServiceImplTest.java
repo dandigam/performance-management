@@ -4,12 +4,11 @@ import com.rit.performance.dto.BankAccountRequest;
 import com.rit.performance.dto.BankAccountResponse;
 import com.rit.performance.dto.VendorRequest;
 import com.rit.performance.dto.VendorDocumentRequest;
-import com.rit.performance.dto.VendorPaymentDetailsRequest;
+import com.rit.performance.dto.VendorBankDetailsRequest;
 import com.rit.performance.entity.BankAccountOwnerType;
 import com.rit.performance.entity.Document;
 import com.rit.performance.repository.DocumentRepository;
 import com.rit.performance.entity.Vendor;
-import com.rit.performance.exception.DuplicateResourceException;
 import com.rit.performance.exception.InvalidOperationException;
 import com.rit.performance.exception.ResourceNotFoundException;
 import com.rit.performance.repository.VendorRepository;
@@ -27,10 +26,33 @@ import static org.mockito.Mockito.*;
 class VendorServiceImplTest {
 
     @Test
+    void createMapsLocationTypeAndEin() {
+        VendorRepository repository = mock(VendorRepository.class);
+        VendorServiceImpl service = service(repository);
+        VendorRequest request = request("RIT Consulting LLC");
+        request.setVendorLocation("onsite");
+        request.setVendorType("consulting");
+        request.setTaxIdentifier("12-3456789");
+        when(repository.save(any(Vendor.class))).thenAnswer(invocation -> {
+            Vendor vendor = invocation.getArgument(0);
+            if (vendor.getId() == null) vendor.setId(7L);
+            return vendor;
+        });
+
+        var response = service.create(request);
+
+        assertEquals("ONSITE", response.getVendorLocation());
+        assertEquals("CONSULTING", response.getVendorType());
+        assertEquals("12-3456789", response.getTaxIdentifier());
+        assertEquals("EIN", response.getTaxIdentifierType());
+        verify(repository).existsByTaxIdentifierIgnoreCase("12-3456789");
+    }
+
+    @Test
     void createNormalizesValuesAndDefaultsStatusToActive() {
         VendorRepository repository = mock(VendorRepository.class);
         VendorServiceImpl service = service(repository);
-        VendorRequest request = request(" acme ", " Acme Corporation ");
+        VendorRequest request = request(" Acme Corporation ");
         request.setContactEmail(" SALES@ACME.COM ");
         request.setCurrency(" USD ");
         when(repository.save(any(Vendor.class))).thenAnswer(invocation -> {
@@ -42,23 +64,10 @@ class VendorServiceImplTest {
         var response = service.create(request);
 
         assertEquals(7L, response.getId());
-        assertEquals("ACME", response.getVendorCode());
         assertEquals("Acme Corporation", response.getCompanyName());
         assertEquals("sales@acme.com", response.getContactEmail());
         assertEquals("USD", response.getCurrency());
         assertEquals("ACTIVE", response.getStatus());
-        verify(repository).existsByVendorCodeIgnoreCase("ACME");
-    }
-
-    @Test
-    void createRejectsDuplicateCodeIgnoringCase() {
-        VendorRepository repository = mock(VendorRepository.class);
-        VendorServiceImpl service = service(repository);
-        when(repository.existsByVendorCodeIgnoreCase("ACME")).thenReturn(true);
-
-        assertThrows(DuplicateResourceException.class,
-                () -> service.create(request("acme", "Acme Corporation")));
-        verify(repository, never()).save(any());
     }
 
     @Test
@@ -68,16 +77,16 @@ class VendorServiceImplTest {
         when(repository.findById(99L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> service.update(99L, request("ACME", "Acme Corporation")));
+                () -> service.update(99L, request("Acme Corporation")));
     }
 
     @Test
     void getAllIncludesInactiveVendors() {
         VendorRepository repository = mock(VendorRepository.class);
         VendorServiceImpl service = service(repository);
-        Vendor active = Vendor.builder().id(1L).vendorCode("A").companyName("Alpha")
+        Vendor active = Vendor.builder().id(1L).companyName("Alpha")
                 .status("ACTIVE").build();
-        Vendor inactive = Vendor.builder().id(2L).vendorCode("B").companyName("Beta")
+        Vendor inactive = Vendor.builder().id(2L).companyName("Beta")
                 .status("INACTIVE").build();
         when(repository.findAll(any(Sort.class))).thenReturn(List.of(active, inactive));
 
@@ -93,7 +102,7 @@ class VendorServiceImplTest {
         DocumentRepository documentRepository = mock(DocumentRepository.class);
         VendorServiceImpl service = new VendorServiceImpl(
                 repository, documentRepository, mock(BankAccountService.class));
-        VendorRequest request = request("ACME", "Acme Corporation");
+        VendorRequest request = request("Acme Corporation");
         request.setDocumentList(List.of(
                 VendorDocumentRequest.builder().id(11L).build(),
                 VendorDocumentRequest.builder().id(12L).build()));
@@ -119,7 +128,7 @@ class VendorServiceImplTest {
         DocumentRepository documentRepository = mock(DocumentRepository.class);
         VendorServiceImpl service = new VendorServiceImpl(
                 repository, documentRepository, mock(BankAccountService.class));
-        VendorRequest request = request("ACME", "Acme Corporation");
+        VendorRequest request = request("Acme Corporation");
         request.setDocumentList(List.of(
                 VendorDocumentRequest.builder().id(11L).build(),
                 VendorDocumentRequest.builder().id(11L).build()));
@@ -135,7 +144,7 @@ class VendorServiceImplTest {
         DocumentRepository documentRepository = mock(DocumentRepository.class);
         VendorServiceImpl service = new VendorServiceImpl(
                 repository, documentRepository, mock(BankAccountService.class));
-        VendorRequest request = request("ACME", "Acme Corporation");
+        VendorRequest request = request("Acme Corporation");
         request.setDocumentList(List.of(VendorDocumentRequest.builder().id(99L).build()));
         when(documentRepository.findAllById(any())).thenReturn(List.of());
 
@@ -146,13 +155,13 @@ class VendorServiceImplTest {
     }
 
     @Test
-    void createSavesNestedVendorPaymentDetails() {
+    void createSavesNestedVendorBankDetails() {
         VendorRepository repository = mock(VendorRepository.class);
         BankAccountService bankAccountService = mock(BankAccountService.class);
         VendorServiceImpl service = new VendorServiceImpl(
                 repository, mock(DocumentRepository.class), bankAccountService);
-        VendorRequest request = request("TEST", "TEST LLC");
-        request.setPaymentDetails(VendorPaymentDetailsRequest.builder()
+        VendorRequest request = request("TEST LLC");
+        request.setBankDetails(VendorBankDetailsRequest.builder()
                 .bankCountry("US")
                 .currency("USD")
                 .paymentMethod("ACH")
@@ -185,9 +194,9 @@ class VendorServiceImplTest {
         assertEquals("12345678903432", captor.getValue().getAccountNumberEncrypted());
         assertEquals("3432", captor.getValue().getAccountNumberLast4());
         assertEquals("0210004234", captor.getValue().getRoutingNumberEncrypted());
-        assertEquals(21L, response.getPaymentDetails().getId());
-        assertEquals("3432", response.getPaymentDetails().getAccountNumberLast4());
-        assertEquals("4234", response.getPaymentDetails().getRoutingNumberLast4());
+        assertEquals(21L, response.getBankDetails().getId());
+        assertEquals("3432", response.getBankDetails().getAccountNumberLast4());
+        assertEquals("4234", response.getBankDetails().getRoutingNumberLast4());
     }
 
     @Test
@@ -196,10 +205,10 @@ class VendorServiceImplTest {
         BankAccountService bankAccountService = mock(BankAccountService.class);
         VendorServiceImpl service = new VendorServiceImpl(
                 repository, mock(DocumentRepository.class), bankAccountService);
-        Vendor vendor = Vendor.builder().id(7L).vendorCode("TEST")
+        Vendor vendor = Vendor.builder().id(7L)
                 .companyName("TEST LLC").status("ACTIVE").build();
-        VendorRequest request = request("TEST", "TEST LLC");
-        request.setPaymentDetails(VendorPaymentDetailsRequest.builder()
+        VendorRequest request = request("TEST LLC");
+        request.setBankDetails(VendorBankDetailsRequest.builder()
                 .bankCountry("IN")
                 .currency("INR")
                 .ifscCode("hdfc0001234")
@@ -220,19 +229,19 @@ class VendorServiceImplTest {
         verify(bankAccountService).update(eq(21L), captor.capture());
         assertEquals("hdfc0001234", captor.getValue().getIfscCode());
         assertEquals("Mumbai", captor.getValue().getBranchName());
-        assertEquals("HDFC0001234", response.getPaymentDetails().getIfscCode());
+        assertEquals("HDFC0001234", response.getBankDetails().getIfscCode());
     }
 
     @Test
-    void updateDoesNotSaveEmptyPaymentDetails() {
+    void updateDoesNotSaveEmptyBankDetails() {
         VendorRepository repository = mock(VendorRepository.class);
         BankAccountService bankAccountService = mock(BankAccountService.class);
         VendorServiceImpl service = new VendorServiceImpl(
                 repository, mock(DocumentRepository.class), bankAccountService);
-        Vendor vendor = Vendor.builder().id(7L).vendorCode("TEST")
+        Vendor vendor = Vendor.builder().id(7L)
                 .companyName("TEST LLC").status("ACTIVE").build();
-        VendorRequest request = request("TEST", "TEST LLC");
-        request.setPaymentDetails(new VendorPaymentDetailsRequest());
+        VendorRequest request = request("TEST LLC");
+        request.setBankDetails(new VendorBankDetailsRequest());
         when(repository.findById(7L)).thenReturn(Optional.of(vendor));
         when(repository.save(vendor)).thenReturn(vendor);
 
@@ -242,9 +251,8 @@ class VendorServiceImplTest {
         verify(bankAccountService, never()).update(any(), any());
     }
 
-    private VendorRequest request(String code, String companyName) {
+    private VendorRequest request(String companyName) {
         return VendorRequest.builder()
-                .vendorCode(code)
                 .companyName(companyName)
                 .build();
     }

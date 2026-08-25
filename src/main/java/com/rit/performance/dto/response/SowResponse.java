@@ -16,10 +16,15 @@ public class SowResponse {
     private Long id;
     private String sowCode;
     private String sowName;
+    private String sowType;
+    private String engagementType;
     private Long businessUnitId;
     private String businessUnitName;
     private LocalDate submittedDate;
     private String csxProjectId;
+    private Long projectOwnerEmployeeId;
+    private String projectOwnerEmployeeName;
+    private String projectOwnerEmployeeEmail;
     private Long csxContactEmployeeId;
     private String csxContactEmployeeName;
     private String csxContactEmployeeEmail;
@@ -32,6 +37,9 @@ public class SowResponse {
     private LocalDate startDate;
     private LocalDate endDate;
     private String status;
+    private String remarks;
+    private String signedStatus;
+    private LocalDate signedDate;
     private List<SowMilestoneResponse> milestones;
     private List<DocumentResponse> documentList;
     private Long createdBy;

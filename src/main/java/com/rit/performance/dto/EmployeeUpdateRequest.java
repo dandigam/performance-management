@@ -2,6 +2,7 @@ package com.rit.performance.dto;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -10,6 +11,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Setter
@@ -23,6 +25,10 @@ public class EmployeeUpdateRequest {
     private String email;
     @Size(max = 20)
     private String phoneNumber;
+    @Size(max = 30)
+    private String gender;
+    @Past
+    private LocalDate dateOfBirth;
     @JsonAlias("ritEmployeeId")
     @Size(max = 50)
     private String ritId;
@@ -46,29 +52,20 @@ public class EmployeeUpdateRequest {
     @JsonIgnore
     private boolean roleIdPresent;
     @Positive
-    private Long departmentId;
-    @JsonIgnore
-    private boolean departmentIdPresent;
-    @Positive
     private Long designationId;
     @JsonIgnore
     private boolean designationIdPresent;
-    @Positive
-    private Long managerId;
-    @JsonIgnore
-    private boolean managerIdPresent;
-    @Positive
-    private Long leadId;
-    @JsonIgnore
-    private boolean leadIdPresent;
-    @Positive
-    private Long projectId;
-    @JsonIgnore
-    private boolean projectIdPresent;
-    @PastOrPresent
-    private LocalDate assignmentEffectiveFrom;
     @jakarta.validation.Valid
     private ProjectAssignmentRequest projectAssignment;
+    @jakarta.validation.Valid
+    private EmployeeAddressRequest addressDetails;
+    @jakarta.validation.Valid
+    private EmployeeCompensationRequest compensationDetails;
+    @jakarta.validation.Valid
+    private EmployeeProfessionalDetailsRequest professionalDetails;
+    @jakarta.validation.Valid
+    private EmployeeBankDetailsRequest bankDetails;
+    private List<@jakarta.validation.constraints.NotNull @jakarta.validation.Valid EmployeeDocumentRequest> documentList;
     private Long updatedBy;
 
     public void setRoleId(Long roleId) {
@@ -76,29 +73,9 @@ public class EmployeeUpdateRequest {
         this.roleIdPresent = true;
     }
 
-    public void setDepartmentId(Long departmentId) {
-        this.departmentId = departmentId;
-        this.departmentIdPresent = true;
-    }
-
     public void setDesignationId(Long designationId) {
         this.designationId = designationId;
         this.designationIdPresent = true;
-    }
-
-    public void setManagerId(Long managerId) {
-        this.managerId = managerId;
-        this.managerIdPresent = true;
-    }
-
-    public void setLeadId(Long leadId) {
-        this.leadId = leadId;
-        this.leadIdPresent = true;
-    }
-
-    public void setProjectId(Long projectId) {
-        this.projectId = projectId;
-        this.projectIdPresent = true;
     }
 
     public void setVendorId(Long vendorId) {

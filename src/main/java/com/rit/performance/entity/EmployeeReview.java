@@ -31,8 +31,8 @@ public class EmployeeReview {
     @JoinColumn(name = "cycle_id", nullable = false)
     private PerformanceCycles performanceCycle;
 
-    @Column(name = "project_snapshot_id")
-    private Long projectSnapshotId;
+    @Column(name = "sow_id")
+    private Long sowId;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)

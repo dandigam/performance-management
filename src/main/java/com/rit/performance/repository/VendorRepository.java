@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface VendorRepository extends JpaRepository<Vendor, Long> {
-    boolean existsByVendorCodeIgnoreCase(String vendorCode);
-    boolean existsByVendorCodeIgnoreCaseAndIdNot(String vendorCode, Long id);
+    boolean existsByTaxIdentifierIgnoreCase(String taxIdentifier);
+    boolean existsByTaxIdentifierIgnoreCaseAndIdNot(String taxIdentifier, Long id);
 
     @Override
     @EntityGraph(attributePaths = "documents")

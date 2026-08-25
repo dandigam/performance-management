@@ -15,7 +15,11 @@ public class ProjectAssignmentRequest {
     @Positive
     private Long departmentId;
     @Positive
-    private Long projectId;
+    private Long designationId;
+    @Positive
+    private Long sowId;
+    @Positive
+    private Long milestoneId;
     @Positive
     private Long leadId;
     @Positive
@@ -27,9 +31,15 @@ public class ProjectAssignmentRequest {
     private Integer allocationPercentage;
     @Size(max = 20)
     private String status;
+    @Size(max = 20)
+    private String positionType;
+    private Boolean isPrimaryAssignment;
 
     @JsonIgnore private boolean departmentIdPresent;
-    @JsonIgnore private boolean projectIdPresent;
+    @JsonIgnore private boolean designationIdPresent;
+    @JsonIgnore private boolean sowIdPresent;
+    @JsonIgnore private boolean milestoneIdPresent;
+    @JsonIgnore private boolean positionTypePresent;
     @JsonIgnore private boolean leadIdPresent;
     @JsonIgnore private boolean managerIdPresent;
 
@@ -38,9 +48,19 @@ public class ProjectAssignmentRequest {
         this.departmentIdPresent = true;
     }
 
-    public void setProjectId(Long projectId) {
-        this.projectId = projectId;
-        this.projectIdPresent = true;
+    public void setSowId(Long sowId) {
+        this.sowId = sowId;
+        this.sowIdPresent = true;
+    }
+
+    public void setMilestoneId(Long milestoneId) {
+        this.milestoneId = milestoneId;
+        this.milestoneIdPresent = true;
+    }
+
+    public void setDesignationId(Long designationId) {
+        this.designationId = designationId;
+        this.designationIdPresent = true;
     }
 
     public void setLeadId(Long leadId) {
@@ -67,5 +87,10 @@ public class ProjectAssignmentRequest {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public void setPositionType(String positionType) {
+        this.positionType = positionType;
+        this.positionTypePresent = true;
     }
 }

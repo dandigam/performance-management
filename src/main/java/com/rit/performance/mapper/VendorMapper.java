@@ -14,8 +14,12 @@ public final class VendorMapper {
     public static VendorResponse toResponse(Vendor vendor) {
         return VendorResponse.builder()
                 .id(vendor.getId())
-                .vendorCode(vendor.getVendorCode())
                 .companyName(vendor.getCompanyName())
+                .vendorLocation(vendor.getVendorLocation())
+                .vendorType(vendor.getVendorType())
+                .taxIdentifier(vendor.getTaxIdentifier())
+                .taxIdentifierType(vendor.getVendorLocation() == null ? null
+                        : "ONSITE".equalsIgnoreCase(vendor.getVendorLocation()) ? "EIN" : "GST")
                 .primaryContact(vendor.getPrimaryContact())
                 .contactEmail(vendor.getContactEmail())
                 .phoneNumber(vendor.getPhoneNumber())

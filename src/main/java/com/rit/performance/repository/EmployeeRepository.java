@@ -15,6 +15,8 @@ public interface EmployeeRepository
 
     List<Employee> findByIdIn(List<Long> employeeIds);
 
+    List<Employee> findByDesignationIdInAndStatusIgnoreCase(List<Long> designationIds, String status);
+
     boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
 
     boolean existsByRitIdIgnoreCase(String ritId);

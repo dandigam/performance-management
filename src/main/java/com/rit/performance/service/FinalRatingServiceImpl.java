@@ -1,6 +1,7 @@
 package com.rit.performance.service;
 
 import com.rit.performance.dto.FinalRatingResponse;
+import com.rit.performance.entity.Employee;
 import com.rit.performance.entity.EmployeeReview;
 import com.rit.performance.entity.EmployeeReviewAssessment;
 import com.rit.performance.entity.FinalRating;
@@ -17,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional
@@ -45,7 +48,35 @@ public class FinalRatingServiceImpl implements FinalRatingService {
     @Override
     @Transactional(readOnly = true)
     public List<FinalRatingResponse> getAllFinalRatings() {
-        return finalRatingRepository.findAll().stream().map(FinalRatingMapper::toResponse).toList();
+        Map<Long, List<FinalRatingResponse>> ratingsByEmployee = new LinkedHashMap<>();
+        finalRatingRepository.findAll().stream()
+                .map(FinalRatingMapper::toResponse)
+                .forEach(rating -> ratingsByEmployee
+                        .computeIfAbsent(rating.getEmployeeId(), ignored -> new java.util.ArrayList<>())
+                        .add(rating));
+
+        return employeeRepository.findAll().stream()
+                .sorted(Comparator.comparing(Employee::getId, Comparator.nullsLast(Long::compareTo)))
+                .map(employee -> {
+                    List<FinalRatingResponse> performance = ratingsByEmployee
+                            .getOrDefault(employee.getId(), List.of());
+                    if (performance.isEmpty()) {
+                        return FinalRatingResponse.builder()
+                                .employeeId(employee.getId())
+                                .employeeName(employeeName(employee))
+                                .performance(List.of())
+                                .build();
+                    }
+                    return performance.get(0).toBuilder()
+                            .performance(List.copyOf(performance))
+                            .build();
+                })
+                .toList();
+    }
+
+    private static String employeeName(Employee employee) {
+        return (employee.getFirstName() + " "
+                + (employee.getLastName() == null ? "" : employee.getLastName())).trim();
     }
 
     @Override
