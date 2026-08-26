@@ -11,5 +11,19 @@ public interface EmployeeRepository
 
     Optional<Employee> findByEmail(String email);
 
-    List<Employee> findByManagerId(Long managerId);
+    boolean existsByEmailIgnoreCase(String email);
+
+    List<Employee> findByIdIn(List<Long> employeeIds);
+
+    List<Employee> findByDesignationIdInAndStatusIgnoreCase(List<Long> designationIds, String status);
+
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
+
+    boolean existsByRitIdIgnoreCase(String ritId);
+
+    boolean existsByRitIdIgnoreCaseAndIdNot(String ritId, Long id);
+
+    boolean existsByCsxRacfIdIgnoreCase(String csxRacfId);
+
+    boolean existsByCsxRacfIdIgnoreCaseAndIdNot(String csxRacfId, Long id);
 }

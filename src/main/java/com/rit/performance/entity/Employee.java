@@ -7,6 +7,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "employees")
@@ -23,21 +26,67 @@ public class Employee {
     @Column(name = "first_name", nullable = false, length = 50)
     private String firstName;
 
-    @Column(name = "last_name", nullable = false, length = 50)
+    @Column(name = "last_name", length = 50)
     private String lastName;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(name = "joining_date")
+    @Column(name = "phone_number", length = 20)
+    private String phoneNumber;
+
+    @Column(length = 30)
+    private String gender;
+
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
+
+    @Column(name = "rit_id", unique = true, length = 50)
+    private String ritId;
+
+    @Column(name = "csx_racf_id", unique = true, length = 50)
+    private String csxRacfId;
+
+    @Column(name = "employment_type", length = 50)
+    private String employmentType;
+
+    @Column(name = "joining_date", nullable = false)
     private LocalDate joiningDate;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "department_id")
-    private Department department;
+    @Column(name = "work_mode", length = 50)
+    private String workMode;
 
-    // A manager is also an employee.
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "manager_id")
-    private Employee manager;
+    @JoinColumn(name = "vendor_id", foreignKey = @ForeignKey(name = "fk_employee_vendor"))
+    private Vendor vendor;
+
+    @Column(name = "designation_id")
+    private Long designationId;
+
+    @Column(name = "status", length = 20)
+    private String status;
+
+    @Column(name = "created_by")
+    private Long createdBy;
+
+    @Column(name = "created_date", insertable = false, updatable = false)
+    private LocalDateTime createdDate;
+
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
+    @Column(name = "updated_date", insertable = false, updatable = false)
+    private LocalDateTime updatedDate;
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "employee_documents",
+            joinColumns = @JoinColumn(name = "employee_id",
+                    foreignKey = @ForeignKey(name = "fk_employee_documents_employee")),
+            inverseJoinColumns = @JoinColumn(name = "document_id",
+                    foreignKey = @ForeignKey(name = "fk_employee_documents_document")),
+            uniqueConstraints = @UniqueConstraint(name = "uk_employee_documents",
+                    columnNames = {"employee_id", "document_id"})
+    )
+    private Set<Document> documents = new LinkedHashSet<>();
 }
