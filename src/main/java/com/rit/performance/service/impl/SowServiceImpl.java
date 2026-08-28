@@ -429,7 +429,10 @@ public class SowServiceImpl implements SowService {
         sow.setProjectOwnerEmployeeId(request.getProjectOwnerEmployeeId());
         sow.setCsxContactEmployeeId(request.getCsxContactEmployeeId());
         sow.setCsxEscalationEmployeeId(request.getCsxEscalationEmployeeId());
-        sow.setRitContactEmployee(findRitEmployee(request.getRitContactEmployeeId()));
+        sow.setRitContactEmployee(findRitEmployee(
+                request.getRitContactEmployeeId(), "RIT contact"));
+        sow.setRitEscalationEmployee(findRitEmployee(
+                request.getRitEscalationEmployeeId(), "RIT escalation person"));
         sow.setStartDate(request.getStartDate());
         sow.setEndDate(request.getEndDate());
         sow.setStatus(normalizeStatus(request.getStatus(), "DRAFT"));
@@ -456,6 +459,7 @@ public class SowServiceImpl implements SowService {
     private void applyMilestoneFields(SowMilestone milestone, SowMilestoneRequest request) {
         milestone.setMilestoneName(request.getMilestoneName().trim());
         milestone.setDescription(normalizeDescription(request.getDescription()));
+        milestone.setDeliverables(normalizeDescription(request.getDeliverables()));
         milestone.setEstimatedHours(request.getEstimatedHours());
         milestone.setStartDate(request.getStartDate());
         milestone.setEndDate(request.getEndDate());
@@ -476,6 +480,7 @@ public class SowServiceImpl implements SowService {
         for (int index = 0; index < request.getPositions().size(); index++) {
             var positionRequest = request.getPositions().get(index);
             SowMilestonePosition milestonePosition;
+            boolean newPosition = false;
             if (positionRequest.getMilestonePositionId() != null) {
                 milestonePosition = existingById.get(positionRequest.getMilestonePositionId());
                 if (milestonePosition == null) {
@@ -488,7 +493,7 @@ public class SowServiceImpl implements SowService {
                 milestonePosition = existing.get(index);
             } else {
                 milestonePosition = new SowMilestonePosition();
-                milestone.addPosition(milestonePosition);
+                newPosition = true;
             }
             if (!retained.add(milestonePosition)) {
                 throw new InvalidOperationException("Duplicate milestonePositionId in request: "
@@ -513,6 +518,11 @@ public class SowServiceImpl implements SowService {
             milestonePosition.setEndDate(positionRequest.getEndDate());
             milestonePosition.setHours(trimToNull(positionRequest.getHours()));
             milestonePosition.setAmount(positionRequest.getAmount());
+            if (newPosition) {
+                // Attach only after mandatory fields are populated. Repository lookups above can
+                // trigger an automatic flush of managed entities.
+                milestone.addPosition(milestonePosition);
+            }
         }
 
         List<SowMilestonePosition> removed = existing.stream()
@@ -591,11 +601,11 @@ public class SowServiceImpl implements SowService {
                 .orElseThrow(() -> new ResourceNotFoundException("SOW not found: " + id));
     }
 
-    private Employee findRitEmployee(Long id) {
+    private Employee findRitEmployee(Long id, String label) {
         if (id == null) return null;
         return employeeRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "RIT contact employee not found: " + id));
+                        label + " employee not found: " + id));
     }
 
     private void validateCsxEmployee(Long id, String label) {
@@ -689,6 +699,7 @@ public class SowServiceImpl implements SowService {
     }
 
     private void validateUniqueCode(String code, Long currentId) {
+        if (code == null) return;
         boolean exists = currentId == null
                 ? sowRepository.existsBySowCodeIgnoreCase(code)
                 : sowRepository.existsBySowCodeIgnoreCaseAndIdNot(code, currentId);
@@ -696,7 +707,8 @@ public class SowServiceImpl implements SowService {
     }
 
     private String normalizeCode(String value) {
-        return value.trim().toUpperCase(Locale.ROOT);
+        String normalized = trimToNull(value);
+        return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
     private String normalizeStatus(String value, String defaultValue) {

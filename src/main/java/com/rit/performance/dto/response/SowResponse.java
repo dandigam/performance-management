@@ -34,6 +34,9 @@ public class SowResponse {
     private Long ritContactEmployeeId;
     private String ritContactEmployeeName;
     private String ritContactEmployeeEmail;
+    private Long ritEscalationEmployeeId;
+    private String ritEscalationEmployeeName;
+    private String ritEscalationEmployeeEmail;
     private LocalDate startDate;
     private LocalDate endDate;
     private String status;

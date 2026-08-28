@@ -21,6 +21,7 @@ public final class SowMapper {
 
     public static SowResponse toResponse(Sow sow, Map<Long, CsxEmployee> csxEmployees) {
         Employee ritContact = sow.getRitContactEmployee();
+        Employee ritEscalation = sow.getRitEscalationEmployee();
         CsxEmployee projectOwner = findCsxEmployee(
                 csxEmployees, sow.getProjectOwnerEmployeeId());
         CsxEmployee csxContact = findCsxEmployee(csxEmployees, sow.getCsxContactEmployeeId());
@@ -48,6 +49,10 @@ public final class SowMapper {
                 .ritContactEmployeeId(ritContact == null ? null : ritContact.getId())
                 .ritContactEmployeeName(employeeName(ritContact))
                 .ritContactEmployeeEmail(ritContact == null ? null : ritContact.getEmail())
+                .ritEscalationEmployeeId(ritEscalation == null ? null : ritEscalation.getId())
+                .ritEscalationEmployeeName(employeeName(ritEscalation))
+                .ritEscalationEmployeeEmail(ritEscalation == null
+                        ? null : ritEscalation.getEmail())
                 .startDate(sow.getStartDate())
                 .endDate(sow.getEndDate())
                 .status(sow.getStatus())
@@ -90,6 +95,7 @@ public final class SowMapper {
                 .id(milestone.getId())
                 .milestoneName(milestone.getMilestoneName())
                 .description(milestone.getDescription())
+                .deliverables(milestone.getDeliverables())
                 .estimatedHours(milestone.getEstimatedHours())
                 .startDate(milestone.getStartDate())
                 .endDate(milestone.getEndDate())
