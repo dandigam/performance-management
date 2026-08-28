@@ -21,7 +21,7 @@ public class Sow {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "sow_code", nullable = false, length = 50)
+    @Column(name = "sow_code", length = 50)
     private String sowCode;
 
     @Column(name = "sow_name", nullable = false, length = 200)
@@ -55,6 +55,11 @@ public class Sow {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rit_contact_employee_id", foreignKey = @ForeignKey(name = "fk_sow_rit_contact"))
     private Employee ritContactEmployee;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rit_escalation_employee_id",
+            foreignKey = @ForeignKey(name = "fk_sow_rit_escalation"))
+    private Employee ritEscalationEmployee;
 
     @Column(name = "start_date")
     private LocalDate startDate;

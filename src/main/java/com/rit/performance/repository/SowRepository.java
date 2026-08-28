@@ -13,14 +13,16 @@ public interface SowRepository extends JpaRepository<Sow, Long> {
     boolean existsBySowCodeIgnoreCaseAndIdNot(String sowCode, Long id);
 
     @EntityGraph(attributePaths = {
-            "businessUnit", "ritContactEmployee", "milestones", "milestones.positions",
+            "businessUnit", "ritContactEmployee", "ritEscalationEmployee",
+            "milestones", "milestones.positions",
             "milestones.positions.position", "documents"
     })
     @Query("select distinct sow from Sow sow")
     List<Sow> findAllWithDetails();
 
     @EntityGraph(attributePaths = {
-            "businessUnit", "ritContactEmployee", "milestones", "milestones.positions",
+            "businessUnit", "ritContactEmployee", "ritEscalationEmployee",
+            "milestones", "milestones.positions",
             "milestones.positions.position", "documents"
     })
     @Query("select distinct sow from Sow sow where sow.id = :id")

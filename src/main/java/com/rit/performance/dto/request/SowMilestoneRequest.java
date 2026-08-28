@@ -29,6 +29,9 @@ public class SowMilestoneRequest {
     @Size(max = 2000, message = "milestone description must not exceed 2000 characters")
     private String description;
 
+    @Size(max = 2000, message = "milestone deliverables must not exceed 2000 characters")
+    private String deliverables;
+
     @Min(value = 0, message = "estimatedHours cannot be negative")
     private Integer estimatedHours;
 

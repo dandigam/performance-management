@@ -15,7 +15,6 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class SowRequest {
-    @NotBlank(message = "sowCode is required")
     @Size(max = 50, message = "sowCode must not exceed 50 characters")
     private String sowCode;
 
@@ -43,6 +42,7 @@ public class SowRequest {
     private Long csxContactEmployeeId;
     private Long csxEscalationEmployeeId;
     private Long ritContactEmployeeId;
+    private Long ritEscalationEmployeeId;
     private LocalDate startDate;
     private LocalDate endDate;
 

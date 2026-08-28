@@ -17,6 +17,7 @@ public class SowMilestoneResponse {
     private Long id;
     private String milestoneName;
     private String description;
+    private String deliverables;
     private Integer estimatedHours;
     private LocalDate startDate;
     private LocalDate endDate;

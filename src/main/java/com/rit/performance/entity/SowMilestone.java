@@ -32,6 +32,9 @@ public class SowMilestone {
     @Column(name = "description", length = 2000)
     private String description;
 
+    @Column(name = "deliverables", length = 2000)
+    private String deliverables;
+
     @Column(name = "estimated_hours")
     private Integer estimatedHours;
 
