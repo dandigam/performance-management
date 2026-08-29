@@ -91,17 +91,20 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource(
-            @Value("${app.security.allowed-origins:http://localhost:5173}") String origins
+            @Value("${app.security.allowed-origins:http://localhost:5173}") String origins,
+            @Value("${app.security.allowed-origin-patterns:https://*.trycloudflare.com}") String originPatterns
     ) {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.stream(origins.split(","))
+                .map(String::trim).filter(value -> !value.isBlank()).toList());
+        configuration.setAllowedOriginPatterns(Arrays.stream(originPatterns.split(","))
                 .map(String::trim).filter(value -> !value.isBlank()).toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/api/**", configuration);
         return source;
     }
 }

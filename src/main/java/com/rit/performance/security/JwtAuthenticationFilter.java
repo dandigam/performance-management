@@ -24,13 +24,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final AppUserDetailsService userDetailsService;
 
-    @Value("${app.security.authentication-required:true}")
-    private boolean authenticationRequired;
 
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !authenticationRequired;
-    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -76,4 +70,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write("{\"error\":\"" + message + "\"}");
     }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        String path = request.getRequestURI();
+        return path.startsWith("/assets/")
+                || path.startsWith("/static/")
+                || path.equals("/")
+                || path.equals("/index.html")
+                || path.equals("/favicon.ico")
+                || path.equals("/rail-infotech-logo.svg")
+                || path.equals("/rit-favicon.svg")
+                || path.equals("/rit-mark.svg");
+    }
+
 }
