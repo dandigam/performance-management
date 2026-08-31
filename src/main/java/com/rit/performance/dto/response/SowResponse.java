@@ -17,6 +17,9 @@ public class SowResponse {
     private Long id;
     private String sowCode;
     private String sowName;
+    private Integer year;
+    private Long clientId;
+    private String clientName;
     private String sowType;
     private String engagementType;
     private Long businessUnitId;

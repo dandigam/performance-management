@@ -28,6 +28,13 @@ public class Sow extends BaseEntity {
     @Column(name = "sow_name", nullable = false, length = 200)
     private String sowName;
 
+    @Column(name = "sow_year")
+    private Integer year;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "client_id", foreignKey = @ForeignKey(name = "fk_sow_client"))
+    private Client client;
+
     @Column(name = "sow_type", nullable = false, length = 100)
     private String sowType;
 

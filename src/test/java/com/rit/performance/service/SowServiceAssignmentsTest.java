@@ -36,6 +36,7 @@ class SowServiceAssignmentsTest {
     @Mock private CsxEmployeeRepository csxEmployeeRepository;
     @Mock private DocumentRepository documentRepository;
     @Mock private UserRepository userRepository;
+    @Mock private ClientRepository clientRepository;
 
     private SowServiceImpl service;
 
@@ -44,7 +45,7 @@ class SowServiceAssignmentsTest {
         service = new SowServiceImpl(sowRepository, assignmentRepository, milestoneRepository,
                 sowInvoiceService, featureRepository, lookupValueRepository, rateCardRepository,
                 positionAssignmentRepository, employeeRepository, csxEmployeeRepository,
-                documentRepository, userRepository);
+                documentRepository, userRepository, clientRepository);
     }
 
     @Test

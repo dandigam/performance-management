@@ -63,6 +63,10 @@ public class EmployeeUpdateRequest {
     private EmployeeCompensationRequest compensationDetails;
     @jakarta.validation.Valid
     private EmployeeProfessionalDetailsRequest professionalDetails;
+    private List<@jakarta.validation.constraints.NotNull @jakarta.validation.Valid
+            EmployeeEducationRequest> educationDetails;
+    @jakarta.validation.Valid
+    private EmployeeExperienceRequest experienceDetails;
     @jakarta.validation.Valid
     private EmployeeBankDetailsRequest bankDetails;
     private List<@jakarta.validation.constraints.NotNull @jakarta.validation.Valid EmployeeDocumentRequest> documentList;

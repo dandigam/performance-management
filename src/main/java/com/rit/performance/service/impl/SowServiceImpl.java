@@ -40,6 +40,7 @@ public class SowServiceImpl implements SowService {
     private final CsxEmployeeRepository csxEmployeeRepository;
     private final DocumentRepository documentRepository;
     private final UserRepository userRepository;
+    private final ClientRepository clientRepository;
 
     @Override
     public SowResponse create(SowRequest request) {
@@ -417,6 +418,10 @@ public class SowServiceImpl implements SowService {
 
     private void applySowFields(Sow sow, SowRequest request) {
         sow.setSowName(request.getSowName().trim());
+        sow.setYear(request.getYear());
+        sow.setClient(clientRepository.findById(request.getClientId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Client not found: " + request.getClientId())));
         sow.setSowType(request.getSowType().trim());
         sow.setEngagementType(request.getEngagementType().trim());
         sow.setBusinessUnit(lookupValueRepository.findById(request.getBusinessUnitId())

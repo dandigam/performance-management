@@ -13,7 +13,7 @@ public interface SowRepository extends JpaRepository<Sow, Long> {
     boolean existsBySowCodeIgnoreCaseAndIdNot(String sowCode, Long id);
 
     @EntityGraph(attributePaths = {
-            "businessUnit", "ritContactEmployee", "ritEscalationEmployee",
+            "client", "businessUnit", "ritContactEmployee", "ritEscalationEmployee",
             "milestones", "milestones.positions",
             "milestones.positions.position", "documents"
     })
@@ -21,7 +21,7 @@ public interface SowRepository extends JpaRepository<Sow, Long> {
     List<Sow> findAllWithDetails();
 
     @EntityGraph(attributePaths = {
-            "businessUnit", "ritContactEmployee", "ritEscalationEmployee",
+            "client", "businessUnit", "ritContactEmployee", "ritEscalationEmployee",
             "milestones", "milestones.positions",
             "milestones.positions.position", "documents"
     })

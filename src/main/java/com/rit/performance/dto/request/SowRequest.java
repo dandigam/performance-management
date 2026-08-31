@@ -3,6 +3,8 @@ package com.rit.performance.dto.request;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import lombok.*;
 
@@ -21,6 +23,14 @@ public class SowRequest {
     @NotBlank(message = "sowName is required")
     @Size(max = 200, message = "sowName must not exceed 200 characters")
     private String sowName;
+
+    @NotNull(message = "year is required")
+    @Min(value = 1900, message = "year must be 1900 or later")
+    @Max(value = 9999, message = "year must be a four-digit year")
+    private Integer year;
+
+    @NotNull(message = "clientId is required")
+    private Long clientId;
 
     @NotBlank(message = "sowType is required")
     @Size(max = 100, message = "sowType must not exceed 100 characters")

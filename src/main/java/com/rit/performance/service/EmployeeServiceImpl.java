@@ -20,6 +20,10 @@ import com.rit.performance.dto.EmployeeCompensationResponse;
 import com.rit.performance.dto.EmployeeFinanceHistoryResponse;
 import com.rit.performance.dto.EmployeeProfessionalDetailsRequest;
 import com.rit.performance.dto.EmployeeProfessionalDetailsResponse;
+import com.rit.performance.dto.EmployeeEducationRequest;
+import com.rit.performance.dto.EmployeeEducationResponse;
+import com.rit.performance.dto.EmployeeExperienceRequest;
+import com.rit.performance.dto.EmployeeExperienceResponse;
 import com.rit.performance.dto.EmployeeBankDetailsRequest;
 import com.rit.performance.dto.EmployeeBankDetailsResponse;
 import com.rit.performance.dto.DocumentResponse;
@@ -35,6 +39,8 @@ import com.rit.performance.repository.EmployeeAssignmentRepository;
 import com.rit.performance.repository.EmployeeAddressRepository;
 import com.rit.performance.repository.EmployeeCompensationRepository;
 import com.rit.performance.repository.EmployeeProfessionalProfileRepository;
+import com.rit.performance.repository.EmployeeEducationRepository;
+import com.rit.performance.repository.EmployeeExperienceRepository;
 import com.rit.performance.repository.BankAccountRepository;
 import com.rit.performance.repository.DocumentRepository;
 import com.rit.performance.repository.EmployeeRepository;
@@ -73,6 +79,7 @@ import java.time.LocalDate;
 public class EmployeeServiceImpl implements EmployeeService {
     private static final String DEFAULT_PASSWORD = "admin123";
     private static final String DEFAULT_ROLE = "EMPLOYEE";
+    private static final String SYSTEM_ROLE_LOOKUP = "SYSTEM_ROLE";
     private static final Set<String> ALLOWED_GENDERS = Set.of(
             "MALE", "FEMALE", "NON_BINARY", "OTHER", "PREFER_NOT_TO_SAY");
 
@@ -80,6 +87,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeAddressRepository employeeAddressRepository;
     private final EmployeeCompensationRepository employeeCompensationRepository;
     private final EmployeeProfessionalProfileRepository employeeProfessionalProfileRepository;
+    private final EmployeeEducationRepository employeeEducationRepository;
+    private final EmployeeExperienceRepository employeeExperienceRepository;
     private final BankAccountRepository bankAccountRepository;
     private final DocumentRepository documentRepository;
     private final EmployeeAssignmentRepository assignmentRepository;
@@ -126,6 +135,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         saveAddress(employee, request.getAddressDetails());
         saveCompensation(employee, request.getCompensationDetails());
         saveProfessionalDetails(employee, request.getProfessionalDetails());
+        saveEducationDetails(employee, request.getEducationDetails());
+        saveExperienceDetails(employee, request.getExperienceDetails());
         saveBankDetails(employee, request.getBankDetails());
         synchronizeDocuments(employee, request.getDocumentList());
         EmployeeAssignment assignment = createInitialAssignment(employee.getId(), request);
@@ -539,6 +550,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .addressDetails(addressResponse(employee.getId()))
                         .compensationDetails(compensationResponse(employee.getId()))
                         .professionalDetails(professionalDetailsResponse(employee.getId()))
+                        .educationDetails(educationDetailsResponse(employee.getId()))
+                        .experienceDetails(experienceDetailsResponse(employee.getId()))
                         .bankDetails(bankDetailsResponse(employee.getId()))
                         .documentList(documentResponses(employee))
                         .build())
@@ -657,6 +670,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .addressDetails(addressResponse(employee.getId()))
                 .compensationDetails(compensationResponse(employee.getId()))
                 .professionalDetails(professionalDetailsResponse(employee.getId()))
+                .educationDetails(educationDetailsResponse(employee.getId()))
+                .experienceDetails(experienceDetailsResponse(employee.getId()))
                 .bankDetails(bankDetailsResponse(employee.getId()))
                 .documentList(documentResponses(employee))
                 .reviewId(review == null ? null : review.getId())
@@ -791,6 +806,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         saveAddress(employee, request.getAddressDetails());
         saveCompensation(employee, request.getCompensationDetails());
         saveProfessionalDetails(employee, request.getProfessionalDetails());
+        saveEducationDetails(employee, request.getEducationDetails());
+        saveExperienceDetails(employee, request.getExperienceDetails());
         saveBankDetails(employee, request.getBankDetails());
         if (request.getDocumentList() != null) {
             synchronizeDocuments(employee, request.getDocumentList());
@@ -849,13 +866,13 @@ public class EmployeeServiceImpl implements EmployeeService {
     private LookupValue employeeRoleLookup() {
         return lookupValueRepository
                 .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
-                        "ROLE", DEFAULT_ROLE)
+                        SYSTEM_ROLE_LOOKUP, DEFAULT_ROLE)
                 .orElseThrow(() -> new InvalidOperationException("EMPLOYEE role lookup is not configured"));
     }
 
     private LookupValue requestedEmployeeRole(Long roleId) {
         if (roleId == null) return employeeRoleLookup();
-        return requireLookup(roleId, "ROLE");
+        return requireLookup(roleId, SYSTEM_ROLE_LOOKUP);
     }
 
     private Long resolveProfileDesignationId(EmployeeCreateRequest request) {
@@ -886,14 +903,14 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDesc(employee.getId())
                 .orElse(null);
         if (!request.isRoleIdPresent()) {
-            if (current != null) return requireLookup(current.getRoleId(), "ROLE");
+            if (current != null) return requireLookup(current.getRoleId(), SYSTEM_ROLE_LOOKUP);
             LookupValue defaultRole = employeeRoleLookup();
             createEmployeeRole(employee, defaultRole, LocalDate.now(), request.getUpdatedBy());
             return defaultRole;
         }
         if (request.getRoleId() == null)
             throw new InvalidOperationException("roleId cannot be null");
-        LookupValue requestedRole = requireLookup(request.getRoleId(), "ROLE");
+        LookupValue requestedRole = requireLookup(request.getRoleId(), SYSTEM_ROLE_LOOKUP);
         if (current != null && requestedRole.getId().equals(current.getRoleId())) return requestedRole;
 
         LocalDate effectiveFrom = request.getProjectAssignment() != null
@@ -1238,6 +1255,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .addressDetails(addressResponse(employee.getId()))
                 .compensationDetails(compensationResponse(employee.getId()))
                 .professionalDetails(professionalDetailsResponse(employee.getId()))
+                .educationDetails(educationDetailsResponse(employee.getId()))
+                .experienceDetails(experienceDetailsResponse(employee.getId()))
                 .bankDetails(bankDetailsResponse(employee.getId()))
                 .documentList(documentResponses(employee))
                 .review(review == null ? null : EmployeeReviewSummaryResponse.builder()
@@ -1475,6 +1494,60 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .id(profile.getId())
                         .itSkills(profile.getItSkills())
                         .latestExperience(profile.getLatestExperience())
+                        .build())
+                .orElse(null);
+    }
+
+    private void saveEducationDetails(
+            Employee employee, List<EmployeeEducationRequest> requests) {
+        if (requests == null) return;
+        employeeEducationRepository.deleteByEmployeeId(employee.getId());
+        List<EmployeeEducation> educations = requests.stream()
+                .<EmployeeEducation>map(request -> EmployeeEducation.builder()
+                        .employee(employee)
+                        .educationType(request.getEducationType().trim())
+                        .collegeUniversity(request.getCollegeUniversity().trim())
+                        .passingYear(request.getPassingYear())
+                        .percentage(request.getPercentage())
+                        .build())
+                .toList();
+        employeeEducationRepository.saveAll(educations);
+    }
+
+    private List<EmployeeEducationResponse> educationDetailsResponse(Long employeeId) {
+        return employeeEducationRepository
+                .findByEmployeeIdOrderByPassingYearDescIdDesc(employeeId).stream()
+                .map(education -> EmployeeEducationResponse.builder()
+                        .id(education.getId())
+                        .educationType(education.getEducationType())
+                        .collegeUniversity(education.getCollegeUniversity())
+                        .passingYear(education.getPassingYear())
+                        .percentage(education.getPercentage())
+                        .build())
+                .toList();
+    }
+
+    private void saveExperienceDetails(Employee employee, EmployeeExperienceRequest request) {
+        if (request == null) return;
+        EmployeeExperience experience = employeeExperienceRepository.findByEmployeeId(employee.getId())
+                .orElseGet(() -> EmployeeExperience.builder().employee(employee).build());
+        experience.setCompanyName(request.getCompanyName().trim());
+        experience.setPosition(request.getPosition().trim());
+        experience.setLocation(request.getLocation().trim());
+        experience.setFromDate(request.getFromDate());
+        experience.setEndDate(request.getEndDate());
+        employeeExperienceRepository.save(experience);
+    }
+
+    private EmployeeExperienceResponse experienceDetailsResponse(Long employeeId) {
+        return employeeExperienceRepository.findByEmployeeId(employeeId)
+                .map(experience -> EmployeeExperienceResponse.builder()
+                        .id(experience.getId())
+                        .companyName(experience.getCompanyName())
+                        .position(experience.getPosition())
+                        .location(experience.getLocation())
+                        .fromDate(experience.getFromDate())
+                        .endDate(experience.getEndDate())
                         .build())
                 .orElse(null);
     }

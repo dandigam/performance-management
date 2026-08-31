@@ -45,6 +45,8 @@ public class EmployeeHierarchyMemberResponse {
     private EmployeeAddressResponse addressDetails;
     private EmployeeCompensationResponse compensationDetails;
     private EmployeeProfessionalDetailsResponse professionalDetails;
+    private List<EmployeeEducationResponse> educationDetails;
+    private EmployeeExperienceResponse experienceDetails;
     private EmployeeBankDetailsResponse bankDetails;
     private List<DocumentResponse> documentList;
 

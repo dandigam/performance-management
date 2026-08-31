@@ -33,6 +33,8 @@ public class EmployeeInformationResponse {
     private EmployeeAddressResponse addressDetails;
     private EmployeeCompensationResponse compensationDetails;
     private EmployeeProfessionalDetailsResponse professionalDetails;
+    private java.util.List<EmployeeEducationResponse> educationDetails;
+    private EmployeeExperienceResponse experienceDetails;
     private EmployeeBankDetailsResponse bankDetails;
     private java.util.List<DocumentResponse> documentList;
 }
