@@ -36,8 +36,8 @@ public interface EmployeeReviewAssessmentRepository extends JpaRepository<Employ
             from EmployeeReviewAssessment assessment
             where assessment.employeeReview.employee.id in :employeeIds
               and assessment.assessorEmployee.id = assessment.employeeReview.employee.id
-            order by assessment.updatedDate desc, assessment.id desc
+            order by assessment.updatedOn desc, assessment.id desc
             """)
-    List<EmployeeReviewAssessment> findSelfAssessmentsForEmployeesOrderByUpdatedDateDesc(
+    List<EmployeeReviewAssessment> findSelfAssessmentsForEmployeesOrderByUpdatedOnDesc(
             @Param("employeeIds") List<Long> employeeIds);
 }

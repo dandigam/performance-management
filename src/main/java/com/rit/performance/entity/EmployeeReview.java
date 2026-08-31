@@ -3,6 +3,7 @@ package com.rit.performance.entity;
 import com.rit.performance.service.EmployeeReviewStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -16,8 +17,8 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class EmployeeReview {
+@SuperBuilder
+public class EmployeeReview extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,19 +43,6 @@ public class EmployeeReview {
     @Column(name = "progress_percentage", precision = 5, scale = 2)
     @Builder.Default
     private BigDecimal progressPercentage = BigDecimal.ZERO;
-
-    @Column(name = "created_by")
-    private Long createdBy;
-
-    @Column(name = "created_date", updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_by")
-    private Long updatedBy;
-
-    @Column(name = "updated_date")
-    private LocalDateTime updatedDate;
-
     @Column(name = "extension_days_per_stage")
     private Integer extensionDaysPerStage;
 
@@ -71,16 +59,7 @@ public class EmployeeReview {
 
     @PrePersist
     public void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        if (createdDate == null) createdDate = now;
-        updatedDate = now;
         if (status == null) status = EmployeeReviewStatus.NOT_STARTED;
         if (progressPercentage == null) progressPercentage = BigDecimal.ZERO;
     }
-
-    @PreUpdate
-    public void preUpdate() {
-        updatedDate = LocalDateTime.now();
-    }
-
 }

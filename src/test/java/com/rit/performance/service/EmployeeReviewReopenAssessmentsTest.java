@@ -264,7 +264,7 @@ class EmployeeReviewReopenAssessmentsTest {
                 .endDate(LocalDate.of(2026, 7, 19)).build();
 
         when(employeeRepository.existsById(2L)).thenReturn(true);
-        when(reviewRepository.findByEmployeeIdOrderByCreatedDateDesc(2L))
+        when(reviewRepository.findByEmployeeIdOrderByCreatedOnDesc(2L))
                 .thenReturn(List.of(review));
         when(timelineRepository.findByPerformanceCycleIdInOrderByPerformanceCycleIdAscDisplayOrderAsc(
                 List.of(cycleId))).thenReturn(List.of(timeline));

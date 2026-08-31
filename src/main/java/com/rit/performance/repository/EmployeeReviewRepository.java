@@ -11,7 +11,7 @@ import java.util.List;
 public interface EmployeeReviewRepository extends JpaRepository<EmployeeReview, Long> {
     Optional<EmployeeReview> findByEmployeeIdAndPerformanceCycleId(Long employeeId, Long cycleId);
 
-    List<EmployeeReview> findByEmployeeIdOrderByCreatedDateDesc(Long employeeId);
+    List<EmployeeReview> findByEmployeeIdOrderByCreatedOnDesc(Long employeeId);
 
     List<EmployeeReview> findByPerformanceCycleId(Long cycleId);
 

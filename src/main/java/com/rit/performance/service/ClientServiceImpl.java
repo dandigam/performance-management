@@ -154,8 +154,8 @@ public class ClientServiceImpl implements ClientService {
                         .sorted(Comparator.comparing(Document::getId))
                         .map(this::toDocumentResponse)
                         .toList())
-                .createdDate(client.getCreatedDate())
-                .updatedDate(client.getUpdatedDate())
+                .createdDate(client.getCreatedOn())
+                .updatedDate(client.getUpdatedOn())
                 .build();
     }
 

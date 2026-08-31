@@ -33,8 +33,8 @@ public final class VendorMapper {
                                 Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(VendorMapper::toDocumentResponse)
                         .toList())
-                .createdDate(vendor.getCreatedDate())
-                .updatedDate(vendor.getUpdatedDate())
+                .createdDate(vendor.getCreatedOn())
+                .updatedDate(vendor.getUpdatedOn())
                 .build();
     }
 

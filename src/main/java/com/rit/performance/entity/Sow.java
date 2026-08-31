@@ -2,6 +2,7 @@ package com.rit.performance.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -14,8 +15,8 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class Sow {
+@SuperBuilder
+public class Sow extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -78,19 +79,6 @@ public class Sow {
 
     @Column(name = "signed_date")
     private LocalDate signedDate;
-
-    @Column(name = "created_by")
-    private Long createdBy;
-
-    @Column(name = "created_date", nullable = false, updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_by")
-    private Long updatedBy;
-
-    @Column(name = "updated_date", nullable = false)
-    private LocalDateTime updatedDate;
-
     @OneToMany(mappedBy = "sow", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private Set<SowMilestone> milestones = new LinkedHashSet<>();
@@ -130,19 +118,11 @@ public class Sow {
 
     @PrePersist
     void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        createdDate = now;
-        updatedDate = now;
         if (status == null || status.isBlank()) {
             status = "DRAFT";
         }
         if (signedStatus == null || signedStatus.isBlank()) {
             signedStatus = "UNSIGNED";
         }
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedDate = LocalDateTime.now();
     }
 }

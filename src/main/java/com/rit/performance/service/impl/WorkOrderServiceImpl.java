@@ -45,7 +45,7 @@ public class WorkOrderServiceImpl implements WorkOrderService {
     @Override
     @Transactional(readOnly = true)
     public List<WorkOrderResponse> getAll() {
-        return workOrderRepository.findAllByOrderByUpdatedAtDesc().stream()
+        return workOrderRepository.findAllByOrderByUpdatedOnDesc().stream()
                 .map(this::toResponse).toList();
     }
 
@@ -146,7 +146,7 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                         .sorted(Comparator.comparing(Document::getId))
                         .map(this::toDocumentResponse)
                         .toList())
-                .createdAt(workOrder.getCreatedAt()).updatedAt(workOrder.getUpdatedAt())
+                .createdAt(workOrder.getCreatedOn()).updatedAt(workOrder.getUpdatedOn())
                 .build();
     }
 

@@ -44,7 +44,7 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
     @Override
     @Transactional(readOnly = true)
     public List<VendorInvoiceResponse> getAll() {
-        return vendorInvoiceRepository.findAllByOrderByUpdatedAtDesc().stream()
+        return vendorInvoiceRepository.findAllByOrderByUpdatedOnDesc().stream()
                 .map(this::toResponse).toList();
     }
 
@@ -162,8 +162,8 @@ public class VendorInvoiceServiceImpl implements VendorInvoiceService {
                 .status(invoice.getStatus())
                 .items(items)
                 .totalAmount(totalAmount)
-                .createdAt(invoice.getCreatedAt())
-                .updatedAt(invoice.getUpdatedAt())
+                .createdAt(invoice.getCreatedOn())
+                .updatedAt(invoice.getUpdatedOn())
                 .build();
     }
 }

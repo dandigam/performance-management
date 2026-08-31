@@ -4,6 +4,7 @@ import com.rit.performance.service.EmailDeliveryStatus;
 import com.rit.performance.service.EmailEventType;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 
@@ -18,8 +19,8 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class EmailNotification {
+@SuperBuilder
+public class EmailNotification extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -66,11 +67,7 @@ public class EmailNotification {
 
     @Column(name = "deduplication_key", nullable = false, length = 255)
     private String deduplicationKey;
-
-    @Column(name = "created_date", nullable = false, updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "sent_date")
+@Column(name = "sent_date")
     private LocalDateTime sentDate;
 
     @Column(name = "next_attempt_date")
@@ -78,7 +75,6 @@ public class EmailNotification {
 
     @PrePersist
     void prePersist() {
-        if (createdDate == null) createdDate = LocalDateTime.now();
         if (status == null) status = EmailDeliveryStatus.PENDING;
     }
 }

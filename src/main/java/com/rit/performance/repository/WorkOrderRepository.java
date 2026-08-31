@@ -9,7 +9,7 @@ import java.util.Optional;
 
 public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
     @EntityGraph(attributePaths = {"sow", "employee", "documents"})
-    List<WorkOrder> findAllByOrderByUpdatedAtDesc();
+    List<WorkOrder> findAllByOrderByUpdatedOnDesc();
 
     @EntityGraph(attributePaths = {"sow", "employee", "documents"})
     Optional<WorkOrder> findOneById(Long id);

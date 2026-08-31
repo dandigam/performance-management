@@ -23,12 +23,12 @@ public class AppUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
         String authority = roleAuthority(user.getRole());
         boolean active = "ACTIVE".equalsIgnoreCase(user.getStatus());
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getUsername())
-                .password(user.getPassword())
-                .authorities(new SimpleGrantedAuthority(authority))
-                .disabled(!active)
-                .build();
+        return new AuthenticatedUser(
+                user.getId(),
+                user.getUsername(),
+                user.getPassword(),
+                active,
+                java.util.List.of(new SimpleGrantedAuthority(authority)));
     }
 
     public String roleAuthority(LookupValue role) {

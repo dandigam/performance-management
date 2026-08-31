@@ -106,7 +106,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                 .collect(Collectors.toSet());
         List<SowInvoice> missingInvoices = sowMilestones.stream()
                 .filter(milestone -> !invoicedMilestoneIds.contains(milestone.getId()))
-                .map(milestone -> SowInvoice.builder()
+                .<SowInvoice>map(milestone -> SowInvoice.builder()
                         .sow(sow)
                         .milestone(milestone)
                         .invoiceStatus("DRAFT")
@@ -184,8 +184,8 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                 .paymentReceivedDate(invoice.getPaymentReceivedDate())
                 .receivedAmount(invoice.getReceivedAmount())
                 .paymentStatus(invoice.getPaymentStatus())
-                .createdBy(invoice.getCreatedBy()).createdDate(invoice.getCreatedDate())
-                .updatedBy(invoice.getUpdatedBy()).updatedDate(invoice.getUpdatedDate())
+                .createdBy(invoice.getCreatedBy()).createdDate(invoice.getCreatedOn())
+                .updatedBy(invoice.getUpdatedBy()).updatedDate(invoice.getUpdatedOn())
                 .build();
     }
 }

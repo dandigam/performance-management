@@ -9,7 +9,6 @@ import com.rit.performance.dto.ReviewProgressResponse;
 import com.rit.performance.dto.VendorResponse;
 import com.rit.performance.dto.DocumentResponse;
 import com.rit.performance.dto.response.SowResponse;
-import com.rit.performance.entity.Projects;
 import com.rit.performance.exception.InvalidOperationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -30,7 +29,6 @@ public class AiChatServiceImpl implements AiChatService {
     private final String apiKey;
     private final String model;
     private final EmployeeService employeeService;
-    private final ProjectsService projectsService;
     private final CycleDetailsService cycleDetailsService;
     private final EmployeeReviewService employeeReviewService;
     private final VendorService vendorService;
@@ -38,7 +36,6 @@ public class AiChatServiceImpl implements AiChatService {
 
     public AiChatServiceImpl(
             EmployeeService employeeService,
-            ProjectsService projectsService,
             CycleDetailsService cycleDetailsService,
             EmployeeReviewService employeeReviewService,
             VendorService vendorService,
@@ -50,7 +47,6 @@ public class AiChatServiceImpl implements AiChatService {
         this.apiKey = apiKey;
         this.model = model;
         this.employeeService = employeeService;
-        this.projectsService = projectsService;
         this.cycleDetailsService = cycleDetailsService;
         this.employeeReviewService = employeeReviewService;
         this.vendorService = vendorService;
@@ -123,9 +119,6 @@ public class AiChatServiceImpl implements AiChatService {
                 Employees:
                 %s
 
-                Projects:
-                %s
-
                 Vendors:
                 %s
 
@@ -134,7 +127,7 @@ public class AiChatServiceImpl implements AiChatService {
 
                 Review progress:
                 %s
-                """.formatted(LocalDate.now(), employeeSummary(), projectSummary(), vendorSummary(), sowSummary(),
+                """.formatted(LocalDate.now(), employeeSummary(), vendorSummary(), sowSummary(),
                 reviewSummary());
     }
 
@@ -147,18 +140,6 @@ public class AiChatServiceImpl implements AiChatService {
                         + " | role: " + value(employee.getRoleName())
                         + " | department: " + value(employee.getDepartmentName())
                         + " | SOW: " + value(employee.getSowName()))
-                .collect(Collectors.joining("\n"));
-    }
-
-    private String projectSummary() {
-        List<Projects> projects = projectsService.getAll();
-        if (projects.isEmpty()) return "No projects found.";
-        return projects.stream()
-                .map(project -> "- " + value(project.getProjectName())
-                        + " (" + value(project.getProjectCode()) + ")"
-                        + " | status: " + value(project.getStatus())
-                        + " | start: " + value(project.getStartDate())
-                        + " | end: " + value(project.getEndDate()))
                 .collect(Collectors.joining("\n"));
     }
 

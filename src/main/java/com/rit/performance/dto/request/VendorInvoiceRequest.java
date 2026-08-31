@@ -38,7 +38,6 @@ public class VendorInvoiceRequest {
     private String status;
 
     @NotEmpty(message = "items must contain at least one invoice item")
-    @Valid
     private List<@NotNull(message = "items cannot contain null values")
-            VendorInvoiceItemRequest> items;
+            @Valid VendorInvoiceItemRequest> items;
 }

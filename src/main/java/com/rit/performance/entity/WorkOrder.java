@@ -2,6 +2,7 @@ package com.rit.performance.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -14,8 +15,8 @@ import java.util.Set;
         @Index(name = "idx_work_order_sow_id", columnList = "sow_id"),
         @Index(name = "idx_work_order_employee_id", columnList = "employee_id")
 })
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class WorkOrder {
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @SuperBuilder
+public class WorkOrder extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -69,22 +70,4 @@ public class WorkOrder {
     )
     @Builder.Default
     private Set<Document> documents = new LinkedHashSet<>();
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        createdAt = now;
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
 }

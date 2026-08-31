@@ -19,7 +19,10 @@ public final class SowMapper {
     private SowMapper() {
     }
 
-    public static SowResponse toResponse(Sow sow, Map<Long, CsxEmployee> csxEmployees) {
+    public static SowResponse toResponse(
+            Sow sow,
+            Map<Long, CsxEmployee> csxEmployees,
+            Map<Long, String> auditorNames) {
         Employee ritContact = sow.getRitContactEmployee();
         Employee ritEscalation = sow.getRitEscalationEmployee();
         CsxEmployee projectOwner = findCsxEmployee(
@@ -71,10 +74,7 @@ public final class SowMapper {
                                 Comparator.nullsLast(Comparator.naturalOrder())))
                         .map(SowMapper::toDocumentResponse)
                         .toList())
-                .createdBy(sow.getCreatedBy())
-                .createdDate(sow.getCreatedDate())
-                .updatedBy(sow.getUpdatedBy())
-                .updatedDate(sow.getUpdatedDate())
+                .audit(AuditMapper.toResponse(sow, auditorNames))
                 .build();
     }
 
@@ -104,9 +104,9 @@ public final class SowMapper {
                 .status(milestone.getStatus())
                 .positions(toPositionResponses(milestone))
                 .createdBy(milestone.getCreatedBy())
-                .createdDate(milestone.getCreatedDate())
+                .createdDate(milestone.getCreatedOn())
                 .updatedBy(milestone.getUpdatedBy())
-                .updatedDate(milestone.getUpdatedDate())
+                .updatedDate(milestone.getUpdatedOn())
                 .build();
     }
 
@@ -123,8 +123,13 @@ public final class SowMapper {
                                 .seniority(position.getSeniority())
                                 .rateCardId(position.getRateCard() == null
                                         ? null : position.getRateCard().getId())
-                                .hourlyRate(position.getRateCard() == null
-                                        ? null : position.getRateCard().getHourlyRate())
+                                .hourlyRate(position.getHourlyRate() != null
+                                        ? position.getHourlyRate()
+                                        : position.getRateCard() == null ? null
+                                        : position.getRateCard().getHourlyRate())
+                                .rateOverrideReason(position.getRateOverrideReason())
+                                .rateUpdatedBy(position.getRateUpdatedBy())
+                                .rateUpdatedDate(position.getRateUpdatedDate())
                                 .currency(position.getRateCard() == null
                                         ? null : position.getRateCard().getCurrency())
                                 .positionType(position.getPositionType())

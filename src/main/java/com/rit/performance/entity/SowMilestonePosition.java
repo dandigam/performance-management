@@ -2,9 +2,11 @@ package com.rit.performance.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "sow_milestone_positions")
@@ -12,8 +14,8 @@ import java.math.BigDecimal;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class SowMilestonePosition {
+@SuperBuilder
+public class SowMilestonePosition extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -33,6 +35,14 @@ public class SowMilestonePosition {
     @JoinColumn(name = "rate_card_id",
             foreignKey = @ForeignKey(name = "fk_sow_milestone_position_rate_card"))
     private RateCard rateCard;
+    @Column(name = "hourly_rate", precision = 12, scale = 2)
+    private BigDecimal hourlyRate;
+    @Column(name = "rate_override_reason", length = 1000)
+    private String rateOverrideReason;
+    @Column(name = "rate_updated_by")
+    private Long rateUpdatedBy;
+    @Column(name = "rate_updated_date")
+    private LocalDateTime rateUpdatedDate;
     @Column(name = "position_name", nullable = false, length = 200)
     private String positionName;
     @Column(length = 100)

@@ -2,6 +2,7 @@ package com.rit.performance.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 
@@ -12,8 +13,8 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class EmployeeReviewAnswer {
+@SuperBuilder
+public class EmployeeReviewAnswer extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,28 +49,4 @@ public class EmployeeReviewAnswer {
 
     @Column(columnDefinition = "TEXT")
     private String comment;
-
-    @Column(name = "created_by")
-    private Long createdBy;
-
-    @Column(name = "created_date", updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_by")
-    private Long updatedBy;
-
-    @Column(name = "updated_date")
-    private LocalDateTime updatedDate;
-
-    @PrePersist
-    public void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        if (createdDate == null) createdDate = now;
-        updatedDate = now;
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        updatedDate = LocalDateTime.now();
-    }
 }

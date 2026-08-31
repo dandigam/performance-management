@@ -13,6 +13,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 
@@ -22,8 +23,8 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class PerformanceCycleQuestion {
+@SuperBuilder
+public class PerformanceCycleQuestion extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -52,26 +53,8 @@ public class PerformanceCycleQuestion {
     @Column(name = "is_active")
     @Builder.Default
     private Boolean active = true;
-
-    @Column(name = "created_by")
-    private Long createdBy;
-
-    @Column(name = "created_date", updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_by")
-    private Long updatedBy;
-
-    @Column(name = "updated_date")
-    private LocalDateTime updatedDate;
-
     @PrePersist
     public void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        if (createdDate == null) {
-            createdDate = now;
-        }
-        updatedDate = now;
         if (required == null) {
             required = true;
         }
@@ -81,10 +64,5 @@ public class PerformanceCycleQuestion {
         if (active == null) {
             active = true;
         }
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        updatedDate = LocalDateTime.now();
     }
 }

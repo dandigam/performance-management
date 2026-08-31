@@ -39,6 +39,7 @@ public class SowServiceImpl implements SowService {
     private final EmployeeRepository employeeRepository;
     private final CsxEmployeeRepository csxEmployeeRepository;
     private final DocumentRepository documentRepository;
+    private final UserRepository userRepository;
 
     @Override
     public SowResponse create(SowRequest request) {
@@ -78,11 +79,12 @@ public class SowServiceImpl implements SowService {
                                 && Objects.equals(position.getPosition().getId(), designationId)))
                 .toList();
         Map<Long, CsxEmployee> csxEmployees = csxEmployeesFor(sows);
+        Map<Long, String> auditorNames = auditorNamesFor(sows);
         List<SowResponse> responses = sows.stream()
                 .sorted(Comparator.comparing(
-                        Sow::getUpdatedDate,
+                        Sow::getUpdatedOn,
                         Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(sow -> SowMapper.toResponse(sow, csxEmployees))
+                .map(sow -> SowMapper.toResponse(sow, csxEmployees, auditorNames))
                 .toList();
         populateResourceFulfillment(responses);
         return responses;
@@ -204,6 +206,7 @@ public class SowServiceImpl implements SowService {
                 .hours(trimToNull(request.getHours()))
                 .amount(request.getAmount())
                 .build();
+        applyPositionRate(milestonePosition, rateCard, request);
         milestone.getPositions().add(milestonePosition);
         milestone.setAmount(milestone.getPositions().stream()
                 .map(SowMilestonePosition::getAmount)
@@ -217,7 +220,10 @@ public class SowServiceImpl implements SowService {
                 .positionName(milestonePosition.getPositionName())
                 .seniority(milestonePosition.getSeniority())
                 .rateCardId(rateCard == null ? null : rateCard.getId())
-                .hourlyRate(rateCard == null ? null : rateCard.getHourlyRate())
+                .hourlyRate(milestonePosition.getHourlyRate())
+                .rateOverrideReason(milestonePosition.getRateOverrideReason())
+                .rateUpdatedBy(milestonePosition.getRateUpdatedBy())
+                .rateUpdatedDate(milestonePosition.getRateUpdatedDate())
                 .currency(rateCard == null ? null : rateCard.getCurrency())
                 .positionType(milestonePosition.getPositionType())
                 .locationType(milestonePosition.getLocationType())
@@ -246,11 +252,6 @@ public class SowServiceImpl implements SowService {
             throw new InvalidOperationException(
                     "Only an ACTIVE assignment can be unassigned");
         }
-        if (request.getAssignmentEndDate().isBefore(assignment.getEffectiveFrom())) {
-            throw new InvalidOperationException(
-                    "assignmentEndDate cannot be before assignmentStartDate");
-        }
-
         assignment.setEffectiveTo(request.getAssignmentEndDate());
         assignment.setStatus("COMPLETED");
         assignment.setIsPrimaryAssignment(false);
@@ -508,6 +509,7 @@ public class SowServiceImpl implements SowService {
                     "Milestone position");
             milestonePosition.setPosition(designation);
             milestonePosition.setRateCard(rateCard);
+            applyPositionRate(milestonePosition, rateCard, positionRequest);
             milestonePosition.setPositionName(positionName);
             milestonePosition.setSeniority(trimToNull(positionRequest.getSeniority()));
             milestonePosition.setPositionType(normalizePositionType(
@@ -534,6 +536,36 @@ public class SowServiceImpl implements SowService {
             }
             milestone.getPositions().remove(position);
         }
+    }
+
+    private void applyPositionRate(SowMilestonePosition position, RateCard rateCard,
+            com.rit.performance.dto.request.SowMilestonePositionRequest request) {
+        BigDecimal cardRate = rateCard == null ? null : rateCard.getHourlyRate();
+        BigDecimal requestedRate = request.getHourlyRate() == null
+                ? cardRate : request.getHourlyRate();
+        String reason = trimToNull(request.getRateOverrideReason());
+        boolean overrideMetadataProvided = reason != null || request.getRateUpdatedBy() != null;
+        boolean overridden = requestedRate != null
+                && ((cardRate != null && requestedRate.compareTo(cardRate) != 0)
+                || (cardRate == null && overrideMetadataProvided));
+        if (overridden) {
+            if (reason == null) {
+                throw new InvalidOperationException(
+                        "rateOverrideReason is required when hourlyRate overrides the rate card");
+            }
+            if (request.getRateUpdatedBy() == null) {
+                throw new InvalidOperationException(
+                        "rateUpdatedBy is required when hourlyRate overrides the rate card");
+            }
+            position.setRateOverrideReason(reason);
+            position.setRateUpdatedBy(request.getRateUpdatedBy());
+            position.setRateUpdatedDate(java.time.LocalDateTime.now());
+        } else {
+            position.setRateOverrideReason(null);
+            position.setRateUpdatedBy(null);
+            position.setRateUpdatedDate(null);
+        }
+        position.setHourlyRate(requestedRate);
     }
 
     private RateCard resolveRateCard(Long rateCardId) {
@@ -638,7 +670,8 @@ public class SowServiceImpl implements SowService {
     }
 
     private SowResponse toResponse(Sow sow) {
-        SowResponse response = SowMapper.toResponse(sow, csxEmployeesFor(List.of(sow)));
+        SowResponse response = SowMapper.toResponse(
+                sow, csxEmployeesFor(List.of(sow)), auditorNamesFor(List.of(sow)));
         populateResourceFulfillment(List.of(response));
         return response;
     }
@@ -709,6 +742,23 @@ public class SowServiceImpl implements SowService {
     private String normalizeCode(String value) {
         String normalized = trimToNull(value);
         return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
+    }
+
+    private Map<Long, String> auditorNamesFor(List<Sow> sows) {
+        Set<Long> userIds = sows.stream()
+                .flatMap(sow -> java.util.stream.Stream.of(
+                        sow.getCreatedBy(), sow.getUpdatedBy()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (userIds.isEmpty()) return Map.of();
+        return userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getId, this::auditorDisplayName));
+    }
+
+    private String auditorDisplayName(User user) {
+        if (user.getEmployee() == null) return user.getUsername();
+        String name = employeeName(user.getEmployee());
+        return name.isBlank() ? user.getUsername() : name;
     }
 
     private String normalizeStatus(String value, String defaultValue) {

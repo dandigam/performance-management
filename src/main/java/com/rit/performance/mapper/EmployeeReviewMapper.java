@@ -24,8 +24,8 @@ public final class EmployeeReviewMapper {
                 .cycleId(entity.getPerformanceCycle() == null ? null : entity.getPerformanceCycle().getId())
                 .status(entity.getStatus())
                 .progressPercentage(entity.getProgressPercentage())
-                .createdBy(entity.getCreatedBy()).createdDate(entity.getCreatedDate())
-                .updatedBy(entity.getUpdatedBy()).updatedDate(entity.getUpdatedDate())
+                .createdBy(entity.getCreatedBy()).createdDate(entity.getCreatedOn())
+                .updatedBy(entity.getUpdatedBy()).updatedDate(entity.getUpdatedOn())
                 .assessmentStages(assessments == null ? List.of() : assessments.stream()
                         .map(EmployeeReviewMapper::toAssessmentResponse).toList())
                 .build();
@@ -56,7 +56,7 @@ public final class EmployeeReviewMapper {
                 .overallRating(entity.getOverallRating())
                 .overallComment(entity.getOverallComment()).startedDate(entity.getStartedDate())
                 .submittedDate(entity.getSubmittedDate()).createdBy(entity.getCreatedBy())
-                .createdDate(entity.getCreatedDate()).updatedBy(entity.getUpdatedBy()).updatedDate(entity.getUpdatedDate())
+                .createdDate(entity.getCreatedOn()).updatedBy(entity.getUpdatedBy()).updatedDate(entity.getUpdatedOn())
                 .answers(entity.getAnswers() == null ? List.of() : entity.getAnswers().stream()
                         .map(EmployeeReviewMapper::toAnswerResponse).toList())
                 .build();
@@ -77,8 +77,8 @@ public final class EmployeeReviewMapper {
                 .required(entity.getRequiredSnapshot() == null
                         ? question == null ? null : question.getRequired() : entity.getRequiredSnapshot())
                 .rating(entity.getRating()).comment(entity.getComment())
-                .createdBy(entity.getCreatedBy()).createdDate(entity.getCreatedDate())
-                .updatedBy(entity.getUpdatedBy()).updatedDate(entity.getUpdatedDate()).build();
+                .createdBy(entity.getCreatedBy()).createdDate(entity.getCreatedOn())
+                .updatedBy(entity.getUpdatedBy()).updatedDate(entity.getUpdatedOn()).build();
     }
 
     public static EmployeeReviewAnswer toAnswerEntity(EmployeeReviewAssessment assessment,

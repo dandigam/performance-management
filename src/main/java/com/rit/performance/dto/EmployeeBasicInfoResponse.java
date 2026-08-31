@@ -73,7 +73,9 @@ public class EmployeeBasicInfoResponse {
     private Long leadId;
     @JsonIgnore
     private String leadName;
+    @JsonIgnore
     private List<EmployeeAssignmentResponse> assignmentList;
+    private List<EmployeeCurrentProjectResponse> currentProjects;
     private List<SowMilestonePositionAssignmentResponse> milestoneAssignments;
     private String status;
     private EmployeeAddressResponse addressDetails;

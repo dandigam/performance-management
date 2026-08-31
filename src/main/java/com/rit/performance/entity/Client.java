@@ -19,6 +19,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
@@ -31,8 +32,8 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class Client {
+@SuperBuilder
+public class Client extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -69,13 +70,6 @@ public class Client {
 
     @Column(nullable = false, length = 20)
     private String status;
-
-    @Column(name = "created_date", nullable = false, updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_date", nullable = false)
-    private LocalDateTime updatedDate;
-
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "client_documents",
             joinColumns = @JoinColumn(name = "client_id",
@@ -89,14 +83,6 @@ public class Client {
 
     @PrePersist
     void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        createdDate = now;
-        updatedDate = now;
         if (status == null || status.isBlank()) status = "ACTIVE";
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedDate = LocalDateTime.now();
     }
 }

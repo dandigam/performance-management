@@ -36,7 +36,6 @@ public class RefreshTokenService {
         repository.save(RefreshToken.builder()
                 .tokenHash(hash(rawToken))
                 .user(user)
-                .createdAt(Instant.now())
                 .expiresAt(expiresAt)
                 .build());
         return new IssuedRefreshToken(rawToken, user, expiresAt);

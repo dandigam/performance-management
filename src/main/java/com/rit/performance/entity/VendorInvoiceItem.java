@@ -2,13 +2,14 @@ package com.rit.performance.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "vendor_invoices_items", indexes =
         @Index(name = "idx_vendor_invoice_item_invoice_id", columnList = "vendor_invoice_id"))
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class VendorInvoiceItem {
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @SuperBuilder
+public class VendorInvoiceItem extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

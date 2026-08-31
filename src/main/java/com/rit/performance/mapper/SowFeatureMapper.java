@@ -24,9 +24,9 @@ public final class SowFeatureMapper {
                 .endDate(feature.getEndDate())
                 .status(feature.getStatus())
                 .createdBy(feature.getCreatedBy())
-                .createdDate(feature.getCreatedDate())
+                .createdDate(feature.getCreatedOn())
                 .updatedBy(feature.getUpdatedBy())
-                .updatedDate(feature.getUpdatedDate())
+                .updatedDate(feature.getUpdatedOn())
                 .build();
     }
 }

@@ -2,6 +2,7 @@ package com.rit.performance.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
@@ -13,8 +14,8 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class Vendor {
+@SuperBuilder
+public class Vendor extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -52,13 +53,6 @@ public class Vendor {
 
     @Column(length = 500)
     private String address;
-
-    @Column(name = "created_date", nullable = false, updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_date", nullable = false)
-    private LocalDateTime updatedDate;
-
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "vendor_documents",
@@ -80,16 +74,8 @@ public class Vendor {
 
     @PrePersist
     void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        createdDate = now;
-        updatedDate = now;
         if (status == null || status.isBlank()) {
             status = "ACTIVE";
         }
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedDate = LocalDateTime.now();
     }
 }

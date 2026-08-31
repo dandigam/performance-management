@@ -12,6 +12,11 @@ public class SowMilestonePositionRequest {
     @NotNull(message = "positionId is required")
     private Long positionId;
     private Long rateCardId;
+    @DecimalMin(value = "0.0", message = "hourlyRate cannot be negative")
+    private BigDecimal hourlyRate;
+    @Size(max = 1000, message = "rateOverrideReason must not exceed 1000 characters")
+    private String rateOverrideReason;
+    private Long rateUpdatedBy;
     @Size(max = 200, message = "positionName must not exceed 200 characters")
     private String positionName;
     @Size(max = 100, message = "seniority must not exceed 100 characters")

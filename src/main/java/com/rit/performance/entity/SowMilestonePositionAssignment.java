@@ -2,6 +2,7 @@ package com.rit.performance.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -10,8 +11,8 @@ import java.time.LocalDateTime;
         @Index(name = "idx_smpa_employee_assignment_id", columnList = "employee_assignment_id"),
         @Index(name = "idx_smpa_milestone_position_id", columnList = "milestone_position_id")
 })
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class SowMilestonePositionAssignment {
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @SuperBuilder
+public class SowMilestonePositionAssignment extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -40,27 +41,8 @@ public class SowMilestonePositionAssignment {
 
     @Column(nullable = false, length = 20)
     private String status;
-
-    @Column(name = "created_by")
-    private Long createdBy;
-
-    @Column(name = "created_date", nullable = false, updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_by")
-    private Long updatedBy;
-
-    @Column(name = "updated_date", nullable = false)
-    private LocalDateTime updatedDate;
-
     @PrePersist
     void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        createdDate = now;
-        updatedDate = now;
         if (status == null || status.isBlank()) status = "ACTIVE";
     }
-
-    @PreUpdate
-    void preUpdate() { updatedDate = LocalDateTime.now(); }
 }

@@ -303,10 +303,10 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
 
     private java.time.LocalDateTime lastUpdatedAt(EmployeeReview review, FinalRating rating) {
         java.util.stream.Stream<java.time.LocalDateTime> reviewDates = java.util.stream.Stream.of(
-                review.getCreatedDate(), review.getUpdatedDate(), rating == null ? null : rating.getPublishedDate());
+                review.getCreatedOn(), review.getUpdatedOn(), rating == null ? null : rating.getPublishedDate());
         java.util.stream.Stream<java.time.LocalDateTime> assessmentDates = review.getAssessments().stream()
                 .flatMap(assessment -> java.util.stream.Stream.of(
-                        assessment.getCreatedDate(), assessment.getUpdatedDate(),
+                        assessment.getCreatedOn(), assessment.getUpdatedOn(),
                         assessment.getStartedDate(), assessment.getSubmittedDate()));
         return java.util.stream.Stream.concat(reviewDates, assessmentDates)
                 .filter(java.util.Objects::nonNull)
@@ -410,8 +410,8 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
     }
 
     private EmployeeAssignment legacyAssignment(EmployeeReview review) {
-        LocalDate reviewDate = review.getCreatedDate() == null ? LocalDate.now()
-                : review.getCreatedDate().toLocalDate();
+        LocalDate reviewDate = review.getCreatedOn() == null ? LocalDate.now()
+                : review.getCreatedOn().toLocalDate();
         return employeeAssignmentRepository.findEffectiveOnDate(review.getEmployee().getId(), reviewDate).stream()
                 .findFirst()
                 .orElseGet(() -> employeeAssignmentRepository
@@ -459,7 +459,7 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
     @Override @Transactional(readOnly = true)
     public List<EmployeeCycleReviewResponse> getEmployeeCycles(Long employeeId) {
         if (!employeeRepository.existsById(employeeId)) throw new ResourceNotFoundException("Employee not found");
-        List<EmployeeReview> reviews = reviewRepository.findByEmployeeIdOrderByCreatedDateDesc(employeeId);
+        List<EmployeeReview> reviews = reviewRepository.findByEmployeeIdOrderByCreatedOnDesc(employeeId);
         List<Long> cycleIds = reviews.stream().map(review -> review.getPerformanceCycle().getId()).distinct().toList();
         Map<Long, List<PerformanceCycleTimeline>> timelinesByCycle = cycleIds.isEmpty() ? Map.of()
                 : timelineRepository
@@ -488,11 +488,11 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
                 ? null : timelineDueDate(employeeAssessment, timelines);
         LocalDate dueDate = employeeAssessment == null ? null : effectiveDueDate(employeeAssessment, timelines);
         boolean extended = employeeAssessment != null && employeeAssessment.getReopenedDate() != null;
-        LocalDateTime reviewCreatedDate = review.getCreatedDate() != null ? review.getCreatedDate()
-                : review.getAssessments().stream().map(EmployeeReviewAssessment::getCreatedDate)
+        LocalDateTime reviewCreatedDate = review.getCreatedOn() != null ? review.getCreatedOn()
+                : review.getAssessments().stream().map(EmployeeReviewAssessment::getCreatedOn)
                     .filter(java.util.Objects::nonNull).min(LocalDateTime::compareTo).orElse(null);
-        LocalDateTime reviewUpdatedDate = review.getUpdatedDate() != null ? review.getUpdatedDate()
-                : review.getAssessments().stream().map(EmployeeReviewAssessment::getUpdatedDate)
+        LocalDateTime reviewUpdatedDate = review.getUpdatedOn() != null ? review.getUpdatedOn()
+                : review.getAssessments().stream().map(EmployeeReviewAssessment::getUpdatedOn)
                     .filter(java.util.Objects::nonNull).max(LocalDateTime::compareTo).orElse(null);
         EmployeeCycleReviewResponse response = EmployeeCycleReviewResponse.builder()
                 .reviewId(review.getId()).employeeId(review.getEmployee().getId()).cycleId(cycle.getId())

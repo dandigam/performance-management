@@ -9,6 +9,7 @@ import com.rit.performance.entity.SowMilestone;
 import com.rit.performance.mapper.SowMapper;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,6 +43,10 @@ class SowMapperTest {
         ritContact.setEmail("manager@rit.com");
         Sow sow = Sow.builder()
                 .id(8L)
+                .createdBy(10L)
+                .createdOn(LocalDateTime.of(2026, 8, 28, 10, 30))
+                .updatedBy(11L)
+                .updatedOn(LocalDateTime.of(2026, 8, 29, 9, 15))
                 .sowCode("SOW-008")
                 .sowName("Test SOW")
                 .projectOwnerEmployeeId(114L)
@@ -70,7 +75,9 @@ class SowMapperTest {
                 .build();
 
         SowResponse response = SowMapper.toResponse(
-                sow, Map.of(112L, contact, 113L, escalation, 114L, projectOwner));
+                sow,
+                Map.of(112L, contact, 113L, escalation, 114L, projectOwner),
+                Map.of(10L, "Creator Name", 11L, "Updater Name"));
 
         assertEquals(114L, response.getProjectOwnerEmployeeId());
         assertEquals("Michael Johnson", response.getProjectOwnerEmployeeName());
@@ -89,5 +96,13 @@ class SowMapperTest {
         assertEquals("application/pdf", response.getDocumentList().get(0).getFileType());
         assertEquals("C:\\documents\\agreement.pdf",
                 response.getDocumentList().get(0).getFileUrl());
+        assertEquals(10L, response.getAudit().createdBy());
+        assertEquals("Creator Name", response.getAudit().createdByName());
+        assertEquals(LocalDateTime.of(2026, 8, 28, 10, 30),
+                response.getAudit().createdOn());
+        assertEquals(11L, response.getAudit().updatedBy());
+        assertEquals("Updater Name", response.getAudit().updatedByName());
+        assertEquals(LocalDateTime.of(2026, 8, 29, 9, 15),
+                response.getAudit().updatedOn());
     }
 }
