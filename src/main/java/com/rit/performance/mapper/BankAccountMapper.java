@@ -25,8 +25,8 @@ public final class BankAccountMapper {
                 .remittanceEmail(account.getRemittanceEmail())
                 .isPrimary(account.isPrimary())
                 .active(account.isActive())
-                .createdAt(account.getCreatedAt())
-                .updatedAt(account.getUpdatedAt())
+                .createdAt(account.getCreatedOn())
+                .updatedAt(account.getUpdatedOn())
                 .build();
     }
 

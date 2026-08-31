@@ -20,7 +20,7 @@ public interface EmailNotificationRepository extends JpaRepository<EmailNotifica
             where email.status = com.rit.performance.service.EmailDeliveryStatus.PENDING
               and email.retryCount < :maxRetries
               and (email.nextAttemptDate is null or email.nextAttemptDate <= :now)
-            order by email.createdDate asc
+            order by email.createdOn asc
             """)
     List<EmailNotification> findReadyToSend(@Param("now") LocalDateTime now,
             @Param("maxRetries") int maxRetries, Pageable pageable);

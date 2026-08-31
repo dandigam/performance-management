@@ -97,9 +97,10 @@ public class SowMilestonePositionAssignmentServiceImpl
             SowMilestonePositionUnassignRequest request) {
         SowMilestonePosition position = findPosition(sowId, milestoneId, milestonePositionId);
         SowMilestonePositionAssignment assignment = findAssignment(id, milestonePositionId);
-        validateUnassignmentDate(assignment, request.getAssignmentEndDate());
-        assignment.setAssignmentEndDate(request.getAssignmentEndDate());
-        assignment.setStatus("COMPLETED");
+        if (!"ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
+            throw new InvalidOperationException("Only an ACTIVE assignment can be unassigned");
+        }
+        markUnassigned(assignment, request.getAssignmentEndDate());
         assignment.setUpdatedBy(request.getUpdatedBy());
         SowMilestonePositionAssignment saved = repository.saveAndFlush(assignment);
         completeParentIfNoActiveMilestones(saved.getEmployeeAssignment(),
@@ -122,9 +123,7 @@ public class SowMilestonePositionAssignmentServiceImpl
         if (!"ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
             throw new InvalidOperationException("Only an ACTIVE assignment can be unassigned");
         }
-        validateUnassignmentDate(assignment, request.getAssignmentEndDate());
-        assignment.setAssignmentEndDate(request.getAssignmentEndDate());
-        assignment.setStatus("COMPLETED");
+        markUnassigned(assignment, request.getAssignmentEndDate());
         assignment.setUpdatedBy(request.getUpdatedBy());
         SowMilestonePositionAssignment saved = repository.saveAndFlush(assignment);
         completeParentIfNoActiveMilestones(saved.getEmployeeAssignment(),
@@ -146,12 +145,10 @@ public class SowMilestonePositionAssignmentServiceImpl
         employeeAssignmentRepository.save(parent);
     }
 
-    private void validateUnassignmentDate(SowMilestonePositionAssignment assignment,
+    private void markUnassigned(SowMilestonePositionAssignment assignment,
             LocalDate endDate) {
-        if (endDate.isBefore(assignment.getAssignmentStartDate())) {
-            throw new InvalidOperationException(
-                    "assignmentEndDate cannot be before assignmentStartDate");
-        }
+        assignment.setAssignmentEndDate(endDate);
+        assignment.setStatus("COMPLETED");
     }
 
     private void apply(SowMilestonePositionAssignment assignment,
@@ -280,8 +277,8 @@ public class SowMilestonePositionAssignmentServiceImpl
                 .assignmentStartDate(assignment.getAssignmentStartDate())
                 .assignmentEndDate(assignment.getAssignmentEndDate())
                 .status(assignment.getStatus())
-                .createdDate(assignment.getCreatedDate())
-                .updatedDate(assignment.getUpdatedDate())
+                .createdDate(assignment.getCreatedOn())
+                .updatedDate(assignment.getUpdatedOn())
                 .build();
     }
 }

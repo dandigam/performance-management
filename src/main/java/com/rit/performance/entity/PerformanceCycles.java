@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -18,8 +19,8 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class PerformanceCycles {
+@SuperBuilder
+public class PerformanceCycles extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,19 +47,6 @@ public class PerformanceCycles {
     @Column(name = "status", nullable = false, length = 30)
     @Builder.Default
     private String status = "DRAFT";
-
-    @Column(name = "created_by")
-    private Long createdBy;
-
-    @Column(name = "created_date", updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_by")
-    private Long updatedBy;
-
-    @Column(name = "updated_date")
-    private LocalDateTime updatedDate;
-
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "performance_cycle_scope_values",
             joinColumns = @JoinColumn(name = "performance_cycle_id"))
@@ -68,18 +56,8 @@ public class PerformanceCycles {
 
     @PrePersist
     public void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        if (createdDate == null) {
-            createdDate = now;
-        }
-        updatedDate = now;
         if (status == null || status.isBlank()) {
             status = "DRAFT";
         }
-    }
-
-    @PreUpdate
-    public void preUpdate() {
-        updatedDate = LocalDateTime.now();
     }
 }

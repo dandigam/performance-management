@@ -150,7 +150,7 @@ public class EmailNotificationService {
                 .subject(email.getSubject()).body(email.getBody()).footer(email.getFooter())
                 .actionUrl(email.getActionUrl()).employeeReviewId(email.getEmployeeReviewId())
                 .cycleId(email.getCycleId()).status(email.getStatus()).retryCount(email.getRetryCount())
-                .errorMessage(email.getErrorMessage()).createdDate(email.getCreatedDate())
+                .errorMessage(email.getErrorMessage()).createdDate(email.getCreatedOn())
                 .sentDate(email.getSentDate()).nextAttemptDate(email.getNextAttemptDate()).build();
     }
 }

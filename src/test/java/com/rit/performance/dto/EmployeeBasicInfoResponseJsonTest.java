@@ -13,7 +13,7 @@ class EmployeeBasicInfoResponseJsonTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void excludesAssignmentSummaryFromHeaderAndKeepsItOnAssignments() {
+    void excludesAssignmentHistoryAndIncludesCurrentProjects() {
         EmployeeAssignmentResponse assignment = EmployeeAssignmentResponse.builder()
                 .departmentId(48L)
                 .departmentName("Car Management")
@@ -23,6 +23,13 @@ class EmployeeBasicInfoResponseJsonTest {
                 .designationId(42L)
                 .designationName("Chief Technology Officer")
                 .assignmentList(List.of(assignment))
+                .currentProjects(List.of(EmployeeCurrentProjectResponse.builder()
+                        .projectId(15L)
+                        .projectName("Performance Management System")
+                        .sowId(19L)
+                        .sowName("Sow")
+                        .designationName("Java Developer")
+                        .build()))
                 .build();
 
         JsonNode json = objectMapper.valueToTree(response);
@@ -35,12 +42,15 @@ class EmployeeBasicInfoResponseJsonTest {
                 "leadId", "leadName");
 
         assertThat(assignmentFields).allMatch(field -> !json.has(field));
-        assertThat(assignmentFields).allMatch(field -> json.at("/assignmentList/0").has(field));
+        assertThat(json.has("assignmentList")).isFalse();
         assertThat(json.get("designationId").asLong()).isEqualTo(42L);
         assertThat(json.get("designationName").asText()).isEqualTo("Chief Technology Officer");
-        assertThat(json.at("/assignmentList/0").has("designationId")).isTrue();
-        assertThat(json.at("/assignmentList/0").has("designationName")).isTrue();
-        assertThat(json.at("/assignmentList/0/departmentId").asLong()).isEqualTo(48L);
-        assertThat(json.at("/assignmentList/0/departmentName").asText()).isEqualTo("Car Management");
+        assertThat(json.at("/currentProjects/0/projectId").asLong()).isEqualTo(15L);
+        assertThat(json.at("/currentProjects/0/projectName").asText())
+                .isEqualTo("Performance Management System");
+        assertThat(json.at("/currentProjects/0/sowId").asLong()).isEqualTo(19L);
+        assertThat(json.at("/currentProjects/0/sowName").asText()).isEqualTo("Sow");
+        assertThat(json.at("/currentProjects/0/designationName").asText())
+                .isEqualTo("Java Developer");
     }
 }

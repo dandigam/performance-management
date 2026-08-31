@@ -3,6 +3,7 @@ package com.rit.performance.entity;
 import com.rit.performance.service.EmployeeReviewStatus;
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -13,8 +14,8 @@ import java.util.List;
 @Entity
 @Table(name = "employee_review_assessments", uniqueConstraints = @UniqueConstraint(
         name = "uk_review_assessment_level", columnNames = {"employee_review_id", "assessment_level"}))
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class EmployeeReviewAssessment {
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @SuperBuilder
+public class EmployeeReviewAssessment extends BaseEntity {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -51,21 +52,12 @@ public class EmployeeReviewAssessment {
     @Column(name = "due_date") private LocalDate dueDate;
     @Column(name = "reopen_reason", length = 2000) private String reopenReason;
     @Column(name = "reopened_date") private LocalDateTime reopenedDate;
-    @Column(name = "created_by") private Long createdBy;
-    @Column(name = "created_date", updatable = false) private LocalDateTime createdDate;
-    @Column(name = "updated_by") private Long updatedBy;
-    @Column(name = "updated_date") private LocalDateTime updatedDate;
-
     @OneToMany(mappedBy = "employeeReviewAssessment", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     @Builder.Default
     private List<EmployeeReviewAnswer> answers = new ArrayList<>();
 
     @PrePersist void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        if (createdDate == null) createdDate = now;
         if (progressPercentage == null) progressPercentage = BigDecimal.ZERO;
-        updatedDate = now;
     }
-    @PreUpdate void preUpdate() { updatedDate = LocalDateTime.now(); }
 }

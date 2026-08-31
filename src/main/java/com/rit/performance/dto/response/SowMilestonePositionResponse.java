@@ -4,6 +4,7 @@ import lombok.*;
 import java.util.List;
 import java.time.LocalDate;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
@@ -14,6 +15,9 @@ public class SowMilestonePositionResponse {
     private String seniority;
     private Long rateCardId;
     private BigDecimal hourlyRate;
+    private String rateOverrideReason;
+    private Long rateUpdatedBy;
+    private LocalDateTime rateUpdatedDate;
     private String currency;
     private String positionType;
     @JsonProperty("location")

@@ -44,7 +44,6 @@ public class WorkOrderRequest {
     @Size(max = 2000, message = "comments must not exceed 2000 characters")
     private String comments;
 
-    @Valid
     private List<@NotNull(message = "documentList cannot contain null values")
-            WorkOrderDocumentRequest> documentList;
+            @Valid WorkOrderDocumentRequest> documentList;
 }

@@ -16,5 +16,5 @@ import java.util.List;
 public class EmployeeAssignmentsResponse {
     private Long employeeId;
     private String employeeName;
-    private List<EmployeeAssignmentResponse> assignmentList;
+    private List<EmployeeSowAssignmentResponse> assignmentList;
 }

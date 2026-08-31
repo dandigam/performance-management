@@ -38,7 +38,7 @@ public class EmailNotificationController {
             @RequestParam(defaultValue = "20") int size) {
         int safeSize = Math.min(Math.max(size, 1), 100);
         return ResponseEntity.ok(service.search(eventType, status, recipient, cycleId, reviewId, query,
-                PageRequest.of(Math.max(page, 0), safeSize, Sort.by(Sort.Direction.DESC, "createdDate"))));
+                PageRequest.of(Math.max(page, 0), safeSize, Sort.by(Sort.Direction.DESC, "createdOn"))));
     }
 
     @GetMapping("/{id}")

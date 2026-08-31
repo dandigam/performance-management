@@ -12,7 +12,7 @@ public interface VendorInvoiceRepository extends JpaRepository<VendorInvoice, Lo
     boolean existsByInvoiceNumberIgnoreCaseAndIdNot(String invoiceNumber, Long id);
 
     @EntityGraph(attributePaths = {"workOrder", "vendor", "items"})
-    List<VendorInvoice> findAllByOrderByUpdatedAtDesc();
+    List<VendorInvoice> findAllByOrderByUpdatedOnDesc();
 
     @EntityGraph(attributePaths = {"workOrder", "vendor", "items"})
     Optional<VendorInvoice> findOneById(Long id);

@@ -17,7 +17,7 @@ import java.util.Set;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class Employee {
+public class Employee extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -65,19 +65,6 @@ public class Employee {
 
     @Column(name = "status", length = 20)
     private String status;
-
-    @Column(name = "created_by")
-    private Long createdBy;
-
-    @Column(name = "created_date", insertable = false, updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_by")
-    private Long updatedBy;
-
-    @Column(name = "updated_date", insertable = false, updatable = false)
-    private LocalDateTime updatedDate;
-
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "employee_documents",

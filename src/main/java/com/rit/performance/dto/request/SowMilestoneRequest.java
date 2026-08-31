@@ -50,7 +50,6 @@ public class SowMilestoneRequest {
     @Size(max = 30, message = "milestone status must not exceed 30 characters")
     private String status;
 
-    @Valid
-    private List<SowMilestonePositionRequest> positions;
+    private List<@Valid SowMilestonePositionRequest> positions;
 
 }

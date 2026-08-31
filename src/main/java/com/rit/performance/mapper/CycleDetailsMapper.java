@@ -42,9 +42,9 @@ public final class CycleDetailsMapper {
                 .scopeValueIds(entity.getScopeValueIds())
                 .status(entity.getStatus())
                 .createdBy(entity.getCreatedBy())
-                .createdDate(entity.getCreatedDate())
+                .createdDate(entity.getCreatedOn())
                 .updatedBy(entity.getUpdatedBy())
-                .updatedDate(entity.getUpdatedDate())
+                .updatedDate(entity.getUpdatedOn())
                 .build();
     }
 }

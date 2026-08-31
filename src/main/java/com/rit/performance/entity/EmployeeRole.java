@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @NoArgsConstructor
-public class EmployeeRole {
+public class EmployeeRole extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -37,16 +37,4 @@ public class EmployeeRole {
 
     @Column(name = "is_current")
     private Boolean isCurrent;
-
-    @Column(name = "created_by")
-    private Long createdBy;
-
-    @Column(name = "created_date", insertable = false, updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_by")
-    private Long updatedBy;
-
-    @Column(name = "updated_date", insertable = false, updatable = false)
-    private LocalDateTime updatedDate;
 }

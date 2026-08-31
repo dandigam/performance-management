@@ -55,9 +55,15 @@ public class RateCardServiceImpl implements RateCardService {
     @Override public RateCardResponse getById(Long id) { return toResponse(find(id)); }
     @Override public List<RateCardResponse> getAll() {
         return rateCardRepository.findAllWithDetails().stream()
-                .sorted(Comparator.comparing(RateCard::getEffectiveFrom).reversed()
-                        .thenComparing(RateCard::getCreatedDate, Comparator.reverseOrder())
-                        .thenComparing(RateCard::getId, Comparator.reverseOrder()))
+                .sorted(Comparator.comparing(
+                                RateCard::getEffectiveFrom,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(
+                                RateCard::getCreatedOn,
+                                Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(
+                                RateCard::getId,
+                                Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(this::toResponse)
                 .toList();
     }
@@ -148,7 +154,7 @@ public class RateCardServiceImpl implements RateCardService {
                 .effectiveFrom(r.getEffectiveFrom())
                 .effectiveTo(r.getEffectiveTo())
                 .status(r.getStatus())
-                .createdDate(r.getCreatedDate())
+                .createdDate(r.getCreatedOn())
                 .build();
     }
     private String resolveLookupName(Long lookupId, String lookupTypeCode) {

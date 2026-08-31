@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class EmployeeAssignment {
+public class EmployeeAssignment extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -59,19 +59,6 @@ public class EmployeeAssignment {
 
     @Column(name = "is_primary_assignment", nullable = false)
     private Boolean isPrimaryAssignment;
-
-    @Column(name = "created_by")
-    private Long createdBy;
-
-    @Column(name = "created_date", insertable = false, updatable = false)
-    private LocalDateTime createdDate;
-
-    @Column(name = "updated_by")
-    private Long updatedBy;
-
-    @Column(name = "updated_date", insertable = false, updatable = false)
-    private LocalDateTime updatedDate;
-
     @PrePersist
     void applyDefaults() {
         if (isPrimaryAssignment == null) isPrimaryAssignment = false;

@@ -35,7 +35,6 @@ public class EmployeeAssignmentRequest {
     private Long updatedBy;
 
     @NotEmpty(message = "milestoneAssignments must contain at least one assignment")
-    @Valid
     private List<@NotNull(message = "milestoneAssignments cannot contain null values")
-            EmployeeMilestoneAssignmentRequest> milestoneAssignments;
+            @Valid EmployeeMilestoneAssignmentRequest> milestoneAssignments;
 }

@@ -2,6 +2,7 @@ package com.rit.performance.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 
@@ -11,8 +12,8 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class LookupType {
+@SuperBuilder
+public class LookupType extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,14 +31,4 @@ public class LookupType {
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private boolean active = true;
-
-    @Column(name = "created_date", nullable = false, updatable = false)
-    private LocalDateTime createdDate;
-
-    @PrePersist
-    void prePersist() {
-        if (createdDate == null) {
-            createdDate = LocalDateTime.now();
-        }
-    }
 }

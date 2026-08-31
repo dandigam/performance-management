@@ -57,8 +57,7 @@ public class SowRequest {
 
     private LocalDate signedDate;
 
-    @Valid
-    private List<SowMilestoneRequest> milestones;
+    private List<@Valid SowMilestoneRequest> milestones;
 
     private List<@NotNull(message = "documentList cannot contain null values")
             @Valid SowDocumentRequest> documentList;

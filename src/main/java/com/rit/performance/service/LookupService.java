@@ -50,7 +50,7 @@ public class LookupService {
                         .name(type.getName())
                         .description(type.getDescription())
                         .active(type.isActive())
-                        .createdDate(type.getCreatedDate())
+                        .createdDate(type.getCreatedOn())
                         .build())
                 .toList();
     }

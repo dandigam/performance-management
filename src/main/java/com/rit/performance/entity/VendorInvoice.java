@@ -2,6 +2,7 @@ package com.rit.performance.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -14,8 +15,8 @@ import java.util.List;
         @Index(name = "idx_vendor_invoice_vendor_id", columnList = "vendor_id")
 }, uniqueConstraints = @UniqueConstraint(
         name = "uk_vendor_invoice_number", columnNames = "invoice_number"))
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-public class VendorInvoice {
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @SuperBuilder
+public class VendorInvoice extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -59,23 +60,5 @@ public class VendorInvoice {
     public void clearItems() {
         items.forEach(item -> item.setVendorInvoice(null));
         items.clear();
-    }
-
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-
-    @PrePersist
-    void prePersist() {
-        LocalDateTime now = LocalDateTime.now();
-        createdAt = now;
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedAt = LocalDateTime.now();
     }
 }

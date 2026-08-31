@@ -1,10 +1,11 @@
 package com.rit.performance.dto.response;
 
+import com.fasterxml.jackson.annotation.JsonUnwrapped;
+import com.rit.performance.dto.AuditResponse;
 import com.rit.performance.dto.DocumentResponse;
 import lombok.*;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -45,8 +46,6 @@ public class SowResponse {
     private LocalDate signedDate;
     private List<SowMilestoneResponse> milestones;
     private List<DocumentResponse> documentList;
-    private Long createdBy;
-    private LocalDateTime createdDate;
-    private Long updatedBy;
-    private LocalDateTime updatedDate;
+    @JsonUnwrapped
+    private AuditResponse audit;
 }

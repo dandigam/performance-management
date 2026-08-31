@@ -4,6 +4,9 @@ import com.rit.performance.dto.EmployeeBasicInfoResponse;
 import com.rit.performance.dto.EmployeeUpdateRequest;
 import com.rit.performance.dto.EmployeeCreateRequest;
 import com.rit.performance.dto.EmployeeCreateResponse;
+import com.rit.performance.dto.EmployeeCurrentProjectResponse;
+import com.rit.performance.dto.EmployeeMilestoneAssignmentResponse;
+import com.rit.performance.dto.EmployeeSowAssignmentResponse;
 import com.rit.performance.dto.EmployeeReviewSummaryResponse;
 import com.rit.performance.dto.ReportingManagerResponse;
 import com.rit.performance.dto.DirectReportsResponse;
@@ -43,6 +46,7 @@ import com.rit.performance.repository.PerformanceCycleAssessorRepository;
 import com.rit.performance.repository.PerformanceCycleConfigRepository;
 import com.rit.performance.repository.SowRepository;
 import com.rit.performance.repository.SowMilestoneRepository;
+import com.rit.performance.repository.SowMilestonePositionAssignmentRepository;
 import com.rit.performance.repository.UserRepository;
 import com.rit.performance.repository.VendorRepository;
 import com.rit.performance.exception.InvalidOperationException;
@@ -54,6 +58,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -81,6 +86,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final LookupValueRepository lookupValueRepository;
     private final SowRepository sowRepository;
     private final SowMilestoneRepository sowMilestoneRepository;
+    private final SowMilestonePositionAssignmentRepository milestonePositionAssignmentRepository;
     private final UserRepository userRepository;
     private final EmployeeRoleRepository employeeRoleRepository;
     private final EmployeeReviewAssessmentRepository employeeReviewAssessmentRepository;
@@ -340,7 +346,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         List<Employee> employees = employeeRepository.findAll();
         Map<Long, Employee> employeesById = employees.stream()
                 .collect(Collectors.toMap(Employee::getId, Function.identity()));
-        Map<Long, List<EmployeeAssignment>> assignmentsByEmployee = assignmentRepository.findAll().stream()
+        Map<Long, List<EmployeeAssignment>> assignmentsByEmployee = assignmentRepository
+                .findByStatusIgnoreCase("ACTIVE").stream()
                 .sorted(assignmentDisplayOrder())
                 .collect(Collectors.groupingBy(EmployeeAssignment::getEmployeeId));
         Map<Long, EmployeeAssignment> currentAssignments = assignmentsByEmployee.entrySet().stream()
@@ -358,12 +365,19 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .collect(Collectors.toMap(Sow::getId, Function.identity()));
         Map<Long, SowMilestone> milestones = sowMilestoneRepository.findAll().stream()
                 .collect(Collectors.toMap(SowMilestone::getId, Function.identity()));
-
         return employees.stream()
                 .sorted(Comparator.comparing(EmployeeServiceImpl::employeeName, String.CASE_INSENSITIVE_ORDER))
-                .map(employee -> toResponse(employee, currentAssignments.get(employee.getId()),
-                        currentRoles.get(employee.getId()), employeesById, lookupValues, sows, null,
-                        assignmentsByEmployee.getOrDefault(employee.getId(), List.of()), milestones))
+                .map(employee -> {
+                    List<EmployeeAssignment> employeeAssignments = assignmentsByEmployee
+                            .getOrDefault(employee.getId(), List.of());
+                    EmployeeBasicInfoResponse response = toResponse(
+                            employee, currentAssignments.get(employee.getId()),
+                            currentRoles.get(employee.getId()), employeesById, lookupValues,
+                            sows, null, List.of(), milestones);
+                    response.setCurrentProjects(currentProjects(
+                            employeeAssignments, lookupValues, sows));
+                    return response;
+                })
                 .toList();
     }
 
@@ -381,11 +395,89 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional(readOnly = true)
     public EmployeeAssignmentsResponse getAssignmentsByEmployeeId(Long employeeId) {
         EmployeeBasicInfoResponse response = getById(employeeId);
+        Map<Long, List<SowMilestonePositionAssignment>> detailsByParent =
+                milestonePositionAssignmentRepository
+                        .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(employeeId)
+                        .stream().collect(Collectors.groupingBy(
+                                item -> item.getEmployeeAssignment().getId()));
         return EmployeeAssignmentsResponse.builder()
                 .employeeId(response.getEmployeeId())
                 .employeeName(response.getEmployeeName())
-                .assignmentList(response.getAssignmentList())
+                .assignmentList(response.getAssignmentList().stream()
+                        .map(parent -> employeeSowAssignment(
+                                parent, detailsByParent.getOrDefault(
+                                        parent.getAssignmentId(), List.of())))
+                        .toList())
                 .build();
+    }
+
+    private EmployeeSowAssignmentResponse employeeSowAssignment(
+            EmployeeAssignmentResponse parent,
+            List<SowMilestonePositionAssignment> details) {
+        List<EmployeeMilestoneAssignmentResponse> milestoneAssignments = details.isEmpty()
+                ? legacyMilestoneAssignment(parent)
+                : details.stream().map(this::employeeMilestoneAssignment).toList();
+        return EmployeeSowAssignmentResponse.builder()
+                .employeeAssignmentId(parent.getAssignmentId())
+                .sowId(parent.getSowId())
+                .sowCode(parent.getSowCode())
+                .sowName(parent.getSowName())
+                .isPrimaryAssignment(parent.getIsPrimaryAssignment())
+                .allocationPercentage(parent.getAllocationPercentage())
+                .assignmentStartDate(parent.getAssignmentStartDate())
+                .assignmentEndDate(parent.getAssignmentEndDate())
+                .assignmentStatus(parent.getAssignmentStatus())
+                .departmentId(parent.getDepartmentId())
+                .departmentName(parent.getDepartmentName())
+                .managerId(parent.getManagerId())
+                .managerName(parent.getManagerName())
+                .leadId(parent.getLeadId())
+                .leadName(parent.getLeadName())
+                .milestoneAssignments(milestoneAssignments)
+                .build();
+    }
+
+    private EmployeeMilestoneAssignmentResponse employeeMilestoneAssignment(
+            SowMilestonePositionAssignment detail) {
+        SowMilestonePosition position = detail.getMilestonePosition();
+        SowMilestone milestone = position.getMilestone();
+        LookupValue designation = position.getPosition();
+        return EmployeeMilestoneAssignmentResponse.builder()
+                .assignmentId(detail.getId())
+                .milestoneId(milestone.getId())
+                .milestoneName(milestone.getMilestoneName())
+                .milestonePositionId(position.getId())
+                .designationId(designation == null ? null : designation.getId())
+                .designationName(designation == null
+                        ? position.getPositionName() : designation.getName())
+                .seniority(position.getSeniority())
+                .location(position.getLocationType())
+                .positionType(detail.getPositionType())
+                .allocationPercentage(detail.getAllocationPercentage())
+                .assignmentStartDate(detail.getAssignmentStartDate())
+                .assignmentEndDate(detail.getAssignmentEndDate())
+                .assignmentStatus(detail.getStatus())
+                .build();
+    }
+
+    private List<EmployeeMilestoneAssignmentResponse> legacyMilestoneAssignment(
+            EmployeeAssignmentResponse parent) {
+        if (parent.getMilestoneId() == null && parent.getDesignationId() == null
+                && parent.getPositionType() == null) {
+            return List.of();
+        }
+        return List.of(EmployeeMilestoneAssignmentResponse.builder()
+                .assignmentId(parent.getAssignmentId())
+                .milestoneId(parent.getMilestoneId())
+                .milestoneName(parent.getMilestoneName())
+                .designationId(parent.getDesignationId())
+                .designationName(parent.getDesignationName())
+                .positionType(parent.getPositionType())
+                .allocationPercentage(parent.getAllocationPercentage())
+                .assignmentStartDate(parent.getAssignmentStartDate())
+                .assignmentEndDate(parent.getAssignmentEndDate())
+                .assignmentStatus(parent.getAssignmentStatus())
+                .build());
     }
 
     @Override
@@ -412,8 +504,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .reason(compensation.getReason())
                         .status(compensation.isCurrent() ? "CURRENT" : "HISTORICAL")
                         .current(compensation.isCurrent())
-                        .createdAt(compensation.getCreatedAt())
-                        .updatedAt(compensation.getUpdatedAt())
+                        .createdAt(compensation.getCreatedOn())
+                        .updatedAt(compensation.getUpdatedOn())
                         .build();
                 })
                 .toList();
@@ -675,7 +767,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .collect(Collectors.toMap(EmployeeRole::getEmployeeId, Function.identity(),
                         (first, ignored) -> first));
         Map<Long, EmployeeReviewAssessment> latestReviews = employeeReviewAssessmentRepository
-                .findSelfAssessmentsForEmployeesOrderByUpdatedDateDesc(
+                .findSelfAssessmentsForEmployeesOrderByUpdatedOnDesc(
                         reports.stream().map(Employee::getId).toList())
                 .stream().collect(Collectors.toMap(
                         assessment -> assessment.getEmployeeReview().getEmployee().getId(),
@@ -1056,8 +1148,15 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .stream().collect(Collectors.toMap(SowMilestone::getId, Function.identity()));
         EmployeeRole role = employeeRoleRepository
                 .findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDesc(employee.getId()).orElse(null);
-        return toResponse(employee, assignment, role, employees, lookupValues, sows, null,
+        EmployeeBasicInfoResponse response = toResponse(
+                employee, assignment, role, employees, lookupValues, sows, null,
                 assignments, milestones);
+        response.setCurrentProjects(currentProjects(
+                assignments.stream()
+                        .filter(item -> "ACTIVE".equalsIgnoreCase(item.getStatus()))
+                        .toList(),
+                lookupValues, sows));
+        return response;
     }
 
     private EmployeeBasicInfoResponse toResponse(Employee employee, EmployeeAssignment assignment, EmployeeRole role,
@@ -1142,7 +1241,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .bankDetails(bankDetailsResponse(employee.getId()))
                 .documentList(documentResponses(employee))
                 .review(review == null ? null : EmployeeReviewSummaryResponse.builder()
-                        .status(review.getStatus()).updatedOn(review.getUpdatedDate())
+                        .status(review.getStatus()).updatedOn(review.getUpdatedOn())
                         .progressPercentage(review.getProgressPercentage()).build())
                 .build();
     }
@@ -1180,6 +1279,36 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .leadId(assignment.getLeadId())
                 .leadName(lead == null ? null : employeeName(lead))
                 .build();
+    }
+
+    private List<EmployeeCurrentProjectResponse> currentProjects(
+            List<EmployeeAssignment> assignments,
+            Map<Long, LookupValue> lookupValues,
+            Map<Long, Sow> sows) {
+        Map<String, EmployeeCurrentProjectResponse> uniqueProjects = new LinkedHashMap<>();
+        assignments.stream()
+                .filter(assignment -> "ACTIVE".equalsIgnoreCase(assignment.getStatus()))
+                .forEach(assignment -> {
+                    Sow assignmentSow = sows.get(assignment.getSowId());
+                    LookupValue assignmentDesignation =
+                            lookupValues.get(assignment.getDesignationId());
+                    EmployeeCurrentProjectResponse summary =
+                            EmployeeCurrentProjectResponse.builder()
+                                    .projectId(assignmentSow == null
+                                            ? assignment.getSowId() : assignmentSow.getId())
+                                    .projectName(assignmentSow == null
+                                            ? null : assignmentSow.getSowName())
+                                    .sowId(assignment.getSowId())
+                                    .sowName(assignmentSow == null
+                                            ? null : assignmentSow.getSowName())
+                                    .designationName(assignmentDesignation == null
+                                            ? null : assignmentDesignation.getName())
+                                    .build();
+                    String key = summary.getProjectId() + "|" + summary.getSowId()
+                            + "|" + summary.getDesignationName();
+                    uniqueProjects.putIfAbsent(key, summary);
+                });
+        return List.copyOf(uniqueProjects.values());
     }
 
     private static Comparator<EmployeeAssignment> assignmentDisplayOrder() {

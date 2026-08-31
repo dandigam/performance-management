@@ -27,9 +27,9 @@ public final class CsxEmployeeMapper {
                         ? null : employee.getBusinessUnit().getName())
                 .status(employee.getStatus())
                 .createdBy(employee.getCreatedBy())
-                .createdDate(employee.getCreatedDate())
+                .createdDate(employee.getCreatedOn())
                 .updatedBy(employee.getUpdatedBy())
-                .updatedDate(employee.getUpdatedDate())
+                .updatedDate(employee.getUpdatedOn())
                 .build();
     }
 }

@@ -16,6 +16,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 
 import java.time.Instant;
 
@@ -28,8 +29,8 @@ import java.time.Instant;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class RefreshToken {
+@SuperBuilder
+public class RefreshToken extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -44,9 +45,6 @@ public class RefreshToken {
 
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
-
-    @Column(name = "created_at", nullable = false)
-    private Instant createdAt;
 
     @Column(name = "revoked_at")
     private Instant revokedAt;
