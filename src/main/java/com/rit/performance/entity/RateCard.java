@@ -23,8 +23,13 @@ public class RateCard extends BaseEntity {
     @Column(name = "position_title_id", nullable = false)
     private Long positionTitleId;
 
-    @Column(length = 100)
-    private String skill;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "main_skill_id",
+            foreignKey = @ForeignKey(name = "fk_rate_card_main_skill"))
+    private LookupValue mainSkill;
+
+    @Column(name = "additional_skills", length = 1000)
+    private String additionalSkills;
 
     @Column(name = "location_id")
     private Long locationId;

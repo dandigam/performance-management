@@ -7,9 +7,11 @@ import com.rit.performance.repository.LookupValueRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
+import org.springframework.core.annotation.Order;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
+@Order(0)
 public class LookupDataInitializer implements ApplicationRunner {
 
     private final LookupTypeRepository typeRepository;

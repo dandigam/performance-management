@@ -10,10 +10,10 @@ import java.util.Optional;
 
 public interface RateCardRepository extends JpaRepository<RateCard, Long> {
     boolean existsByPositionTitleId(Long positionTitleId);
-    @EntityGraph(attributePaths = {"client"})
+    @EntityGraph(attributePaths = {"client", "mainSkill"})
     @Query("select rateCard from RateCard rateCard")
     List<RateCard> findAllWithDetails();
-    @EntityGraph(attributePaths = {"client"})
+    @EntityGraph(attributePaths = {"client", "mainSkill"})
     @Query("select rateCard from RateCard rateCard where rateCard.id = :id")
     Optional<RateCard> findByIdWithDetails(Long id);
 }

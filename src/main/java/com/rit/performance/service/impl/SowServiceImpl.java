@@ -6,6 +6,7 @@ import com.rit.performance.dto.request.SowRequest;
 import com.rit.performance.dto.request.SowAssignmentUpdateRequest;
 import com.rit.performance.dto.response.SowResponse;
 import com.rit.performance.dto.response.SowAssignmentResponse;
+import com.rit.performance.dto.SowRequirementMilestonesResponse;
 import com.rit.performance.entity.*;
 import com.rit.performance.exception.DuplicateResourceException;
 import com.rit.performance.exception.InvalidOperationException;
@@ -13,6 +14,7 @@ import com.rit.performance.exception.ResourceNotFoundException;
 import com.rit.performance.mapper.SowMapper;
 import com.rit.performance.repository.*;
 import com.rit.performance.service.SowInvoiceService;
+import com.rit.performance.service.SowResourceRequirementService;
 import com.rit.performance.service.SowService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,14 @@ import java.util.stream.Collectors;
 @Transactional
 @RequiredArgsConstructor
 public class SowServiceImpl implements SowService {
+    private static final Set<String> SOW_STATUSES = Set.of(
+            "DRAFT",
+            "WAITING_FOR_APPROVAL",
+            "ACTIVE",
+            "ON_HOLD",
+            "COMPLETED",
+            "CANCELLED"
+    );
     private final SowRepository sowRepository;
     private final EmployeeAssignmentRepository assignmentRepository;
     private final SowMilestoneRepository milestoneRepository;
@@ -41,6 +51,7 @@ public class SowServiceImpl implements SowService {
     private final DocumentRepository documentRepository;
     private final UserRepository userRepository;
     private final ClientRepository clientRepository;
+    private final SowResourceRequirementService resourceRequirementService;
 
     @Override
     public SowResponse create(SowRequest request) {
@@ -57,7 +68,9 @@ public class SowServiceImpl implements SowService {
         milestoneRepository.saveAll(milestoneSync.retained());
         milestoneRepository.flush();
         createDraftInvoicesWhenEligible(sow, milestoneSync.retained());
-        return toResponse(sowRepository.saveAndFlush(sow));
+        Sow saved = sowRepository.saveAndFlush(sow);
+        resourceRequirementService.rebuild(saved.getId());
+        return toResponse(saved);
     }
 
     @Override
@@ -191,12 +204,14 @@ public class SowServiceImpl implements SowService {
         RateCard rateCard = resolveRateCard(request.getRateCardId());
         LookupValue designation = resolvePlannedDesignation(
                 request.getPositionId(), rateCard);
+        LookupValue skill = resolvePlannedSkill(request.getSkillId(), rateCard);
         validateDateRange(request.getStartDate(), request.getEndDate(), "Milestone position");
 
         SowMilestonePosition milestonePosition = SowMilestonePosition.builder()
                 .sow(sow)
                 .milestone(milestone)
                 .position(designation)
+                .skill(skill)
                 .rateCard(rateCard)
                 .positionName(resolvePositionName(request.getPositionName(), designation))
                 .seniority(trimToNull(request.getSeniority()))
@@ -214,11 +229,14 @@ public class SowServiceImpl implements SowService {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
         milestoneRepository.saveAndFlush(milestone);
+        resourceRequirementService.rebuild(sowId);
 
         return com.rit.performance.dto.response.SowMilestonePositionResponse.builder()
                 .milestonePositionId(milestonePosition.getId())
                 .positionId(designation.getId())
                 .positionName(milestonePosition.getPositionName())
+                .skillId(skill.getId())
+                .skillName(skill.getName())
                 .seniority(milestonePosition.getSeniority())
                 .rateCardId(rateCard == null ? null : rateCard.getId())
                 .hourlyRate(milestonePosition.getHourlyRate())
@@ -341,12 +359,27 @@ public class SowServiceImpl implements SowService {
             }
             sow.removeMilestone(obsolete);
         }
-        return toResponse(sowRepository.saveAndFlush(sow));
+        Sow saved = sowRepository.saveAndFlush(sow);
+        resourceRequirementService.rebuild(saved.getId());
+        return toResponse(saved);
     }
 
     @Override
     public void delete(Long id) {
-        sowRepository.delete(findSow(id));
+        Sow sow = findSow(id);
+        resourceRequirementService.clear(id);
+        sowRepository.delete(sow);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SowRequirementMilestonesResponse getMilestonesByPosition(
+            Long sowId, Long positionId) {
+        if (!sowRepository.existsById(sowId)) {
+            throw new ResourceNotFoundException("SOW not found: " + sowId);
+        }
+        requireDesignationLookup(positionId);
+        return resourceRequirementService.getMilestonesByPosition(sowId, positionId);
     }
 
     private MilestoneSync synchronizeMilestones(
@@ -471,7 +504,7 @@ public class SowServiceImpl implements SowService {
         milestone.setEndDate(request.getEndDate());
         milestone.setInvoiceDate(request.getInvoiceDate());
         milestone.setAmount(request.getAmount());
-        milestone.setStatus(normalizeStatus(request.getStatus(), "NOT_STARTED"));
+        milestone.setStatus(normalizeMilestoneStatus(request.getStatus()));
         synchronizeMilestonePositions(milestone, request);
     }
 
@@ -508,11 +541,13 @@ public class SowServiceImpl implements SowService {
             RateCard rateCard = resolveRateCard(positionRequest.getRateCardId());
             LookupValue designation = resolvePlannedDesignation(
                     positionRequest.getPositionId(), rateCard);
+            LookupValue skill = resolvePlannedSkill(positionRequest.getSkillId(), rateCard);
             String positionName = resolvePositionName(
                     positionRequest.getPositionName(), designation);
             validateDateRange(positionRequest.getStartDate(), positionRequest.getEndDate(),
                     "Milestone position");
             milestonePosition.setPosition(designation);
+            milestonePosition.setSkill(skill);
             milestonePosition.setRateCard(rateCard);
             applyPositionRate(milestonePosition, rateCard, positionRequest);
             milestonePosition.setPositionName(positionName);
@@ -597,6 +632,29 @@ public class SowServiceImpl implements SowService {
                     "designationId does not match the selected rate card");
         }
         return requireDesignationLookup(resolvedDesignationId);
+    }
+
+    private LookupValue resolvePlannedSkill(Long skillId, RateCard rateCard) {
+        Long rateCardSkillId = rateCard == null || rateCard.getMainSkill() == null
+                ? null : rateCard.getMainSkill().getId();
+        Long resolvedSkillId = rateCardSkillId == null ? skillId : rateCardSkillId;
+        if (resolvedSkillId == null) {
+            throw new InvalidOperationException("rateCardId or skillId is required");
+        }
+        if (rateCardSkillId != null && skillId != null
+                && !Objects.equals(skillId, rateCardSkillId)) {
+            throw new InvalidOperationException(
+                    "skillId does not match the selected rate card");
+        }
+        LookupValue skill = lookupValueRepository.findById(resolvedSkillId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Skill lookup not found: " + resolvedSkillId));
+        if (skill.getLookupType() == null
+                || !"SKILL".equalsIgnoreCase(skill.getLookupType().getCode())) {
+            throw new InvalidOperationException(
+                    "Skill id must belong to the SKILL lookup type: " + resolvedSkillId);
+        }
+        return skill;
     }
 
     private String resolvePositionName(String requestedName, LookupValue position) {
@@ -768,9 +826,27 @@ public class SowServiceImpl implements SowService {
 
     private String normalizeStatus(String value, String defaultValue) {
         if (value == null || value.isBlank()) return defaultValue;
-        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        String normalized = value.trim().toUpperCase(Locale.ROOT)
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
+        if ("WAITINGFORAPPROVAL".equals(normalized)) normalized = "WAITING_FOR_APPROVAL";
+        if ("ONHOLD".equals(normalized)) normalized = "ON_HOLD";
+        if (!SOW_STATUSES.contains(normalized)) {
+            throw new InvalidOperationException(
+                    "status must be DRAFT, WAITING_FOR_APPROVAL, ACTIVE, ON_HOLD, "
+                            + "COMPLETED, or CANCELLED");
+        }
+        return normalized;
+    }
+
+    private String normalizeMilestoneStatus(String value) {
+        if (value == null || value.isBlank()) return "NOT_STARTED";
+        String normalized = value.trim().toUpperCase(Locale.ROOT)
+                .replaceAll("[^A-Z0-9]+", "_")
+                .replaceAll("^_+|_+$", "");
         if (normalized.length() > 30) {
-            throw new InvalidOperationException("status must not exceed 30 characters");
+            throw new InvalidOperationException(
+                    "milestone status must not exceed 30 characters");
         }
         return normalized;
     }

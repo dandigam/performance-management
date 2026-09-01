@@ -10,7 +10,9 @@ public class RateCardResponse {
     private Long id;
     private Long positionTitleId;
     private String positionTitleName;
-    private String skill;
+    private Long mainSkillId;
+    private String mainSkillName;
+    private String additionalSkills;
     private Long locationId;
     private String locationName;
     private Long seniorityId;

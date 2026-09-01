@@ -15,7 +15,7 @@ public interface SowRepository extends JpaRepository<Sow, Long> {
     @EntityGraph(attributePaths = {
             "client", "businessUnit", "ritContactEmployee", "ritEscalationEmployee",
             "milestones", "milestones.positions",
-            "milestones.positions.position", "documents"
+            "milestones.positions.position", "milestones.positions.skill", "documents"
     })
     @Query("select distinct sow from Sow sow")
     List<Sow> findAllWithDetails();
@@ -23,7 +23,7 @@ public interface SowRepository extends JpaRepository<Sow, Long> {
     @EntityGraph(attributePaths = {
             "client", "businessUnit", "ritContactEmployee", "ritEscalationEmployee",
             "milestones", "milestones.positions",
-            "milestones.positions.position", "documents"
+            "milestones.positions.position", "milestones.positions.skill", "documents"
     })
     @Query("select distinct sow from Sow sow where sow.id = :id")
     Optional<Sow> findByIdWithDetails(Long id);

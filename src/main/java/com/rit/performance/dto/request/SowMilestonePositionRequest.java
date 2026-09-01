@@ -11,6 +11,7 @@ public class SowMilestonePositionRequest {
     private Long milestonePositionId;
     @NotNull(message = "positionId is required")
     private Long positionId;
+    private Long skillId;
     private Long rateCardId;
     @DecimalMin(value = "0.0", message = "hourlyRate cannot be negative")
     private BigDecimal hourlyRate;

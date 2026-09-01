@@ -6,6 +6,7 @@ import com.rit.performance.dto.response.SowResponse;
 import com.rit.performance.dto.response.SowAssignmentResponse;
 import com.rit.performance.dto.request.SowMilestonePositionRequest;
 import com.rit.performance.dto.response.SowMilestonePositionResponse;
+import com.rit.performance.dto.SowRequirementMilestonesResponse;
 import com.rit.performance.dto.request.SowAssignmentUnassignRequest;
 import com.rit.performance.dto.request.SowMilestonePositionAssignmentRequest;
 import com.rit.performance.dto.request.SowMilestonePositionUnassignRequest;
@@ -56,6 +57,13 @@ public class SowController {
     @GetMapping("/{id}")
     public ResponseEntity<SowResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(sowService.getById(id));
+    }
+
+    @GetMapping("/{sowId}/milestones")
+    public ResponseEntity<SowRequirementMilestonesResponse> getMilestonesByPosition(
+            @PathVariable Long sowId,
+            @RequestParam Long positionId) {
+        return ResponseEntity.ok(sowService.getMilestonesByPosition(sowId, positionId));
     }
 
     @GetMapping("/{sowId}/assignments")

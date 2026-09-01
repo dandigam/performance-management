@@ -12,6 +12,8 @@ public class SowMilestonePositionResponse {
     private Long milestonePositionId;
     private Long positionId;
     private String positionName;
+    private Long skillId;
+    private String skillName;
     private String seniority;
     private Long rateCardId;
     private BigDecimal hourlyRate;

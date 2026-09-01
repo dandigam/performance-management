@@ -32,6 +32,10 @@ public class SowMilestonePosition extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_sow_milestone_position_position"))
     private LookupValue position;
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "skill_id",
+            foreignKey = @ForeignKey(name = "fk_sow_milestone_position_skill"))
+    private LookupValue skill;
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "rate_card_id",
             foreignKey = @ForeignKey(name = "fk_sow_milestone_position_rate_card"))
     private RateCard rateCard;

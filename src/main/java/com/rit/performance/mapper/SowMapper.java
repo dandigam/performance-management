@@ -123,6 +123,10 @@ public final class SowMapper {
                                 .positionId(position.getPosition() == null
                                         ? null : position.getPosition().getId())
                                 .positionName(position.getPositionName())
+                                .skillId(position.getSkill() == null
+                                        ? null : position.getSkill().getId())
+                                .skillName(position.getSkill() == null
+                                        ? null : position.getSkill().getName())
                                 .seniority(position.getSeniority())
                                 .rateCardId(position.getRateCard() == null
                                         ? null : position.getRateCard().getId())

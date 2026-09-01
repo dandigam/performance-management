@@ -4,7 +4,6 @@ import lombok.Getter;
 import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.NotNull;
 import com.fasterxml.jackson.annotation.JsonAlias;
@@ -13,9 +12,11 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 @Setter
 public class RateCardRequest {
     private Long positionTitleId;
-    @NotBlank(message = "skill is required")
-    @Size(max = 100, message = "skill must not exceed 100 characters")
-    private String skill;
+    @NotNull(message = "mainSkillId is required")
+    private Long mainSkillId;
+    @JsonAlias("skill")
+    @Size(max = 1000, message = "additionalSkills must not exceed 1000 characters")
+    private String additionalSkills;
     private Long locationId;
     private Long seniorityId;
     private Long clientId;

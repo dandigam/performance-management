@@ -6,6 +6,7 @@ import com.rit.performance.dto.response.SowResponse;
 import com.rit.performance.dto.response.SowAssignmentResponse;
 import com.rit.performance.dto.request.SowMilestonePositionRequest;
 import com.rit.performance.dto.response.SowMilestonePositionResponse;
+import com.rit.performance.dto.SowRequirementMilestonesResponse;
 import com.rit.performance.dto.request.SowAssignmentUnassignRequest;
 
 import java.util.List;
@@ -18,6 +19,9 @@ public interface SowService {
     List<SowResponse> getAll(Long sowId, String status, Long designationId);
 
     SowResponse getById(Long id);
+
+    SowRequirementMilestonesResponse getMilestonesByPosition(
+            Long sowId, Long positionId);
 
     List<SowAssignmentResponse> getAllAssignments();
 

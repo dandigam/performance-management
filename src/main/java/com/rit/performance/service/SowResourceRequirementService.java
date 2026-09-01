@@ -1,0 +1,16 @@
+package com.rit.performance.service;
+
+import com.rit.performance.dto.SowResourceRequirementResponse;
+import com.rit.performance.dto.SowResourceRequirementSummaryResponse;
+import com.rit.performance.dto.SowRequirementMilestonesResponse;
+
+import java.util.List;
+
+public interface SowResourceRequirementService {
+    void rebuild(Long sowId);
+    void clear(Long sowId);
+    List<SowResourceRequirementResponse> getAll();
+    List<SowResourceRequirementSummaryResponse> getAllBySow();
+    SowResourceRequirementSummaryResponse getBySowId(Long sowId);
+    SowRequirementMilestonesResponse getMilestonesByPosition(Long sowId, Long positionId);
+}

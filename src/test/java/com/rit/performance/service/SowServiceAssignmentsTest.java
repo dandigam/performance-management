@@ -1,6 +1,7 @@
 package com.rit.performance.service;
 
 import com.rit.performance.dto.request.SowAssignmentUpdateRequest;
+import com.rit.performance.dto.SowRequirementMilestonesResponse;
 import com.rit.performance.entity.*;
 import com.rit.performance.repository.*;
 import com.rit.performance.service.impl.SowServiceImpl;
@@ -37,6 +38,7 @@ class SowServiceAssignmentsTest {
     @Mock private DocumentRepository documentRepository;
     @Mock private UserRepository userRepository;
     @Mock private ClientRepository clientRepository;
+    @Mock private SowResourceRequirementService resourceRequirementService;
 
     private SowServiceImpl service;
 
@@ -45,7 +47,7 @@ class SowServiceAssignmentsTest {
         service = new SowServiceImpl(sowRepository, assignmentRepository, milestoneRepository,
                 sowInvoiceService, featureRepository, lookupValueRepository, rateCardRepository,
                 positionAssignmentRepository, employeeRepository, csxEmployeeRepository,
-                documentRepository, userRepository, clientRepository);
+                documentRepository, userRepository, clientRepository, resourceRequirementService);
     }
 
     @Test
@@ -86,6 +88,27 @@ class SowServiceAssignmentsTest {
         assertEquals("BILLABLE", response.get(0).getPositionType());
         assertEquals("Venkatesh Dandigam", response.get(0).getLeadName());
         assertEquals("Charan Kovvuru", response.get(0).getManagerName());
+    }
+
+    @Test
+    void returnsMilestonesContainingRequestedPositionTitle() {
+        Long sowId = 7L;
+        Long positionId = 21L;
+        LookupType designationType = LookupType.builder().code("DESIGNATION").build();
+        LookupValue position = LookupValue.builder()
+                .id(positionId).lookupType(designationType).name("Technical Lead").build();
+        SowRequirementMilestonesResponse details = SowRequirementMilestonesResponse.builder()
+                .sowId(sowId).requirementId(1L).positionId(positionId).build();
+        when(sowRepository.existsById(sowId)).thenReturn(true);
+        when(lookupValueRepository.findById(positionId)).thenReturn(Optional.of(position));
+        when(resourceRequirementService.getMilestonesByPosition(sowId, positionId))
+                .thenReturn(details);
+
+        var result = service.getMilestonesByPosition(sowId, positionId);
+
+        assertEquals(sowId, result.getSowId());
+        assertEquals(1L, result.getRequirementId());
+        assertEquals(positionId, result.getPositionId());
     }
 
     @Test

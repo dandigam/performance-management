@@ -73,12 +73,7 @@ public class RateCardServiceImpl implements RateCardService {
             .orElseThrow(() -> new ResourceNotFoundException("Rate card not found: " + id)); }
     private void validateRequest(RateCardRequest request) {
         lookupCode(request.getPositionTitleId(), "DESIGNATION", "positionTitleId");
-        if (request.getSkill() == null || request.getSkill().isBlank()) {
-            throw new InvalidOperationException("skill is required");
-        }
-        if (request.getSkill().trim().length() > 100) {
-            throw new InvalidOperationException("skill must not exceed 100 characters");
-        }
+        lookupCode(request.getMainSkillId(), "SKILL", "mainSkillId");
         if (request.getLocationId() != null) {
             lookupCode(request.getLocationId(), "LOCATION", "locationId");
         }
@@ -108,7 +103,10 @@ public class RateCardServiceImpl implements RateCardService {
         Client client = clientRepository.findById(request.getClientId())
                 .orElseThrow(() -> new ResourceNotFoundException("Client not found: " + request.getClientId()));
         rateCard.setPositionTitleId(request.getPositionTitleId());
-        rateCard.setSkill(request.getSkill().trim());
+        rateCard.setMainSkill(lookupValueRepository.findById(request.getMainSkillId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "mainSkillId lookup not found: " + request.getMainSkillId())));
+        rateCard.setAdditionalSkills(trimToNull(request.getAdditionalSkills()));
         rateCard.setLocationId(request.getLocationId());
         rateCard.setSeniorityId(request.getSeniorityId());
         rateCard.setClient(client);
@@ -120,7 +118,10 @@ public class RateCardServiceImpl implements RateCardService {
     }
     private boolean rateDefiningFieldsChanged(RateCard existing, RateCardRequest request) {
         return !Objects.equals(existing.getPositionTitleId(), request.getPositionTitleId())
-                || !Objects.equals(existing.getSkill(), normalizedSkill(request.getSkill()))
+                || existing.getMainSkill() == null
+                || !Objects.equals(existing.getMainSkill().getId(), request.getMainSkillId())
+                || !Objects.equals(existing.getAdditionalSkills(),
+                        trimToNull(request.getAdditionalSkills()))
                 || !Objects.equals(existing.getLocationId(), request.getLocationId())
                 || !Objects.equals(existing.getSeniorityId(), request.getSeniorityId())
                 || existing.getClient() == null || !Objects.equals(existing.getClient().getId(), request.getClientId())
@@ -134,15 +135,14 @@ public class RateCardServiceImpl implements RateCardService {
     private String normalizedCurrency(String value) {
         return value == null || value.isBlank() ? "USD" : value.trim().toUpperCase(Locale.ROOT);
     }
-    private String normalizedSkill(String value) {
-        return value == null ? null : value.trim();
-    }
     private RateCardResponse toResponse(RateCard r) {
         Client c = r.getClient();
         return RateCardResponse.builder().id(r.getId())
                 .positionTitleId(r.getPositionTitleId())
                 .positionTitleName(resolveLookupName(r.getPositionTitleId(), "DESIGNATION"))
-                .skill(r.getSkill())
+                .mainSkillId(r.getMainSkill() == null ? null : r.getMainSkill().getId())
+                .mainSkillName(r.getMainSkill() == null ? null : r.getMainSkill().getName())
+                .additionalSkills(r.getAdditionalSkills())
                 .locationId(r.getLocationId())
                 .locationName(resolveLookupName(r.getLocationId(), "LOCATION"))
                 .seniorityId(r.getSeniorityId())
@@ -179,4 +179,7 @@ public class RateCardServiceImpl implements RateCardService {
     private String status(String value) { String normalized = value == null || value.isBlank() ? "ACTIVE" : value.trim().toUpperCase(Locale.ROOT);
         if (!Set.of("DRAFT", "ACTIVE", "INACTIVE").contains(normalized)) throw new InvalidOperationException("status must be DRAFT, ACTIVE, or INACTIVE"); return normalized; }
     private String required(String value) { return value == null || value.isBlank() ? "" : value.trim(); }
+    private String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
 }
