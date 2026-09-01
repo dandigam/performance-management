@@ -206,6 +206,30 @@ class EmployeeRequestJsonTest {
     }
 
     @Test
+    void readsEmployeeExperienceDetailsAsArray() throws Exception {
+        EmployeeCreateRequest request = objectMapper.readValue("""
+                {
+                  "firstName": "Venkatesh",
+                  "email": "dandigam@gmail.com",
+                  "employmentType": "CONTRACT",
+                  "workMode": "ONSITE",
+                  "experienceDetails": [
+                    {
+                      "companyName": "RIT",
+                      "position": "Technical Lead",
+                      "location": "Jacksonville",
+                      "fromDate": "2026-07-01",
+                      "endDate": null
+                    }
+                  ]
+                }
+                """, EmployeeCreateRequest.class);
+
+        assertEquals(1, request.getExperienceDetails().size());
+        assertEquals("RIT", request.getExperienceDetails().get(0).getCompanyName());
+    }
+
+    @Test
     void hierarchyResponseUsesOnlyFlatEmployeesList() throws Exception {
         EmployeeHierarchyResponse response = EmployeeHierarchyResponse.builder()
                 .viewerEmployeeId(5L)

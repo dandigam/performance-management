@@ -34,7 +34,7 @@ public class EmployeeInformationResponse {
     private EmployeeCompensationResponse compensationDetails;
     private EmployeeProfessionalDetailsResponse professionalDetails;
     private java.util.List<EmployeeEducationResponse> educationDetails;
-    private EmployeeExperienceResponse experienceDetails;
+    private java.util.List<EmployeeExperienceResponse> experienceDetails;
     private EmployeeBankDetailsResponse bankDetails;
     private java.util.List<DocumentResponse> documentList;
 }

@@ -1527,20 +1527,25 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .toList();
     }
 
-    private void saveExperienceDetails(Employee employee, EmployeeExperienceRequest request) {
-        if (request == null) return;
-        EmployeeExperience experience = employeeExperienceRepository.findByEmployeeId(employee.getId())
-                .orElseGet(() -> EmployeeExperience.builder().employee(employee).build());
-        experience.setCompanyName(request.getCompanyName().trim());
-        experience.setPosition(request.getPosition().trim());
-        experience.setLocation(request.getLocation().trim());
-        experience.setFromDate(request.getFromDate());
-        experience.setEndDate(request.getEndDate());
-        employeeExperienceRepository.save(experience);
+    private void saveExperienceDetails(Employee employee, List<EmployeeExperienceRequest> requests) {
+        if (requests == null) return;
+        employeeExperienceRepository.deleteByEmployeeId(employee.getId());
+        List<EmployeeExperience> experiences = requests.stream()
+                .<EmployeeExperience>map(request -> EmployeeExperience.builder()
+                        .employee(employee)
+                        .companyName(request.getCompanyName().trim())
+                        .position(request.getPosition().trim())
+                        .location(request.getLocation().trim())
+                        .fromDate(request.getFromDate())
+                        .endDate(request.getEndDate())
+                        .build())
+                .toList();
+        employeeExperienceRepository.saveAll(experiences);
     }
 
-    private EmployeeExperienceResponse experienceDetailsResponse(Long employeeId) {
-        return employeeExperienceRepository.findByEmployeeId(employeeId)
+    private List<EmployeeExperienceResponse> experienceDetailsResponse(Long employeeId) {
+        return employeeExperienceRepository.findByEmployeeIdOrderByFromDateDescIdDesc(employeeId)
+                .stream()
                 .map(experience -> EmployeeExperienceResponse.builder()
                         .id(experience.getId())
                         .companyName(experience.getCompanyName())
@@ -1549,7 +1554,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .fromDate(experience.getFromDate())
                         .endDate(experience.getEndDate())
                         .build())
-                .orElse(null);
+                .toList();
     }
 
     private void saveBankDetails(Employee employee, EmployeeBankDetailsRequest request) {

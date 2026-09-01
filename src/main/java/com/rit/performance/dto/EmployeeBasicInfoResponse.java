@@ -82,7 +82,7 @@ public class EmployeeBasicInfoResponse {
     private EmployeeCompensationResponse compensationDetails;
     private EmployeeProfessionalDetailsResponse professionalDetails;
     private List<EmployeeEducationResponse> educationDetails;
-    private EmployeeExperienceResponse experienceDetails;
+    private List<EmployeeExperienceResponse> experienceDetails;
     private EmployeeBankDetailsResponse bankDetails;
     private List<DocumentResponse> documentList;
     private EmployeeReviewSummaryResponse review;
