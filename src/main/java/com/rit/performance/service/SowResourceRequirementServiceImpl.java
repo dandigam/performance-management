@@ -66,6 +66,9 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
         // with no summary rows, which is the expected behavior for an empty SOW.
         List<SowMilestonePosition> positions = positionRepository.findBySowId(sowId).stream()
                 .filter(position -> position.getSkill() != null)
+                // Completed work no longer contributes to the current HR requirement.
+                // OPEN and FILLED positions remain part of the planned headcount.
+                .filter(position -> !"COMPLETED".equalsIgnoreCase(position.getStatus()))
                 .toList();
 
         // Stage 1: count each resource group independently inside each milestone.
@@ -104,7 +107,7 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
                         .sow(sow)
                         .positionId(resourceGroup.positionId())
                         .skillId(resourceGroup.skillId())
-                        .seniority(resourceGroup.seniority())
+                        .seniority(source.getSeniority())
                         .location(resourceGroup.location())
                         .build();
             }
@@ -121,6 +124,36 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
             requirementRepository.flush();
         }
         if (!changed.isEmpty()) requirementRepository.saveAll(changed);
+    }
+
+    @Override
+    @Transactional
+    public void onPositionCreatedOrUpdated(Long sowId) {
+        rebuild(sowId);
+    }
+
+    @Override
+    @Transactional
+    public void onPositionRemoved(Long sowId) {
+        rebuild(sowId);
+    }
+
+    @Override
+    @Transactional
+    public void onResourceAssigned(Long sowId) {
+        rebuild(sowId);
+    }
+
+    @Override
+    @Transactional
+    public void onResourceUnassigned(Long sowId) {
+        rebuild(sowId);
+    }
+
+    @Override
+    @Transactional
+    public void onResourceCompleted(Long sowId) {
+        rebuild(sowId);
     }
 
     @Override
@@ -169,7 +202,7 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
                 .findBySowId(sowId).stream()
                 .sorted(Comparator.comparing(SowResourceRequirement::getPositionId)
                         .thenComparing(SowResourceRequirement::getSkillId)
-                        .thenComparing(SowResourceRequirement::getSeniority)
+                        .thenComparing(requirement -> requirement.getSeniority().getId())
                         .thenComparing(SowResourceRequirement::getLocation))
                 .map(this::toItemResponse)
                 .toList();
@@ -179,13 +212,20 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
     }
 
     @Override
-    public SowRequirementMilestonesResponse getMilestonesByPosition(Long sowId, Long positionId) {
+    public SowRequirementMilestonesResponse getMilestonesByPosition(
+            Long sowId, Long positionId, Long skillId, Long seniorityId, String location) {
         SowResourceRequirement requirement = requirementRepository.findBySowId(sowId).stream()
                 .filter(candidate -> Objects.equals(candidate.getPositionId(), positionId))
+                .filter(candidate -> Objects.equals(candidate.getSkillId(), skillId))
+                .filter(candidate -> candidate.getSeniority() != null
+                        && Objects.equals(candidate.getSeniority().getId(), seniorityId))
+                .filter(candidate -> Objects.equals(normalize(candidate.getLocation()),
+                        normalize(location)))
                 .min(Comparator.comparing(SowResourceRequirement::getId))
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Resource requirement not found for SOW " + sowId
-                                + " and position " + positionId));
+                                + ", position " + positionId + ", skill " + skillId
+                                + ", seniority " + seniorityId + " and location " + location));
 
         List<SowPositionMilestoneResponse> milestones = positionRepository.findBySowId(sowId)
                 .stream()
@@ -216,7 +256,8 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
                 .positionName(requirement.getPositionName())
                 .skillId(requirement.getSkillId())
                 .skillName(requirement.getSkillName())
-                .seniority(requirement.getSeniority())
+                .seniorityId(requirement.getSeniority().getId())
+                .seniority(requirement.getSeniority().getName())
                 .location(requirement.getLocation())
                 .milestones(milestones)
                 .build();
@@ -228,8 +269,10 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
                 && Objects.equals(position.getPosition().getId(), requirement.getPositionId())
                 && position.getSkill() != null
                 && Objects.equals(position.getSkill().getId(), requirement.getSkillId())
-                && Objects.equals(normalize(position.getSeniority()),
-                        normalize(requirement.getSeniority()))
+                && position.getSeniority() != null
+                && requirement.getSeniority() != null
+                && Objects.equals(position.getSeniority().getId(),
+                        requirement.getSeniority().getId())
                 && Objects.equals(normalize(position.getLocationType()),
                         normalize(requirement.getLocation()));
     }
@@ -274,19 +317,18 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
                 .positionName(requirement.getPositionName())
                 .skillId(requirement.getSkillId())
                 .skillName(requirement.getSkillName())
-                .seniority(requirement.getSeniority())
+                .seniorityId(requirement.getSeniority().getId())
+                .seniority(requirement.getSeniority().getName())
                 .location(requirement.getLocation())
                 .requiredHc(requirement.getRequiredHc())
                 .build();
     }
 
     private ResourceGroup group(SowMilestonePosition position) {
-        // Normalize text dimensions so values such as "Senior" and " senior "
-        // are treated as the same resource group.
         return new ResourceGroup(
                 position.getPosition().getId(),
                 position.getSkill().getId(),
-                normalize(position.getSeniority()),
+                position.getSeniority().getId(),
                 normalize(position.getLocationType()));
     }
 
@@ -294,7 +336,7 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
         return new ResourceGroup(
                 requirement.getPositionId(),
                 requirement.getSkillId(),
-                normalize(requirement.getSeniority()),
+                requirement.getSeniority().getId(),
                 normalize(requirement.getLocation()));
     }
 
@@ -313,13 +355,14 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
                 .positionName(requirement.getPositionName())
                 .skillId(requirement.getSkillId())
                 .skillName(requirement.getSkillName())
-                .seniority(requirement.getSeniority())
+                .seniorityId(requirement.getSeniority().getId())
+                .seniority(requirement.getSeniority().getName())
                 .location(requirement.getLocation())
                 .requiredHc(requirement.getRequiredHc())
                 .build();
     }
 
     private record ResourceGroup(
-            Long positionId, Long skillId, String seniority, String location) { }
+            Long positionId, Long skillId, Long seniorityId, String location) { }
     private record MilestoneGroup(Long milestoneId, ResourceGroup resourceGroup) { }
 }

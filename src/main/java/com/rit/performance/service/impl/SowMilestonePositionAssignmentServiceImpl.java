@@ -10,6 +10,7 @@ import com.rit.performance.exception.InvalidOperationException;
 import com.rit.performance.exception.ResourceNotFoundException;
 import com.rit.performance.repository.*;
 import com.rit.performance.service.SowMilestonePositionAssignmentService;
+import com.rit.performance.service.SowResourceRequirementService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,11 +29,21 @@ public class SowMilestonePositionAssignmentServiceImpl
     private final SowMilestonePositionRepository positionRepository;
     private final EmployeeAssignmentRepository employeeAssignmentRepository;
     private final EmployeeRepository employeeRepository;
+    private final SowResourceRequirementService resourceRequirementService;
 
     @Override
     public SowMilestonePositionAssignmentResponse create(Long sowId, Long milestoneId,
             Long milestonePositionId, SowMilestonePositionAssignmentRequest request) {
         SowMilestonePosition position = findPosition(sowId, milestoneId, milestonePositionId);
+        if ("COMPLETED".equalsIgnoreCase(position.getStatus())) {
+            throw new InvalidOperationException(
+                    "Milestone position " + milestonePositionId + " is completed and cannot be assigned");
+        }
+        if (repository.existsByMilestonePosition_IdAndStatusIgnoreCase(
+                milestonePositionId, "ACTIVE")) {
+            throw new DuplicateResourceException(
+                    "Milestone position " + milestonePositionId + " is already filled");
+        }
         EmployeeAssignment sowAssignment = requireSowAssignment(
                 request.getEmployeeAssignmentId(), sowId);
         if (repository
@@ -47,7 +58,11 @@ public class SowMilestonePositionAssignmentServiceImpl
         SowMilestonePositionAssignment assignment = new SowMilestonePositionAssignment();
         apply(assignment, position, sowAssignment, request);
         assignment.setCreatedBy(request.getUpdatedBy());
-        return toResponse(repository.saveAndFlush(assignment), employeeMap(sowAssignment));
+        SowMilestonePositionAssignment saved = repository.saveAndFlush(assignment);
+        position.setStatus("FILLED");
+        positionRepository.saveAndFlush(position);
+        resourceRequirementService.onResourceAssigned(sowId);
+        return toResponse(saved, employeeMap(sowAssignment));
     }
 
     @Override
@@ -100,11 +115,14 @@ public class SowMilestonePositionAssignmentServiceImpl
         if (!"ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
             throw new InvalidOperationException("Only an ACTIVE assignment can be unassigned");
         }
-        markUnassigned(assignment, request.getAssignmentEndDate());
+        endAssignment(assignment, request.getAssignmentEndDate(),
+                request.getAssignmentStatus());
         assignment.setUpdatedBy(request.getUpdatedBy());
         SowMilestonePositionAssignment saved = repository.saveAndFlush(assignment);
-        completeParentIfNoActiveMilestones(saved.getEmployeeAssignment(),
+        reconcilePositionStatus(saved.getMilestonePosition(), saved.getStatus());
+        reconcileParentStatus(saved.getEmployeeAssignment(),
                 request.getAssignmentEndDate(), request.getUpdatedBy());
+        reconcileResourceRequirement(sowId, saved.getStatus());
         return toResponse(saved,
                 employeeMap(assignment.getEmployeeAssignment()));
     }
@@ -123,32 +141,75 @@ public class SowMilestonePositionAssignmentServiceImpl
         if (!"ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
             throw new InvalidOperationException("Only an ACTIVE assignment can be unassigned");
         }
-        markUnassigned(assignment, request.getAssignmentEndDate());
+        endAssignment(assignment, request.getAssignmentEndDate(),
+                request.getAssignmentStatus());
         assignment.setUpdatedBy(request.getUpdatedBy());
         SowMilestonePositionAssignment saved = repository.saveAndFlush(assignment);
-        completeParentIfNoActiveMilestones(saved.getEmployeeAssignment(),
+        reconcilePositionStatus(saved.getMilestonePosition(), saved.getStatus());
+        reconcileParentStatus(saved.getEmployeeAssignment(),
                 request.getAssignmentEndDate(), request.getUpdatedBy());
+        reconcileResourceRequirement(sowId, saved.getStatus());
         return toResponse(saved,
                 employeeMap(assignment.getEmployeeAssignment()));
     }
 
-    private void completeParentIfNoActiveMilestones(EmployeeAssignment parent,
+    private void reconcileParentStatus(EmployeeAssignment parent,
             LocalDate endDate, Long updatedBy) {
         if (repository.existsByEmployeeAssignment_IdAndStatusIgnoreCase(
                 parent.getId(), "ACTIVE")) {
             return;
         }
-        parent.setEffectiveTo(endDate);
-        parent.setStatus("COMPLETED");
+        List<SowMilestonePositionAssignment> childAssignments = repository
+                .findByEmployeeAssignment_IdOrderByAssignmentStartDateDescIdDesc(parent.getId());
+        String parentStatus = childAssignments.stream()
+                .allMatch(child -> "COMPLETED".equalsIgnoreCase(child.getStatus()))
+                ? "COMPLETED" : "UNASSIGNED";
+        LocalDate latestEndDate = childAssignments.stream()
+                .map(SowMilestonePositionAssignment::getAssignmentEndDate)
+                .filter(Objects::nonNull)
+                .max(LocalDate::compareTo)
+                .orElse(endDate);
+        parent.setEffectiveTo(latestEndDate);
+        parent.setStatus(parentStatus);
         parent.setIsPrimaryAssignment(false);
         parent.setUpdatedBy(updatedBy);
         employeeAssignmentRepository.save(parent);
     }
 
-    private void markUnassigned(SowMilestonePositionAssignment assignment,
-            LocalDate endDate) {
+    private void endAssignment(SowMilestonePositionAssignment assignment,
+            LocalDate endDate, String assignmentStatus) {
         assignment.setAssignmentEndDate(endDate);
-        assignment.setStatus("COMPLETED");
+        assignment.setStatus(normalizeTerminalStatus(assignmentStatus));
+    }
+
+    private void reconcilePositionStatus(SowMilestonePosition position,
+            String endedAssignmentStatus) {
+        if (repository.existsByMilestonePosition_IdAndStatusIgnoreCase(
+                position.getId(), "ACTIVE")) {
+            position.setStatus("FILLED");
+        } else if ("COMPLETED".equalsIgnoreCase(endedAssignmentStatus)) {
+            position.setStatus("COMPLETED");
+        } else {
+            position.setStatus("OPEN");
+        }
+        positionRepository.saveAndFlush(position);
+    }
+
+    private void reconcileResourceRequirement(Long sowId, String assignmentStatus) {
+        if ("COMPLETED".equalsIgnoreCase(assignmentStatus)) {
+            resourceRequirementService.onResourceCompleted(sowId);
+        } else {
+            resourceRequirementService.onResourceUnassigned(sowId);
+        }
+    }
+
+    private String normalizeTerminalStatus(String status) {
+        String normalized = status.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("COMPLETED", "UNASSIGNED").contains(normalized)) {
+            throw new InvalidOperationException(
+                    "assignmentStatus must be COMPLETED or UNASSIGNED");
+        }
+        return normalized;
     }
 
     private void apply(SowMilestonePositionAssignment assignment,
@@ -270,7 +331,10 @@ public class SowMilestonePositionAssignmentServiceImpl
                 .milestonePositionId(position.getId())
                 .positionId(position.getPosition().getId())
                 .positionName(position.getPositionName())
-                .seniority(position.getSeniority())
+                .seniorityId(position.getSeniority() == null
+                        ? null : position.getSeniority().getId())
+                .seniority(position.getSeniority() == null
+                        ? null : position.getSeniority().getName())
                 .rateCardId(position.getRateCard() == null ? null : position.getRateCard().getId())
                 .allocationPercentage(assignment.getAllocationPercentage())
                 .positionType(assignment.getPositionType())

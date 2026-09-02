@@ -19,7 +19,7 @@ public class SowResourceRequirementSchemaMigration implements ApplicationRunner 
     @Override
     public void run(ApplicationArguments args) {
         List<String> requiredColumns = List.of(
-                "sow_id", "position_id", "skill_id", "seniority", "location");
+                "sow_id", "position_id", "skill_id", "seniority_id", "location");
         if (!indexColumns("uk_resource_requirement").equals(requiredColumns)) {
             // Derived rows are rebuilt from milestone positions after the next SOW mutation.
             jdbcTemplate.update("delete from sow_resource_requirement");
@@ -36,14 +36,14 @@ public class SowResourceRequirementSchemaMigration implements ApplicationRunner 
             }
             jdbcTemplate.execute("alter table sow_resource_requirement add constraint "
                     + "uk_resource_requirement unique "
-                    + "(sow_id, position_id, skill_id, seniority, location)");
+                    + "(sow_id, position_id, skill_id, seniority_id, location)");
         }
 
         dropForeignKeys("position_id");
         dropForeignKeys("skill_id");
 
         for (String column : List.of(
-                "assigned_hc", "total_hours", "created_at", "updated_at")) {
+                "seniority", "assigned_hc", "total_hours", "created_at", "updated_at")) {
             if (columnExists(column)) {
                 jdbcTemplate.execute("alter table sow_resource_requirement drop column `"
                         + column + "`");

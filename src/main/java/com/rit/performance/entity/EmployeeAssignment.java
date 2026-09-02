@@ -10,7 +10,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "employee_assignments")
+@Table(name = "sow_employee_assignments")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -39,7 +39,11 @@ public class EmployeeAssignment extends BaseEntity {
     @Column(name = "sow_id")
     private Long sowId;
 
-    @Column(name = "milestone_id")
+    /**
+     * Legacy API compatibility only. Milestone allocation is persisted through
+     * SowMilestonePositionAssignment and this value is never mapped to the parent table.
+     */
+    @Transient
     private Long milestoneId;
 
     @Column(name = "position_type", length = 20)

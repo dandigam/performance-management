@@ -16,11 +16,18 @@ public interface SowMilestonePositionAssignmentRepository
 
     boolean existsByMilestonePosition_Id(Long milestonePositionId);
 
+    boolean existsByMilestonePosition_IdAndStatusIgnoreCase(
+            Long milestonePositionId, String status);
+
     @EntityGraph(attributePaths = {"employeeAssignment", "milestonePosition",
             "milestonePosition.sow", "milestonePosition.milestone",
             "milestonePosition.position", "milestonePosition.rateCard"})
     List<SowMilestonePositionAssignment>
             findByMilestonePosition_IdOrderByAssignmentStartDateDescIdDesc(Long positionId);
+
+    List<SowMilestonePositionAssignment>
+            findByEmployeeAssignment_IdOrderByAssignmentStartDateDescIdDesc(
+                    Long employeeAssignmentId);
 
     @EntityGraph(attributePaths = {"employeeAssignment", "milestonePosition",
             "milestonePosition.sow", "milestonePosition.milestone",

@@ -21,6 +21,7 @@ public class SowRequirementMilestonesResponse {
     private String positionName;
     private Long skillId;
     private String skillName;
+    private Long seniorityId;
     private String seniority;
     private String location;
     private List<SowPositionMilestoneResponse> milestones;

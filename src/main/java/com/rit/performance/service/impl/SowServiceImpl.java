@@ -69,7 +69,7 @@ public class SowServiceImpl implements SowService {
         milestoneRepository.flush();
         createDraftInvoicesWhenEligible(sow, milestoneSync.retained());
         Sow saved = sowRepository.saveAndFlush(sow);
-        resourceRequirementService.rebuild(saved.getId());
+        resourceRequirementService.onPositionCreatedOrUpdated(saved.getId());
         return toResponse(saved);
     }
 
@@ -205,6 +205,7 @@ public class SowServiceImpl implements SowService {
         LookupValue designation = resolvePlannedDesignation(
                 request.getPositionId(), rateCard);
         LookupValue skill = resolvePlannedSkill(request.getSkillId(), rateCard);
+        LookupValue seniority = resolveSeniority(request.getSeniorityId());
         validateDateRange(request.getStartDate(), request.getEndDate(), "Milestone position");
 
         SowMilestonePosition milestonePosition = SowMilestonePosition.builder()
@@ -214,7 +215,7 @@ public class SowServiceImpl implements SowService {
                 .skill(skill)
                 .rateCard(rateCard)
                 .positionName(resolvePositionName(request.getPositionName(), designation))
-                .seniority(trimToNull(request.getSeniority()))
+                .seniority(seniority)
                 .positionType(normalizePositionType(request.getPositionType()))
                 .locationType(normalizeLocationType(request.getLocationType()))
                 .startDate(request.getStartDate())
@@ -229,7 +230,7 @@ public class SowServiceImpl implements SowService {
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
         milestoneRepository.saveAndFlush(milestone);
-        resourceRequirementService.rebuild(sowId);
+        resourceRequirementService.onPositionCreatedOrUpdated(sowId);
 
         return com.rit.performance.dto.response.SowMilestonePositionResponse.builder()
                 .milestonePositionId(milestonePosition.getId())
@@ -237,7 +238,8 @@ public class SowServiceImpl implements SowService {
                 .positionName(milestonePosition.getPositionName())
                 .skillId(skill.getId())
                 .skillName(skill.getName())
-                .seniority(milestonePosition.getSeniority())
+                .seniorityId(seniority.getId())
+                .seniority(seniority.getName())
                 .rateCardId(rateCard == null ? null : rateCard.getId())
                 .hourlyRate(milestonePosition.getHourlyRate())
                 .rateOverrideReason(milestonePosition.getRateOverrideReason())
@@ -245,6 +247,8 @@ public class SowServiceImpl implements SowService {
                 .rateUpdatedDate(milestonePosition.getRateUpdatedDate())
                 .currency(rateCard == null ? null : rateCard.getCurrency())
                 .positionType(milestonePosition.getPositionType())
+                .status(milestonePosition.getStatus() == null
+                        ? "OPEN" : milestonePosition.getStatus())
                 .locationType(milestonePosition.getLocationType())
                 .startDate(milestonePosition.getStartDate())
                 .endDate(milestonePosition.getEndDate())
@@ -252,6 +256,33 @@ public class SowServiceImpl implements SowService {
                 .amount(milestonePosition.getAmount())
                 .assignments(List.of())
                 .build();
+    }
+
+    @Override
+    public void deletePosition(Long sowId, Long milestoneId, Long positionId) {
+        SowMilestone milestone = milestoneRepository.findByIdAndSow_Id(milestoneId, sowId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Milestone " + milestoneId + " not found for SOW " + sowId));
+        SowMilestonePosition position = milestone.getPositions().stream()
+                .filter(candidate -> Objects.equals(candidate.getId(), positionId))
+                .findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Milestone position " + positionId + " not found for milestone "
+                                + milestoneId + " and SOW " + sowId));
+        if (positionAssignmentRepository.existsByMilestonePosition_Id(positionId)) {
+            throw new InvalidOperationException("Milestone position " + positionId
+                    + " has assignment history and cannot be removed; unassign it instead");
+        }
+
+        milestone.getPositions().remove(position);
+        milestone.setAmount(milestone.getPositions().stream()
+                .map(SowMilestonePosition::getAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add));
+        milestoneRepository.saveAndFlush(milestone);
+
+        // Reconcile the derived requirement rows after the position has been removed.
+        resourceRequirementService.onPositionRemoved(sowId);
     }
 
     @Override
@@ -360,7 +391,7 @@ public class SowServiceImpl implements SowService {
             sow.removeMilestone(obsolete);
         }
         Sow saved = sowRepository.saveAndFlush(sow);
-        resourceRequirementService.rebuild(saved.getId());
+        resourceRequirementService.onPositionCreatedOrUpdated(saved.getId());
         return toResponse(saved);
     }
 
@@ -374,12 +405,15 @@ public class SowServiceImpl implements SowService {
     @Override
     @Transactional(readOnly = true)
     public SowRequirementMilestonesResponse getMilestonesByPosition(
-            Long sowId, Long positionId) {
+            Long sowId, Long positionId, Long skillId, Long seniorityId, String location) {
         if (!sowRepository.existsById(sowId)) {
             throw new ResourceNotFoundException("SOW not found: " + sowId);
         }
         requireDesignationLookup(positionId);
-        return resourceRequirementService.getMilestonesByPosition(sowId, positionId);
+        resolvePlannedSkill(skillId, null);
+        resolveSeniority(seniorityId);
+        return resourceRequirementService.getMilestonesByPosition(
+                sowId, positionId, skillId, seniorityId, location);
     }
 
     private MilestoneSync synchronizeMilestones(
@@ -542,6 +576,7 @@ public class SowServiceImpl implements SowService {
             LookupValue designation = resolvePlannedDesignation(
                     positionRequest.getPositionId(), rateCard);
             LookupValue skill = resolvePlannedSkill(positionRequest.getSkillId(), rateCard);
+            LookupValue seniority = resolveSeniority(positionRequest.getSeniorityId());
             String positionName = resolvePositionName(
                     positionRequest.getPositionName(), designation);
             validateDateRange(positionRequest.getStartDate(), positionRequest.getEndDate(),
@@ -551,7 +586,7 @@ public class SowServiceImpl implements SowService {
             milestonePosition.setRateCard(rateCard);
             applyPositionRate(milestonePosition, rateCard, positionRequest);
             milestonePosition.setPositionName(positionName);
-            milestonePosition.setSeniority(trimToNull(positionRequest.getSeniority()));
+            milestonePosition.setSeniority(seniority);
             milestonePosition.setPositionType(normalizePositionType(
                     positionRequest.getPositionType()));
             milestonePosition.setLocationType(normalizeLocationType(
@@ -655,6 +690,18 @@ public class SowServiceImpl implements SowService {
                     "Skill id must belong to the SKILL lookup type: " + resolvedSkillId);
         }
         return skill;
+    }
+
+    private LookupValue resolveSeniority(Long seniorityId) {
+        LookupValue seniority = lookupValueRepository.findById(seniorityId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Seniority lookup not found: " + seniorityId));
+        if (seniority.getLookupType() == null
+                || !"SENIORITY".equalsIgnoreCase(seniority.getLookupType().getCode())) {
+            throw new InvalidOperationException(
+                    "seniorityId must belong to the SENIORITY lookup type: " + seniorityId);
+        }
+        return seniority;
     }
 
     private String resolvePositionName(String requestedName, LookupValue position) {

@@ -49,10 +49,14 @@ public class SowMilestonePosition extends BaseEntity {
     private LocalDateTime rateUpdatedDate;
     @Column(name = "position_name", nullable = false, length = 200)
     private String positionName;
-    @Column(length = 100)
-    private String seniority;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "seniority_id", nullable = false,
+            foreignKey = @ForeignKey(name = "fk_smp_seniority"))
+    private LookupValue seniority;
     @Column(name = "position_type", nullable = false, length = 20)
     private String positionType;
+    @Column(nullable = false, length = 20)
+    private String status;
     @Column(name = "location_type", length = 20)
     private String locationType;
     @Column(name = "start_date")
@@ -67,5 +71,6 @@ public class SowMilestonePosition extends BaseEntity {
     @PrePersist
     void applyDefaults() {
         if (positionType == null || positionType.isBlank()) positionType = "BILLABLE";
+        if (status == null || status.isBlank()) status = "OPEN";
     }
 }

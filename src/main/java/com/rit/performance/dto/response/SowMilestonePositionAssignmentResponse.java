@@ -15,6 +15,7 @@ public class SowMilestonePositionAssignmentResponse {
     private Long milestonePositionId;
     private Long positionId;
     private String positionName;
+    private Long seniorityId;
     private String seniority;
     private Long rateCardId;
     private Integer allocationPercentage;

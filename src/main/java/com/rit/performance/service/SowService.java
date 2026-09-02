@@ -21,7 +21,7 @@ public interface SowService {
     SowResponse getById(Long id);
 
     SowRequirementMilestonesResponse getMilestonesByPosition(
-            Long sowId, Long positionId);
+            Long sowId, Long positionId, Long skillId, Long seniorityId, String location);
 
     List<SowAssignmentResponse> getAllAssignments();
 
@@ -31,6 +31,8 @@ public interface SowService {
 
     SowMilestonePositionResponse createPosition(
             Long sowId, Long milestoneId, SowMilestonePositionRequest request);
+
+    void deletePosition(Long sowId, Long milestoneId, Long positionId);
 
     SowAssignmentResponse unassignFromSow(
             Long sowId, Long assignmentId, SowAssignmentUnassignRequest request);

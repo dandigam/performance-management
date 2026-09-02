@@ -20,8 +20,9 @@ public class SowMilestonePositionRequest {
     private Long rateUpdatedBy;
     @Size(max = 200, message = "positionName must not exceed 200 characters")
     private String positionName;
-    @Size(max = 100, message = "seniority must not exceed 100 characters")
-    private String seniority;
+    @NotNull(message = "seniorityId is required")
+    @Positive(message = "seniorityId must be positive")
+    private Long seniorityId;
     @NotBlank(message = "positionType is required")
     @Size(max = 20, message = "positionType must not exceed 20 characters")
     private String positionType;

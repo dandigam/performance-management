@@ -20,6 +20,23 @@ import java.util.Locale;
 @Order(100)
 @RequiredArgsConstructor
 public class RateCardSkillSchemaMigration implements ApplicationRunner {
+    private static final List<String> DEFAULT_SKILLS = List.of(
+            "Java",
+            "Spring Boot",
+            "DevOps",
+            "AWS",
+            "Angular",
+            "React",
+            "JavaScript",
+            "TypeScript",
+            "Python",
+            "Node.js",
+            "SQL",
+            "Docker",
+            "Kubernetes",
+            "Azure"
+    );
+
     private final JdbcTemplate jdbcTemplate;
     private final LookupTypeRepository lookupTypeRepository;
     private final LookupValueRepository lookupValueRepository;
@@ -32,6 +49,7 @@ public class RateCardSkillSchemaMigration implements ApplicationRunner {
                         .code("SKILL")
                         .name("Skills")
                         .build()));
+        seedDefaultSkills(skillType);
         remapMainSkillValues(skillType);
 
         Integer legacyColumnCount = jdbcTemplate.queryForObject("""
@@ -58,6 +76,14 @@ public class RateCardSkillSchemaMigration implements ApplicationRunner {
                     """, value.getId(), skill);
         }
         jdbcTemplate.execute("alter table rate_cards drop column skill");
+    }
+
+    private void seedDefaultSkills(LookupType skillType) {
+        int displayOrder = lookupValueRepository
+                .findByLookupTypeIdOrderByDisplayOrderAscIdAsc(skillType.getId()).size() + 1;
+        for (String skill : DEFAULT_SKILLS) {
+            skillValue(skillType, skill, displayOrder++);
+        }
     }
 
     private void remapMainSkillValues(LookupType skillType) {

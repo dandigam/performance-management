@@ -6,7 +6,7 @@ import lombok.*;
 @Entity
 @Table(name = "sow_resource_requirement", uniqueConstraints = @UniqueConstraint(
         name = "uk_resource_requirement",
-        columnNames = {"sow_id", "position_id", "skill_id", "seniority", "location"}))
+        columnNames = {"sow_id", "position_id", "skill_id", "seniority_id", "location"}))
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SowResourceRequirement {
     @Id
@@ -30,8 +30,10 @@ public class SowResourceRequirement {
     @Column(name = "skill_name", nullable = false, length = 200)
     private String skillName;
 
-    @Column(nullable = false, length = 50)
-    private String seniority;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "seniority_id", nullable = false,
+            foreignKey = @ForeignKey(name = "fk_resource_requirement_seniority"))
+    private LookupValue seniority;
 
     @Column(nullable = false, length = 30)
     private String location;

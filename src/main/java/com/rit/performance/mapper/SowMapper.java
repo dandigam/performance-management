@@ -127,7 +127,10 @@ public final class SowMapper {
                                         ? null : position.getSkill().getId())
                                 .skillName(position.getSkill() == null
                                         ? null : position.getSkill().getName())
-                                .seniority(position.getSeniority())
+                                .seniorityId(position.getSeniority() == null
+                                        ? null : position.getSeniority().getId())
+                                .seniority(position.getSeniority() == null
+                                        ? null : position.getSeniority().getName())
                                 .rateCardId(position.getRateCard() == null
                                         ? null : position.getRateCard().getId())
                                 .hourlyRate(position.getHourlyRate() != null
@@ -140,6 +143,7 @@ public final class SowMapper {
                                 .currency(position.getRateCard() == null
                                         ? null : position.getRateCard().getCurrency())
                                 .positionType(position.getPositionType())
+                                .status(position.getStatus() == null ? "OPEN" : position.getStatus())
                                 .locationType(position.getLocationType())
                                 .startDate(position.getStartDate())
                                 .endDate(position.getEndDate())

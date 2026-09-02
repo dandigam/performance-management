@@ -62,8 +62,12 @@ public class SowController {
     @GetMapping("/{sowId}/milestones")
     public ResponseEntity<SowRequirementMilestonesResponse> getMilestonesByPosition(
             @PathVariable Long sowId,
-            @RequestParam Long positionId) {
-        return ResponseEntity.ok(sowService.getMilestonesByPosition(sowId, positionId));
+            @RequestParam Long positionId,
+            @RequestParam Long skillId,
+            @RequestParam Long seniorityId,
+            @RequestParam String location) {
+        return ResponseEntity.ok(sowService.getMilestonesByPosition(
+                sowId, positionId, skillId, seniorityId, location));
     }
 
     @GetMapping("/{sowId}/assignments")
@@ -81,6 +85,15 @@ public class SowController {
         return ResponseEntity.created(URI.create("/api/v1/sows/" + sowId
                 + "/milestones/" + milestoneId + "/positions/"
                 + created.getMilestonePositionId())).body(created);
+    }
+
+    @DeleteMapping("/{sowId}/milestones/{milestoneId}/positions/{positionId}")
+    public ResponseEntity<Void> deletePosition(
+            @PathVariable Long sowId,
+            @PathVariable Long milestoneId,
+            @PathVariable Long positionId) {
+        sowService.deletePosition(sowId, milestoneId, positionId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{sowId}/milestones/{milestoneId}/positions/"

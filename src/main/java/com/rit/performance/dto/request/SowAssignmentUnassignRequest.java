@@ -13,7 +13,8 @@ public class SowAssignmentUnassignRequest {
     private LocalDate assignmentEndDate;
 
     @NotBlank(message = "assignmentStatus is required")
-    @Pattern(regexp = "(?i)COMPLETED", message = "assignmentStatus must be COMPLETED")
+    @Pattern(regexp = "(?i)(COMPLETED|UNASSIGNED)",
+            message = "assignmentStatus must be COMPLETED or UNASSIGNED")
     private String assignmentStatus;
 
     private Long updatedBy;

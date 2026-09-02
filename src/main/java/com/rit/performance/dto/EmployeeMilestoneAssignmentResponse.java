@@ -20,6 +20,7 @@ public class EmployeeMilestoneAssignmentResponse {
     private Long milestonePositionId;
     private Long designationId;
     private String designationName;
+    private Long seniorityId;
     private String seniority;
     private String location;
     private String positionType;

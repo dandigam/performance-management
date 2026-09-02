@@ -14,6 +14,7 @@ public class SowMilestonePositionResponse {
     private String positionName;
     private Long skillId;
     private String skillName;
+    private Long seniorityId;
     private String seniority;
     private Long rateCardId;
     private BigDecimal hourlyRate;
@@ -22,6 +23,7 @@ public class SowMilestonePositionResponse {
     private LocalDateTime rateUpdatedDate;
     private String currency;
     private String positionType;
+    private String status;
     @JsonProperty("location")
     private String locationType;
     private LocalDate startDate;

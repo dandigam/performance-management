@@ -461,7 +461,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .designationId(designation == null ? null : designation.getId())
                 .designationName(designation == null
                         ? position.getPositionName() : designation.getName())
-                .seniority(position.getSeniority())
+                .seniorityId(position.getSeniority() == null
+                        ? null : position.getSeniority().getId())
+                .seniority(position.getSeniority() == null
+                        ? null : position.getSeniority().getName())
                 .location(position.getLocationType())
                 .positionType(detail.getPositionType())
                 .allocationPercentage(detail.getAllocationPercentage())
