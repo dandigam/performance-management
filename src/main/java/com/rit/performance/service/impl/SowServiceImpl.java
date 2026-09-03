@@ -30,14 +30,7 @@ import java.util.stream.Collectors;
 @Transactional
 @RequiredArgsConstructor
 public class SowServiceImpl implements SowService {
-    private static final Set<String> SOW_STATUSES = Set.of(
-            "DRAFT",
-            "WAITING_FOR_APPROVAL",
-            "ACTIVE",
-            "ON_HOLD",
-            "COMPLETED",
-            "CANCELLED"
-    );
+    private static final String SOW_STATUS_LOOKUP = "SOW_STATUS";
     private final SowRepository sowRepository;
     private final EmployeeAssignmentRepository assignmentRepository;
     private final SowMilestoneRepository milestoneRepository;
@@ -86,7 +79,8 @@ public class SowServiceImpl implements SowService {
         List<Sow> sows = sowRepository.findAllWithDetails().stream()
                 .filter(sow -> sowId == null || Objects.equals(sow.getId(), sowId))
                 .filter(sow -> normalizedStatus == null
-                        || normalizedStatus.equalsIgnoreCase(sow.getStatus()))
+                        || (sow.getStatus() != null
+                        && normalizedStatus.equalsIgnoreCase(sow.getStatus().getCode())))
                 .filter(sow -> designationId == null || sow.getMilestones().stream()
                         .flatMap(milestone -> milestone.getPositions().stream())
                         .anyMatch(position -> position.getPosition() != null
@@ -477,7 +471,7 @@ public class SowServiceImpl implements SowService {
     }
 
     private void createDraftInvoicesWhenEligible(Sow sow, Collection<SowMilestone> milestones) {
-        String status = sow.getStatus() == null ? "" : sow.getStatus().trim().toUpperCase(Locale.ROOT);
+        String status = sow.getStatus() == null ? "" : sow.getStatus().getCode();
         if (Set.of("ACTIVE", "START", "STARTED").contains(status)) {
             sowInvoiceService.createDraftInvoices(sow, milestones);
         }
@@ -508,7 +502,7 @@ public class SowServiceImpl implements SowService {
                 request.getRitEscalationEmployeeId(), "RIT escalation person"));
         sow.setStartDate(request.getStartDate());
         sow.setEndDate(request.getEndDate());
-        sow.setStatus(normalizeStatus(request.getStatus(), "DRAFT"));
+        sow.setStatus(resolveSowStatus(request.getStatus()));
         sow.setRemarks(normalizeDescription(request.getRemarks()));
         String signedStatus = request.getSignedStatus() == null
                 || request.getSignedStatus().isBlank()
@@ -871,19 +865,19 @@ public class SowServiceImpl implements SowService {
         return name.isBlank() ? user.getUsername() : name;
     }
 
-    private String normalizeStatus(String value, String defaultValue) {
-        if (value == null || value.isBlank()) return defaultValue;
-        String normalized = value.trim().toUpperCase(Locale.ROOT)
+    private LookupValue resolveSowStatus(String value) {
+        String requested = value == null || value.isBlank() ? "DRAFT" : value;
+        String normalized = requested.trim().toUpperCase(Locale.ROOT)
                 .replaceAll("[^A-Z0-9]+", "_")
                 .replaceAll("^_+|_+$", "");
         if ("WAITINGFORAPPROVAL".equals(normalized)) normalized = "WAITING_FOR_APPROVAL";
         if ("ONHOLD".equals(normalized)) normalized = "ON_HOLD";
-        if (!SOW_STATUSES.contains(normalized)) {
-            throw new InvalidOperationException(
-                    "status must be DRAFT, WAITING_FOR_APPROVAL, ACTIVE, ON_HOLD, "
-                            + "COMPLETED, or CANCELLED");
-        }
-        return normalized;
+        String statusCode = normalized;
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        SOW_STATUS_LOOKUP, statusCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "Invalid or inactive SOW status: " + statusCode));
     }
 
     private String normalizeMilestoneStatus(String value) {

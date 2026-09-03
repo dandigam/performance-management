@@ -33,6 +33,7 @@ public class LookupDataInitializer implements ApplicationRunner {
         LookupType seniority = type("SENIORITY", "Seniority");
         LookupType location = type("LOCATION", "Location");
         LookupType sowType = type("SOW_TYPE", "SOW Type");
+        LookupType sowStatus = type("SOW_STATUS", "SOW Status");
         LookupType designation = type("DESIGNATION", "Designation");
 
         value(reviewType, "ANNUAL", "Annual Review", 1);
@@ -68,6 +69,13 @@ public class LookupDataInitializer implements ApplicationRunner {
         value(sowType, "SUPPORT", "Support", 1);
         value(sowType, "DEVELOPMENT", "Development", 2);
         value(sowType, "DISCOVERY", "Discovery", 3);
+
+        value(sowStatus, "DRAFT", "Draft", 1);
+        value(sowStatus, "WAITING_FOR_APPROVAL", "Waiting for Approval", 2);
+        value(sowStatus, "ACTIVE", "Active", 3);
+        value(sowStatus, "ON_HOLD", "On Hold", 4);
+        value(sowStatus, "COMPLETED", "Completed", 5);
+        value(sowStatus, "CANCELLED", "Cancelled", 6);
 
         value(designation, "JAVA_DEVELOPER", "Java Developer", 1);
         value(designation, "REACT_DEVELOPER", "React Developer", 2);

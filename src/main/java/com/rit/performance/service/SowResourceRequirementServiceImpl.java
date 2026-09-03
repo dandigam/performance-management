@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 
 /**
- * Maintains the derived HR headcount plan for each SOW.
+ * Maintains the derived unfilled HR headcount requirement for each SOW.
  *
  * <p>The source of truth is {@code sow_milestone_positions}. This service does not
  * trusts the source rows rather than manually adjusting headcount. Whenever
@@ -39,7 +39,9 @@ import java.util.*;
  * Offshore} belong to one resource group. A row with Spring instead of Java,
  * Junior instead of Senior, or Onsite instead of Offshore belongs to a different
  * resource group. If the Java/Senior/Offshore combination appears twice in one
- * milestone, that milestone's count for the resource group is 2.</p>
+ * milestone, that milestone's count for the resource group is 2. Only OPEN
+ * milestone positions contribute; assigning a resource changes the position to
+ * FILLED and therefore reduces the derived requirement.</p>
  *
  * <p>Milestones are treated as sequential rather than concurrent. Required
  * headcount is therefore the largest count of a resource group in any one
@@ -66,9 +68,9 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
         // with no summary rows, which is the expected behavior for an empty SOW.
         List<SowMilestonePosition> positions = positionRepository.findBySowId(sowId).stream()
                 .filter(position -> position.getSkill() != null)
-                // Completed work no longer contributes to the current HR requirement.
-                // OPEN and FILLED positions remain part of the planned headcount.
-                .filter(position -> !"COMPLETED".equalsIgnoreCase(position.getStatus()))
+                // The derived table represents vacancies, not original planned HC.
+                // Assignment changes OPEN -> FILLED; unassignment changes it back to OPEN.
+                .filter(position -> "OPEN".equalsIgnoreCase(position.getStatus()))
                 .toList();
 
         // Stage 1: count each resource group independently inside each milestone.
@@ -171,7 +173,7 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
     }
 
     @Override
-    public List<SowResourceRequirementSummaryResponse> getAllBySow() {
+    public List<SowResourceRequirementSummaryResponse> getAllBySow(String sowStatus) {
         Map<Long, SowResourceRequirementSummaryResponse> summaries = new LinkedHashMap<>();
         List<SowResourceRequirement> requirements = requirementRepository
                 .findAllByOrderBySowIdAscPositionIdAscSkillIdAscSeniorityAscLocationAsc();
@@ -182,6 +184,11 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
         Map<Long, CsxEmployee> owners = csxEmployeeRepository.findAllById(ownerIds).stream()
                 .collect(java.util.stream.Collectors.toMap(CsxEmployee::getId, owner -> owner));
         requirements
+                .stream()
+                .filter(requirement -> sowStatus == null || sowStatus.isBlank()
+                        || (requirement.getSow().getStatus() != null
+                        && sowStatus.trim().equalsIgnoreCase(
+                                requirement.getSow().getStatus().getCode())))
                 .forEach(requirement -> {
                     Sow sow = requirement.getSow();
                     SowResourceRequirementSummaryResponse summary = summaries.computeIfAbsent(
@@ -284,6 +291,7 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
                 .sowId(sow.getId())
                 .sowCode(sow.getSowCode())
                 .sowName(sow.getSowName())
+                .sowStatus(sow.getStatus() == null ? null : sow.getStatus().getCode())
                 .businessUnitId(sow.getBusinessUnit() == null
                         ? null : sow.getBusinessUnit().getId())
                 .businessUnitName(sow.getBusinessUnit() == null

@@ -75,8 +75,10 @@ public class Sow extends BaseEntity {
     @Column(name = "end_date")
     private LocalDate endDate;
 
-    @Column(length = 30)
-    private String status;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "status_id", nullable = false,
+            foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
+    private LookupValue status;
 
     @Column(length = 2000)
     private String remarks;
@@ -125,9 +127,6 @@ public class Sow extends BaseEntity {
 
     @PrePersist
     void prePersist() {
-        if (status == null || status.isBlank()) {
-            status = "DRAFT";
-        }
         if (signedStatus == null || signedStatus.isBlank()) {
             signedStatus = "UNSIGNED";
         }

@@ -15,7 +15,7 @@ public interface SowResourceRequirementService {
     void onResourceCompleted(Long sowId);
     void clear(Long sowId);
     List<SowResourceRequirementResponse> getAll();
-    List<SowResourceRequirementSummaryResponse> getAllBySow();
+    List<SowResourceRequirementSummaryResponse> getAllBySow(String sowStatus);
     SowResourceRequirementSummaryResponse getBySowId(Long sowId);
     SowRequirementMilestonesResponse getMilestonesByPosition(
             Long sowId, Long positionId, Long skillId, Long seniorityId, String location);

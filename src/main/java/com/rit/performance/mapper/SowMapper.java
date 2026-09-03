@@ -61,7 +61,7 @@ public final class SowMapper {
                         ? null : ritEscalation.getEmail())
                 .startDate(sow.getStartDate())
                 .endDate(sow.getEndDate())
-                .status(sow.getStatus())
+                .status(sow.getStatus() == null ? null : sow.getStatus().getCode())
                 .remarks(sow.getRemarks())
                 .signedStatus(sow.getSignedStatus() == null ? "UNSIGNED" : sow.getSignedStatus())
                 .signedDate(sow.getSignedDate())

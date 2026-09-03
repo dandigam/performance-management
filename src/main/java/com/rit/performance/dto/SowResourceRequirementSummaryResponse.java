@@ -10,6 +10,7 @@ public class SowResourceRequirementSummaryResponse {
     private Long sowId;
     private String sowCode;
     private String sowName;
+    private String sowStatus;
     private Long businessUnitId;
     private String businessUnitName;
     private Long projectOwnerEmployeeId;
