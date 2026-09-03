@@ -2,6 +2,7 @@ package com.rit.performance.dto.request;
 
 import jakarta.validation.constraints.*;
 import lombok.*;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDate;
 import java.math.BigDecimal;
@@ -11,6 +12,7 @@ public class SowMilestonePositionRequest {
     private Long milestonePositionId;
     @NotNull(message = "positionId is required")
     private Long positionId;
+    @JsonAlias("mainSkillId")
     private Long skillId;
     private Long rateCardId;
     @DecimalMin(value = "0.0", message = "hourlyRate cannot be negative")
