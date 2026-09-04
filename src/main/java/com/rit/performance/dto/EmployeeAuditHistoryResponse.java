@@ -1,6 +1,5 @@
 package com.rit.performance.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -17,6 +16,6 @@ public class EmployeeAuditHistoryResponse {
     private String changedByName;
     private String changedByEmail;
     private LocalDateTime changedOn;
-    private JsonNode oldValues;
-    private JsonNode newValues;
+    private Object oldValues;
+    private Object newValues;
 }
