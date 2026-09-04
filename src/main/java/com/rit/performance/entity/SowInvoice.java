@@ -6,17 +6,19 @@ import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(
         name = "sow_invoices",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_sow_invoice_milestone", columnNames = "milestone_id"),
+        uniqueConstraints = {
+                @UniqueConstraint(name = "uk_sow_invoice_milestone", columnNames = "milestone_id"),
+                @UniqueConstraint(name = "uk_sow_invoice_number", columnNames = "invoice_number")
+        },
         indexes = {
                 @Index(name = "idx_sow_invoices_sow_id", columnList = "sow_id"),
-                @Index(name = "idx_sow_invoices_invoice_status", columnList = "invoice_status"),
-                @Index(name = "idx_sow_invoices_payment_status", columnList = "payment_status")
+                @Index(name = "idx_sow_invoices_invoice_status", columnList = "invoice_status")
         }
 )
 @Getter
@@ -40,11 +42,17 @@ public class SowInvoice extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_sow_invoice_milestone"))
     private SowMilestone milestone;
 
-    @Column(name = "actual_invoice_date")
-    private LocalDate actualInvoiceDate;
+    @Column(name = "milestone_invoice_date")
+    private LocalDate milestoneInvoiceDate;
 
-    @Column(name = "invoice_amount", precision = 15, scale = 2)
-    private BigDecimal invoiceAmount;
+    @Column(name = "milestone_invoice_amount", precision = 15, scale = 2)
+    private BigDecimal milestoneInvoiceAmount;
+
+    @Column(name = "invoice_raised_date")
+    private LocalDate invoiceRaisedDate;
+
+    @Column(name = "invoice_raised_amount", precision = 15, scale = 2)
+    private BigDecimal invoiceRaisedAmount;
 
     @Column(name = "invoice_status", nullable = false, length = 30)
     private String invoiceStatus;
@@ -52,17 +60,20 @@ public class SowInvoice extends BaseEntity {
     @Column(name = "submitted_date")
     private LocalDate submittedDate;
 
-    @Column(name = "payment_received_date")
-    private LocalDate paymentReceivedDate;
+    @Column(name = "invoice_number", length = 100)
+    private String invoiceNumber;
 
-    @Column(name = "received_amount", precision = 15, scale = 2)
-    private BigDecimal receivedAmount;
+    @Column(length = 500)
+    private String notes;
 
-    @Column(name = "payment_status", nullable = false, length = 30)
-    private String paymentStatus;
+    @OneToMany(mappedBy = "invoice", fetch = FetchType.LAZY,
+            cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("paymentDate ASC, id ASC")
+    @Builder.Default
+    private List<SowInvoicePayment> payments = new ArrayList<>();
+
     @PrePersist
     void prePersist() {
-        if (invoiceStatus == null || invoiceStatus.isBlank()) invoiceStatus = "DRAFT";
-        if (paymentStatus == null || paymentStatus.isBlank()) paymentStatus = "UNPAID";
+        if (invoiceStatus == null || invoiceStatus.isBlank()) invoiceStatus = "EXPECTED";
     }
 }

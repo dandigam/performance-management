@@ -17,11 +17,11 @@ public interface SowInvoiceRepository extends JpaRepository<SowInvoice, Long> {
 
     List<SowInvoice> findByMilestone_IdIn(Collection<Long> milestoneIds);
 
-    @EntityGraph(attributePaths = {"sow", "sow.businessUnit", "milestone"})
-    @Query("select invoice from SowInvoice invoice")
+    @EntityGraph(attributePaths = {"sow", "sow.businessUnit", "milestone", "payments"})
+    @Query("select distinct invoice from SowInvoice invoice")
     List<SowInvoice> findAllWithDetails();
 
-    @EntityGraph(attributePaths = {"sow", "sow.businessUnit", "milestone"})
+    @EntityGraph(attributePaths = {"sow", "sow.businessUnit", "milestone", "payments"})
     @Query("select invoice from SowInvoice invoice where invoice.id = :id")
     Optional<SowInvoice> findByIdWithDetails(Long id);
 }

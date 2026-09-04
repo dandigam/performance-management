@@ -472,7 +472,7 @@ public class SowServiceImpl implements SowService {
 
     private void createDraftInvoicesWhenEligible(Sow sow, Collection<SowMilestone> milestones) {
         String status = sow.getStatus() == null ? "" : sow.getStatus().getCode();
-        if (Set.of("ACTIVE", "START", "STARTED").contains(status)) {
+        if ("ACTIVE".equals(status)) {
             sowInvoiceService.createDraftInvoices(sow, milestones);
         }
     }

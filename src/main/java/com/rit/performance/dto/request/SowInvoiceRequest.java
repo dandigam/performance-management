@@ -18,22 +18,23 @@ public class SowInvoiceRequest {
     @NotNull(message = "milestoneId is required")
     private Long milestoneId;
 
-    private LocalDate actualInvoiceDate;
+    private LocalDate milestoneInvoiceDate;
 
-    @DecimalMin(value = "0.0", message = "invoiceAmount cannot be negative")
-    private BigDecimal invoiceAmount;
+    @DecimalMin(value = "0.0", message = "milestoneInvoiceAmount cannot be negative")
+    private BigDecimal milestoneInvoiceAmount;
+
+    private LocalDate invoiceRaisedDate;
+
+    @DecimalMin(value = "0.0", message = "invoiceRaisedAmount cannot be negative")
+    private BigDecimal invoiceRaisedAmount;
 
     @Size(max = 30, message = "invoiceStatus must not exceed 30 characters")
     private String invoiceStatus;
 
     private LocalDate submittedDate;
-    private LocalDate paymentReceivedDate;
 
-    @DecimalMin(value = "0.0", message = "receivedAmount cannot be negative")
-    private BigDecimal receivedAmount;
-
-    @Size(max = 30, message = "paymentStatus must not exceed 30 characters")
-    private String paymentStatus;
+    @Size(max = 500, message = "notes must not exceed 500 characters")
+    private String notes;
 
     private Long updatedBy;
 }

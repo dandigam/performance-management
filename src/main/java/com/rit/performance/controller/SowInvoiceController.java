@@ -2,6 +2,11 @@ package com.rit.performance.controller;
 
 import com.rit.performance.dto.request.SowInvoiceRequest;
 import com.rit.performance.dto.response.SowInvoiceResponse;
+import com.rit.performance.dto.request.SowInvoicePaymentRequest;
+import com.rit.performance.dto.response.SowInvoicePaymentResponse;
+import com.rit.performance.dto.response.SowInvoiceHistoryResponse;
+import com.rit.performance.dto.response.SowInvoicePaymentHistoryResponse;
+import com.rit.performance.dto.response.SowInvoiceAuditHistoryResponse;
 import com.rit.performance.service.SowInvoiceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -40,5 +45,52 @@ public class SowInvoiceController {
     public ResponseEntity<SowInvoiceResponse> update(
             @PathVariable Long id, @Valid @RequestBody SowInvoiceRequest request) {
         return ResponseEntity.ok(service.update(id, request));
+    }
+
+    @GetMapping("/{invoiceId}/payments")
+    public ResponseEntity<List<SowInvoicePaymentResponse>> getPayments(
+            @PathVariable Long invoiceId) {
+        return ResponseEntity.ok(service.getPayments(invoiceId));
+    }
+
+    @PostMapping("/{invoiceId}/payments")
+    public ResponseEntity<SowInvoicePaymentResponse> createPayment(
+            @PathVariable Long invoiceId,
+            @Valid @RequestBody SowInvoicePaymentRequest request) {
+        SowInvoicePaymentResponse created = service.createPayment(invoiceId, request);
+        return ResponseEntity.created(URI.create("/api/v1/sow-invoices/" + invoiceId
+                + "/payments/" + created.getId())).body(created);
+    }
+
+    @PutMapping("/{invoiceId}/payments/{paymentId}")
+    public ResponseEntity<SowInvoicePaymentResponse> updatePayment(
+            @PathVariable Long invoiceId, @PathVariable Long paymentId,
+            @Valid @RequestBody SowInvoicePaymentRequest request) {
+        return ResponseEntity.ok(service.updatePayment(invoiceId, paymentId, request));
+    }
+
+    @DeleteMapping("/{invoiceId}/payments/{paymentId}")
+    public ResponseEntity<Void> deletePayment(
+            @PathVariable Long invoiceId, @PathVariable Long paymentId) {
+        service.deletePayment(invoiceId, paymentId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{invoiceId}/history")
+    public ResponseEntity<List<SowInvoiceHistoryResponse>> getHistory(
+            @PathVariable Long invoiceId) {
+        return ResponseEntity.ok(service.getHistory(invoiceId));
+    }
+
+    @GetMapping("/{invoiceId}/payments/history")
+    public ResponseEntity<List<SowInvoicePaymentHistoryResponse>> getPaymentHistory(
+            @PathVariable Long invoiceId) {
+        return ResponseEntity.ok(service.getPaymentHistory(invoiceId));
+    }
+
+    @GetMapping("/{invoiceId}/audit-history")
+    public ResponseEntity<SowInvoiceAuditHistoryResponse> getAuditHistory(
+            @PathVariable Long invoiceId) {
+        return ResponseEntity.ok(service.getAuditHistory(invoiceId));
     }
 }
