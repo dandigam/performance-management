@@ -65,15 +65,6 @@ public class Employee extends BaseEntity {
 
     @Column(name = "status", length = 20)
     private String status;
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "employee_documents",
-            joinColumns = @JoinColumn(name = "employee_id",
-                    foreignKey = @ForeignKey(name = "fk_employee_documents_employee")),
-            inverseJoinColumns = @JoinColumn(name = "document_id",
-                    foreignKey = @ForeignKey(name = "fk_employee_documents_document")),
-            uniqueConstraints = @UniqueConstraint(name = "uk_employee_documents",
-                    columnNames = {"employee_id", "document_id"})
-    )
-    private Set<Document> documents = new LinkedHashSet<>();
+    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<EmployeeDocument> employeeDocuments = new LinkedHashSet<>();
 }

@@ -11,4 +11,8 @@ public class EmployeeDocumentRequest {
     @NotNull(message = "document id is required")
     @Positive(message = "document id must be positive")
     private Long id;
+
+    @NotNull(message = "documentTypeId is required")
+    @Positive(message = "documentTypeId must be positive")
+    private Long documentTypeId;
 }

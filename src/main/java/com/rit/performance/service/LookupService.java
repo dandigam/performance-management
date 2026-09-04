@@ -85,6 +85,7 @@ public class LookupService {
         value.setLookupType(type);
         value.setCode(code);
         value.setName(request.getName().trim());
+        value.setRequirementType(normalizeRequirementType(request.getRequirementType()));
         value.setDisplayOrder(1);
         value.setActive(resolveActive(request, true));
         return toMutationResponse(valueRepository.save(value));
@@ -113,6 +114,7 @@ public class LookupService {
 
         value.setCode(code);
         value.setName(request.getName().trim());
+        value.setRequirementType(normalizeRequirementType(request.getRequirementType()));
         value.setActive(resolveActive(request, value.isActive()));
         return toMutationResponse(valueRepository.save(value));
     }
@@ -144,6 +146,7 @@ public class LookupService {
                 .lookupTypeId(value.getLookupType().getId())
                 .code(value.getCode())
                 .name(value.getName())
+                .requirementType(value.getRequirementType())
                 .status(value.isActive() ? "ACTIVE" : "INACTIVE")
                 .active(value.isActive())
                 .build();
@@ -155,8 +158,19 @@ public class LookupService {
                 value.getCode(),
                 value.getName(),
                 value.getDescription(),
+                value.getRequirementType(),
                 value.getDisplayOrder(),
                 value.isActive() ? "ACTIVE" : "INACTIVE",
                 value.isActive());
+    }
+
+    private String normalizeRequirementType(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.trim().toUpperCase(Locale.ROOT).replace(' ', '_');
+        if (!List.of("REQUIRED", "CONDITIONAL", "OPTIONAL").contains(normalized)) {
+            throw new InvalidOperationException(
+                    "requirementType must be REQUIRED, CONDITIONAL, or OPTIONAL");
+        }
+        return normalized;
     }
 }

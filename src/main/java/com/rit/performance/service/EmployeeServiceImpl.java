@@ -18,6 +18,7 @@ import com.rit.performance.dto.EmployeeAddressResponse;
 import com.rit.performance.dto.EmployeeCompensationRequest;
 import com.rit.performance.dto.EmployeeCompensationResponse;
 import com.rit.performance.dto.EmployeeFinanceHistoryResponse;
+import com.rit.performance.dto.EmployeeAuditHistoryResponse;
 import com.rit.performance.dto.EmployeeProfessionalDetailsRequest;
 import com.rit.performance.dto.EmployeeProfessionalDetailsResponse;
 import com.rit.performance.dto.EmployeeEducationRequest;
@@ -105,6 +106,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final VendorRepository vendorRepository;
     private final AssessmentAssigneeResolver assigneeResolver;
     private final SowMilestonePositionAssignmentService positionAssignmentService;
+    private final EmployeeAuditService employeeAuditService;
 
     @Override
     @Transactional
@@ -154,9 +156,13 @@ public class EmployeeServiceImpl implements EmployeeService {
             seedReviewsForNewEmployee(employee, request.getCreatedBy(), assignment);
         }
 
-        return EmployeeCreateResponse.builder().employee(currentEmployeeResponse(employee, assignment))
+        EmployeeCreateResponse response = EmployeeCreateResponse.builder()
+                .employee(currentEmployeeResponse(employee, assignment))
                 .userId(user.getId()).username(user.getUsername()).password(DEFAULT_PASSWORD)
                 .roleName(role.getName()).build();
+        employeeAuditService.record(employee.getId(), "EMPLOYEE", "CREATED",
+                null, response.getEmployee(), request.getCreatedBy());
+        return response;
     }
 
     private void seedReviewsForNewEmployee(Employee employee, Long actorId, EmployeeAssignment assignment) {
@@ -348,6 +354,9 @@ public class EmployeeServiceImpl implements EmployeeService {
                 ? assignment : assignmentRepository.findActiveByEmployeeId(employee.getId())
                         .orElse(assignment));
         response.setMilestoneAssignments(milestoneAssignments);
+        employeeAuditService.record(employee.getId(), "EMPLOYEE_ASSIGNMENT",
+                existingAssignment.isPresent() ? "UPDATED" : "CREATED",
+                null, response, request.getUpdatedBy());
         return response;
     }
 
@@ -523,6 +532,21 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .build();
                 })
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EmployeeAuditHistoryResponse> getAuditHistory(Long employeeId) {
+        return employeeAuditService.getHistory(employeeId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentResponse> getDocuments(Long employeeId) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Employee not found: " + employeeId));
+        return documentResponses(employee);
     }
 
     @Override
@@ -805,6 +829,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     public EmployeeBasicInfoResponse update(Long employeeId, EmployeeUpdateRequest request) {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found: " + employeeId));
+        EmployeeAssignment previousAssignment = assignmentRepository.findActiveByEmployeeId(employeeId)
+                .orElse(null);
+        EmployeeBasicInfoResponse oldSnapshot = currentEmployeeResponse(employee, previousAssignment);
         updateEmployee(employee, request);
         saveAddress(employee, request.getAddressDetails());
         saveCompensation(employee, request.getCompensationDetails());
@@ -842,7 +869,10 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (hasAssignmentUpdate && assignment != null) {
             seedReviewsForNewEmployee(employee, request.getUpdatedBy(), assignment);
         }
-        return currentEmployeeResponse(employee, assignment);
+        EmployeeBasicInfoResponse response = currentEmployeeResponse(employee, assignment);
+        employeeAuditService.record(employeeId, "EMPLOYEE", "UPDATED",
+                oldSnapshot, response, request.getUpdatedBy());
+        return response;
     }
 
     private void ensureEmployeeUser(Employee employee, LookupValue role) {
@@ -1622,29 +1652,63 @@ public class EmployeeServiceImpl implements EmployeeService {
             if (!"EMPLOYEE".equalsIgnoreCase(document.getModule())) {
                 throw new InvalidOperationException("Document " + document.getId() + " is not an employee document");
             }
-            String type = document.getDocumentType() == null ? "" : document.getDocumentType().toUpperCase();
-            if (!Set.of("RESUME", "EDUCATIONAL_DOCUMENT").contains(type)) {
-                throw new InvalidOperationException(
-                        "Employee document type must be RESUME or EDUCATIONAL_DOCUMENT");
-            }
         }
-        employee.getDocuments().clear();
-        employee.getDocuments().addAll(documents);
+        Map<Long, Document> documentsById = documents.stream()
+                .collect(Collectors.toMap(Document::getId, document -> document));
+        List<Long> typeIds = documentList.stream()
+                .map(EmployeeDocumentRequest::getDocumentTypeId)
+                .distinct()
+                .toList();
+        Map<Long, LookupValue> typesById = lookupValueRepository.findAllById(typeIds).stream()
+                .collect(Collectors.toMap(LookupValue::getId, value -> value));
+        Set<Long> missingTypeIds = new LinkedHashSet<>(typeIds);
+        missingTypeIds.removeAll(typesById.keySet());
+        if (!missingTypeIds.isEmpty()) {
+            throw new ResourceNotFoundException("Document lookup values not found: " + missingTypeIds);
+        }
+        employee.getEmployeeDocuments().clear();
+        employeeRepository.flush();
+        for (EmployeeDocumentRequest item : documentList) {
+            LookupValue documentType = typesById.get(item.getDocumentTypeId());
+            String lookupTypeCode = documentType.getLookupType().getCode();
+            if (!Set.of("EMPLOYEE_ONBOARDING_DOCUMENTS_ONSITE",
+                    "EMPLOYEE_ONBOARDING_DOCUMENTS_OFFSHORE").contains(lookupTypeCode.toUpperCase())) {
+                throw new InvalidOperationException("Lookup value " + documentType.getId()
+                        + " is not an employee onboarding document type");
+            }
+            employee.getEmployeeDocuments().add(EmployeeDocument.builder()
+                    .id(new EmployeeDocumentId(employee.getId(), item.getId()))
+                    .employee(employee)
+                    .document(documentsById.get(item.getId()))
+                    .documentType(documentType)
+                    .status("ACTIVE")
+                    .build());
+        }
         employeeRepository.save(employee);
     }
 
     private List<DocumentResponse> documentResponses(Employee employee) {
-        return employee.getDocuments().stream()
-                .sorted(Comparator.comparing(Document::getId))
-                .map(document -> DocumentResponse.builder()
+        return employee.getEmployeeDocuments().stream()
+                .sorted(Comparator.comparing(item -> item.getDocument().getId()))
+                .map(item -> {
+                    Document document = item.getDocument();
+                    LookupValue documentType = item.getDocumentType();
+                    return DocumentResponse.builder()
                         .id(document.getId())
                         .documentName(document.getDocumentName())
                         .fileType(document.getFileType())
-                        .documentType(document.getDocumentType())
+                        .documentType(documentType == null
+                                ? document.getDocumentType() : documentType.getCode())
+                        .documentTypeId(documentType == null ? null : documentType.getId())
+                        .documentTypeCode(documentType == null ? null : documentType.getCode())
+                        .documentTypeName(documentType == null ? null : documentType.getName())
+                        .requirementType(documentType == null ? null : documentType.getRequirementType())
+                        .status(item.getStatus())
                         .fileUrl(document.getFileUrl())
                         .module(document.getModule())
                         .uploadedAt(document.getUploadedAt())
-                        .build())
+                        .build();
+                })
                 .toList();
     }
 

@@ -18,6 +18,11 @@ public class DocumentResponse {
     private String documentName;
     private String fileType;
     private String documentType;
+    private Long documentTypeId;
+    private String documentTypeCode;
+    private String documentTypeName;
+    private String requirementType;
+    private String status;
     private String fileUrl;
     private String module;
     private LocalDateTime uploadedAt;

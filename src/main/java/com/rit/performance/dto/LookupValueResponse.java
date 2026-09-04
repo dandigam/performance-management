@@ -5,6 +5,7 @@ public record LookupValueResponse(
         String code,
         String name,
         String description,
+        String requirementType,
         int displayOrder,
         String status,
         boolean active

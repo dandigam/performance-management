@@ -9,6 +9,9 @@ import com.rit.performance.dto.EmployeeHierarchyResponse;
 import com.rit.performance.dto.EmployeeInformationResponse;
 import com.rit.performance.dto.EmployeeFinanceHistoryResponse;
 import com.rit.performance.dto.EmployeeAssignmentsResponse;
+import com.rit.performance.dto.EmployeeAuditHistoryResponse;
+import com.rit.performance.dto.DocumentResponse;
+import com.rit.performance.service.EmployeeAuditService;
 import com.rit.performance.service.EmployeeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +32,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EmployeeController {
     private final EmployeeService employeeService;
+    private final EmployeeAuditService employeeAuditService;
 
     @PostMapping
     public ResponseEntity<EmployeeCreateResponse> create(@Valid @RequestBody EmployeeCreateRequest request) {
@@ -55,6 +59,18 @@ public class EmployeeController {
     public ResponseEntity<List<EmployeeFinanceHistoryResponse>> getFinanceHistory(
             @PathVariable Long employeeId) {
         return ResponseEntity.ok(employeeService.getFinanceHistory(employeeId));
+    }
+
+    @GetMapping("/{employeeId}/audit-history")
+    public ResponseEntity<List<EmployeeAuditHistoryResponse>> getAuditHistory(
+            @PathVariable Long employeeId) {
+        return ResponseEntity.ok(employeeAuditService.getHistory(employeeId));
+    }
+
+    @GetMapping("/{employeeId}/documents")
+    public ResponseEntity<List<DocumentResponse>> getDocuments(
+            @PathVariable Long employeeId) {
+        return ResponseEntity.ok(employeeService.getDocuments(employeeId));
     }
 
     @GetMapping("/information")

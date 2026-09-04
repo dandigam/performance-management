@@ -36,6 +36,9 @@ public class LookupValue extends BaseEntity {
     @Column(length = 255)
     private String description;
 
+    @Column(name = "requirement_type", length = 20)
+    private String requirementType;
+
     @Column(name = "display_order", nullable = false)
     @Builder.Default
     private int displayOrder = 1;

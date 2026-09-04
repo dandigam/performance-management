@@ -12,6 +12,7 @@ public class LookupValueMutationResponse {
     private Long lookupTypeId;
     private String code;
     private String name;
+    private String requirementType;
     private String status;
     private boolean active;
 }

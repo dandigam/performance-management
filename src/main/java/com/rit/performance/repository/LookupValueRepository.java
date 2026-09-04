@@ -13,6 +13,8 @@ public interface LookupValueRepository extends JpaRepository<LookupValue, Long> 
 
     boolean existsByLookupTypeIdAndCodeIgnoreCase(Long lookupTypeId, String code);
 
+    Optional<LookupValue> findByLookupTypeIdAndCodeIgnoreCase(Long lookupTypeId, String code);
+
     boolean existsByLookupTypeIdAndCodeIgnoreCaseAndIdNot(
             Long lookupTypeId,
             String code,
