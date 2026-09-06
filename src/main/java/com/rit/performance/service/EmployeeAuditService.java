@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -109,8 +110,8 @@ public class EmployeeAuditService {
         if ("UPDATED".equalsIgnoreCase(history.getAction())
                 && oldValues != null && newValues != null) {
             AuditDiff diff = changedFields(oldValues, newValues);
-            oldValues = diff.oldValues();
-            newValues = diff.newValues();
+            oldValues = displayValues(diff.oldValues());
+            newValues = displayValues(diff.newValues());
         }
         return EmployeeAuditHistoryResponse.builder()
                 .id(history.getId()).employeeId(history.getEmployeeId())
@@ -120,6 +121,46 @@ public class EmployeeAuditService {
                 .changedOn(history.getChangedOn())
                 .oldValues(oldValues).newValues(newValues)
                 .build();
+    }
+
+    private Object displayValues(Object values) {
+        if (!(values instanceof Map<?, ?> source)) return values;
+
+        Map<String, Object> displayed = new LinkedHashMap<>();
+        source.forEach((key, value) -> {
+            String field = String.valueOf(key);
+            if ("educationDetails".equals(field) && value instanceof List<?> education) {
+                displayed.put("Education details", formatEducation(education));
+            } else {
+                displayed.put(field, value);
+            }
+        });
+        return displayed;
+    }
+
+    private String formatEducation(List<?> education) {
+        if (education.isEmpty()) return "None";
+        return education.stream()
+                .map(this::formatEducationEntry)
+                .collect(java.util.stream.Collectors.joining("; "));
+    }
+
+    private String formatEducationEntry(Object entry) {
+        if (!(entry instanceof Map<?, ?> values)) return String.valueOf(entry);
+        String type = text(values.get("educationType"));
+        String institution = text(values.get("collegeUniversity"));
+        String year = text(values.get("passingYear"));
+        String percentage = text(values.get("percentage"));
+        List<String> details = new java.util.ArrayList<>();
+        if (!type.isBlank()) details.add(type);
+        if (!institution.isBlank()) details.add(institution);
+        if (!year.isBlank()) details.add("Year: " + year);
+        if (!percentage.isBlank()) details.add("Score: " + percentage + "%");
+        return details.isEmpty() ? "Education record" : String.join(" | ", details);
+    }
+
+    private String text(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private String json(Object value) {
