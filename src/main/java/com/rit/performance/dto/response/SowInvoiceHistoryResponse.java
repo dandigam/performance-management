@@ -18,7 +18,6 @@ public class SowInvoiceHistoryResponse {
     private BigDecimal milestoneInvoiceAmount;
     private LocalDate invoiceRaisedDate;
     private BigDecimal invoiceRaisedAmount;
-    private String invoiceNumber;
     private String invoiceStatus;
     private LocalDate submittedDate;
     private String notes;

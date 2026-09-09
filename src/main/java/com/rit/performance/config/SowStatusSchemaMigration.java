@@ -21,6 +21,9 @@ public class SowStatusSchemaMigration implements ApplicationRunner {
         if (!columnExists("status_id")) {
             jdbcTemplate.execute("alter table sows add column status_id bigint null after end_date");
         }
+        if (!columnExists("status_effective_date")) {
+            jdbcTemplate.execute("alter table sows add column status_effective_date date null after status_id");
+        }
 
         if (columnExists("status")) {
             jdbcTemplate.update("""

@@ -16,7 +16,11 @@ public class SowInvoicePaymentSchemaMigration implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (!tableExists("sow_invoices") || !tableExists("sow_invoice_payments")) return;
+        if (!tableExists("sow_invoices")) return;
+
+        removeInvoiceNumber();
+
+        if (!tableExists("sow_invoice_payments")) return;
 
         if (columnExists("sow_invoices", "actual_invoice_date")) {
             jdbcTemplate.update("update sow_invoices set invoice_raised_date = actual_invoice_date "
@@ -48,17 +52,6 @@ public class SowInvoicePaymentSchemaMigration implements ApplicationRunner {
                     invoice.milestone_invoice_amount = coalesce(
                         invoice.milestone_invoice_amount, milestone.amount)
                 """);
-
-        jdbcTemplate.update("""
-                update sow_invoices
-                set invoice_number = concat('INV-', lpad(id, 6, '0'))
-                where invoice_number is null or trim(invoice_number) = ''
-                """);
-
-        if (!indexExists("sow_invoices", "uk_sow_invoice_number")) {
-            jdbcTemplate.execute("create unique index uk_sow_invoice_number "
-                    + "on sow_invoices (invoice_number)");
-        }
 
         if (columnExists("sow_invoices", "payment_received_date")
                 && columnExists("sow_invoices", "received_amount")) {
@@ -92,6 +85,18 @@ public class SowInvoicePaymentSchemaMigration implements ApplicationRunner {
         dropColumnIfExists("sow_invoices", "invoice_amount");
         dropColumnIfExists("sow_invoices", "planned_invoice_date");
         dropColumnIfExists("sow_invoices", "planned_invoice_amount");
+    }
+
+    private void removeInvoiceNumber() {
+        dropIndexIfExists("sow_invoices", "uk_sow_invoice_number");
+        dropIndexIfExists("sow_invoices", "uk_sow_rit_invoice_number");
+        dropColumnIfExists("sow_invoices", "invoice_number");
+        dropColumnIfExists("sow_invoices", "rit_invoice_number");
+
+        if (tableExists("sow_invoice_history")) {
+            dropColumnIfExists("sow_invoice_history", "invoice_number");
+            dropColumnIfExists("sow_invoice_history", "rit_invoice_number");
+        }
     }
 
     private void dropColumnIfExists(String table, String column) {

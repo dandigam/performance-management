@@ -76,10 +76,11 @@ public class LookupDataInitializer implements ApplicationRunner {
 
         value(sowStatus, "DRAFT", "Draft", 1);
         value(sowStatus, "WAITING_FOR_APPROVAL", "Waiting for Approval", 2);
-        value(sowStatus, "ACTIVE", "Active", 3);
-        value(sowStatus, "ON_HOLD", "On Hold", 4);
-        value(sowStatus, "COMPLETED", "Completed", 5);
-        value(sowStatus, "CANCELLED", "Cancelled", 6);
+        value(sowStatus, "APPROVED", "Approved", 3);
+        value(sowStatus, "ACTIVE", "Active", 4);
+        value(sowStatus, "ON_HOLD", "On Hold", 5);
+        value(sowStatus, "COMPLETED", "Completed", 6);
+        value(sowStatus, "CANCELLED", "Cancelled", 7);
 
         value(designation, "JAVA_DEVELOPER", "Java Developer", 1);
         value(designation, "REACT_DEVELOPER", "React Developer", 2);

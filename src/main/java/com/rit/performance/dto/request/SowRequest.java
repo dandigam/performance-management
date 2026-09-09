@@ -59,6 +59,8 @@ public class SowRequest {
     @Size(max = 30, message = "status must not exceed 30 characters")
     private String status;
 
+    private LocalDate statusEffectiveDate;
+
     @Size(max = 2000, message = "remarks must not exceed 2000 characters")
     private String remarks;
 

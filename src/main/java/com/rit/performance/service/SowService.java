@@ -8,6 +8,8 @@ import com.rit.performance.dto.request.SowMilestonePositionRequest;
 import com.rit.performance.dto.response.SowMilestonePositionResponse;
 import com.rit.performance.dto.SowRequirementMilestonesResponse;
 import com.rit.performance.dto.request.SowAssignmentUnassignRequest;
+import com.rit.performance.dto.request.SowSignatureUpdateRequest;
+import com.rit.performance.dto.request.SowStatusUpdateRequest;
 
 import java.util.List;
 
@@ -38,6 +40,10 @@ public interface SowService {
             Long sowId, Long assignmentId, SowAssignmentUnassignRequest request);
 
     SowResponse update(Long id, SowRequest request);
+
+    SowResponse updateStatus(Long sowId, SowStatusUpdateRequest request);
+
+    SowResponse updateSignature(Long sowId, SowSignatureUpdateRequest request);
 
     void delete(Long id);
 }

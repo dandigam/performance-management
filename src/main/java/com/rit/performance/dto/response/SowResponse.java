@@ -44,6 +44,7 @@ public class SowResponse {
     private LocalDate startDate;
     private LocalDate endDate;
     private String status;
+    private LocalDate statusEffectiveDate;
     private String remarks;
     private String signedStatus;
     private LocalDate signedDate;

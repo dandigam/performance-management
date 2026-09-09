@@ -48,6 +48,9 @@ public class TimesheetEmployeeProject extends BaseEntity {
     @Column(name = "end_date")
     private LocalDate endDate;
 
+    @Column(name = "max_hours_per_day", nullable = false)
+    private Integer maxHoursPerDay;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "level1_approver_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_tep_level1_approver"))
@@ -69,6 +72,9 @@ public class TimesheetEmployeeProject extends BaseEntity {
         if (status == null) status = TimesheetEmployeeProjectStatus.ACTIVE;
         if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
             throw new IllegalStateException("endDate cannot be before startDate");
+        }
+        if (maxHoursPerDay == null || maxHoursPerDay < 1 || maxHoursPerDay > 24) {
+            throw new IllegalStateException("maxHoursPerDay must be between 1 and 24");
         }
         if (employee != null && (sameEmployee(employee, level1Approver)
                 || sameEmployee(employee, level2Approver))) {

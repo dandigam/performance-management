@@ -62,6 +62,7 @@ public final class SowMapper {
                 .startDate(sow.getStartDate())
                 .endDate(sow.getEndDate())
                 .status(sow.getStatus() == null ? null : sow.getStatus().getCode())
+                .statusEffectiveDate(sow.getStatusEffectiveDate())
                 .remarks(sow.getRemarks())
                 .signedStatus(sow.getSignedStatus() == null ? "UNSIGNED" : sow.getSignedStatus())
                 .signedDate(sow.getSignedDate())

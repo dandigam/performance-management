@@ -4,6 +4,8 @@ import com.rit.performance.dto.request.SowMilestoneRequest;
 import com.rit.performance.dto.request.SowDocumentRequest;
 import com.rit.performance.dto.request.SowRequest;
 import com.rit.performance.dto.request.SowAssignmentUpdateRequest;
+import com.rit.performance.dto.request.SowSignatureUpdateRequest;
+import com.rit.performance.dto.request.SowStatusUpdateRequest;
 import com.rit.performance.dto.response.SowResponse;
 import com.rit.performance.dto.response.SowAssignmentResponse;
 import com.rit.performance.dto.SowRequirementMilestonesResponse;
@@ -31,6 +33,12 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SowServiceImpl implements SowService {
     private static final String SOW_STATUS_LOOKUP = "SOW_STATUS";
+    private static final Map<String, Set<String>> VALID_SOW_STATUS_TRANSITIONS = Map.of(
+            "DRAFT", Set.of("WAITING_FOR_APPROVAL"),
+            "WAITING_FOR_APPROVAL", Set.of("APPROVED", "ACTIVE"),
+            "APPROVED", Set.of("ACTIVE", "CANCELLED"),
+            "ACTIVE", Set.of("ON_HOLD", "COMPLETED", "CANCELLED"),
+            "ON_HOLD", Set.of("ACTIVE", "CANCELLED"));
     private final SowRepository sowRepository;
     private final EmployeeAssignmentRepository assignmentRepository;
     private final SowMilestoneRepository milestoneRepository;
@@ -54,7 +62,7 @@ public class SowServiceImpl implements SowService {
 
         Sow sow = new Sow();
         sow.setSowCode(code);
-        applySowFields(sow, request);
+        applySowFields(sow, request, true);
         sowRepository.saveAndFlush(sow);
 
         MilestoneSync milestoneSync = synchronizeMilestones(sow, request.getMilestones());
@@ -369,7 +377,7 @@ public class SowServiceImpl implements SowService {
         String code = normalizeCode(request.getSowCode());
         validateUniqueCode(code, id);
         sow.setSowCode(code);
-        applySowFields(sow, request);
+        applySowFields(sow, request, false);
 
         MilestoneSync milestoneSync = synchronizeMilestones(sow, request.getMilestones());
         milestoneRepository.saveAll(milestoneSync.retained());
@@ -387,6 +395,49 @@ public class SowServiceImpl implements SowService {
         Sow saved = sowRepository.saveAndFlush(sow);
         resourceRequirementService.onPositionCreatedOrUpdated(saved.getId());
         return toResponse(saved);
+    }
+
+    @Override
+    public SowResponse updateStatus(Long sowId, SowStatusUpdateRequest request) {
+        Sow sow = findSow(sowId);
+        LookupValue newStatus = resolveSowStatus(request.getStatus());
+        String currentCode = sow.getStatus().getCode().toUpperCase(Locale.ROOT);
+        String newCode = newStatus.getCode().toUpperCase(Locale.ROOT);
+
+        if (!VALID_SOW_STATUS_TRANSITIONS
+                .getOrDefault(currentCode, Set.of()).contains(newCode)) {
+            throw new InvalidOperationException(
+                    "Invalid SOW status transition: " + currentCode + " -> " + newCode);
+        }
+
+        LocalDate effectiveDate = request.getStatusEffectiveDate();
+        if (effectiveDate.isAfter(LocalDate.now())) {
+            throw new InvalidOperationException("statusEffectiveDate cannot be in the future");
+        }
+        sow.setStatus(newStatus);
+        sow.setStatusEffectiveDate(effectiveDate);
+        return toResponse(sowRepository.save(sow));
+    }
+
+    @Override
+    public SowResponse updateSignature(Long sowId, SowSignatureUpdateRequest request) {
+        Sow sow = findSow(sowId);
+        String signedStatus = request.getSignedStatus().trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("SIGNED", "UNSIGNED").contains(signedStatus)) {
+            throw new InvalidOperationException(
+                    "signedStatus must be SIGNED or UNSIGNED");
+        }
+        if ("SIGNED".equals(signedStatus) && request.getSignedDate() == null) {
+            throw new InvalidOperationException(
+                    "signedDate is required when signedStatus is SIGNED");
+        }
+        if (request.getSignedDate() != null && request.getSignedDate().isAfter(LocalDate.now())) {
+            throw new InvalidOperationException("signedDate cannot be in the future");
+        }
+
+        sow.setSignedStatus(signedStatus);
+        sow.setSignedDate("SIGNED".equals(signedStatus) ? request.getSignedDate() : null);
+        return toResponse(sowRepository.save(sow));
     }
 
     @Override
@@ -477,7 +528,7 @@ public class SowServiceImpl implements SowService {
         }
     }
 
-    private void applySowFields(Sow sow, SowRequest request) {
+    private void applySowFields(Sow sow, SowRequest request, boolean applyWorkflowFields) {
         sow.setSowName(request.getSowName().trim());
         sow.setYear(request.getYear());
         sow.setClient(clientRepository.findById(request.getClientId())
@@ -502,22 +553,29 @@ public class SowServiceImpl implements SowService {
                 request.getRitEscalationEmployeeId(), "RIT escalation person"));
         sow.setStartDate(request.getStartDate());
         sow.setEndDate(request.getEndDate());
-        sow.setStatus(resolveSowStatus(request.getStatus()));
+        if (applyWorkflowFields) {
+            LookupValue resolvedStatus = resolveSowStatus(request.getStatus());
+            sow.setStatus(resolvedStatus);
+            sow.setStatusEffectiveDate(request.getStatusEffectiveDate() == null
+                    ? LocalDate.now() : request.getStatusEffectiveDate());
+        }
         sow.setRemarks(normalizeDescription(request.getRemarks()));
-        String signedStatus = request.getSignedStatus() == null
-                || request.getSignedStatus().isBlank()
-                ? "UNSIGNED"
-                : request.getSignedStatus().trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("SIGNED", "UNSIGNED").contains(signedStatus)) {
-            throw new InvalidOperationException(
-                    "signedStatus must be SIGNED or UNSIGNED");
+        if (applyWorkflowFields) {
+            String signedStatus = request.getSignedStatus() == null
+                    || request.getSignedStatus().isBlank()
+                    ? "UNSIGNED"
+                    : request.getSignedStatus().trim().toUpperCase(Locale.ROOT);
+            if (!Set.of("SIGNED", "UNSIGNED").contains(signedStatus)) {
+                throw new InvalidOperationException(
+                        "signedStatus must be SIGNED or UNSIGNED");
+            }
+            if ("SIGNED".equals(signedStatus) && request.getSignedDate() == null) {
+                throw new InvalidOperationException(
+                        "signedDate is required when signedStatus is SIGNED");
+            }
+            sow.setSignedStatus(signedStatus);
+            sow.setSignedDate("SIGNED".equals(signedStatus) ? request.getSignedDate() : null);
         }
-        if ("SIGNED".equals(signedStatus) && request.getSignedDate() == null) {
-            throw new InvalidOperationException(
-                    "signedDate is required when signedStatus is SIGNED");
-        }
-        sow.setSignedStatus(signedStatus);
-        sow.setSignedDate("SIGNED".equals(signedStatus) ? request.getSignedDate() : null);
         if (request.getDocumentList() != null) {
             synchronizeDocuments(sow, request.getDocumentList());
         }

@@ -101,8 +101,6 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         invoice.setCreatedBy(request.getUpdatedBy());
         apply(invoice, request);
         SowInvoice saved = invoiceRepository.saveAndFlush(invoice);
-        assignInvoiceNumber(saved);
-        saved = invoiceRepository.save(saved);
         recordInvoiceHistory(saved, "CREATED", request.getUpdatedBy());
         return toResponse(saved);
     }
@@ -167,8 +165,6 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                         .build())
                 .toList();
         List<SowInvoice> savedInvoices = invoiceRepository.saveAllAndFlush(missingInvoices);
-        savedInvoices.forEach(this::assignInvoiceNumber);
-        invoiceRepository.saveAll(savedInvoices);
         savedInvoices.forEach(invoice -> recordInvoiceHistory(
                 invoice, "CREATED", invoice.getCreatedBy()));
     }
@@ -290,7 +286,6 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                 .stream().map(this::toPaymentHistoryResponse).toList();
         return SowInvoiceAuditHistoryResponse.builder()
                 .invoiceId(invoice.getId())
-                .invoiceNumber(invoice.getInvoiceNumber())
                 .invoiceDetails(toResponse(invoice))
                 .invoiceHistory(invoiceHistory)
                 .paymentHistory(paymentHistory)
@@ -338,7 +333,6 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                 .milestoneInvoiceAmount(invoice.getMilestoneInvoiceAmount())
                 .invoiceRaisedDate(invoice.getInvoiceRaisedDate())
                 .invoiceRaisedAmount(invoice.getInvoiceRaisedAmount())
-                .invoiceNumber(invoice.getInvoiceNumber())
                 .invoiceStatus(invoice.getInvoiceStatus())
                 .submittedDate(invoice.getSubmittedDate())
                 .notes(invoice.getNotes())
@@ -388,12 +382,6 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    private void assignInvoiceNumber(SowInvoice invoice) {
-        if (invoice.getInvoiceNumber() == null || invoice.getInvoiceNumber().isBlank()) {
-            invoice.setInvoiceNumber("INV-%06d".formatted(invoice.getId()));
-        }
-    }
-
     private void recordInvoiceHistory(SowInvoice invoice, String action, Long changedBy) {
         invoiceHistoryRepository.save(SowInvoiceHistory.builder()
                 .invoice(invoice)
@@ -401,7 +389,6 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                 .milestoneInvoiceAmount(invoice.getMilestoneInvoiceAmount())
                 .invoiceRaisedDate(invoice.getInvoiceRaisedDate())
                 .invoiceRaisedAmount(invoice.getInvoiceRaisedAmount())
-                .invoiceNumber(invoice.getInvoiceNumber())
                 .invoiceStatus(invoice.getInvoiceStatus())
                 .submittedDate(invoice.getSubmittedDate())
                 .notes(invoice.getNotes())
@@ -439,7 +426,6 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                 .milestoneInvoiceAmount(history.getMilestoneInvoiceAmount())
                 .invoiceRaisedDate(history.getInvoiceRaisedDate())
                 .invoiceRaisedAmount(history.getInvoiceRaisedAmount())
-                .invoiceNumber(history.getInvoiceNumber())
                 .invoiceStatus(history.getInvoiceStatus())
                 .submittedDate(history.getSubmittedDate()).notes(history.getNotes())
                 .action(history.getAction()).changedBy(history.getChangedBy())
@@ -452,7 +438,6 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         SowInvoice invoice = history.getInvoice();
         return SowInvoicePaymentHistoryResponse.builder()
                 .id(history.getId()).invoiceId(invoice.getId())
-                .invoiceNumber(invoice.getInvoiceNumber())
                 .sowId(invoice.getSow().getId()).sowCode(invoice.getSow().getSowCode())
                 .sowName(invoice.getSow().getSowName())
                 .milestoneId(invoice.getMilestone().getId())

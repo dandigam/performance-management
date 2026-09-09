@@ -10,6 +10,8 @@ import com.rit.performance.dto.SowRequirementMilestonesResponse;
 import com.rit.performance.dto.request.SowAssignmentUnassignRequest;
 import com.rit.performance.dto.request.SowMilestonePositionAssignmentRequest;
 import com.rit.performance.dto.request.SowMilestonePositionUnassignRequest;
+import com.rit.performance.dto.request.SowSignatureUpdateRequest;
+import com.rit.performance.dto.request.SowStatusUpdateRequest;
 import com.rit.performance.dto.response.SowMilestonePositionAssignmentResponse;
 import com.rit.performance.service.SowService;
 import com.rit.performance.service.SowMilestonePositionAssignmentService;
@@ -151,6 +153,20 @@ public class SowController {
     public ResponseEntity<SowResponse> update(@PathVariable Long id,
                                               @Valid @RequestBody SowRequest request) {
         return ResponseEntity.ok(sowService.update(id, request));
+    }
+
+    @PatchMapping("/{sowId}/status")
+    public ResponseEntity<SowResponse> updateStatus(
+            @PathVariable Long sowId,
+            @Valid @RequestBody SowStatusUpdateRequest request) {
+        return ResponseEntity.ok(sowService.updateStatus(sowId, request));
+    }
+
+    @PatchMapping("/{sowId}/signature")
+    public ResponseEntity<SowResponse> updateSignature(
+            @PathVariable Long sowId,
+            @Valid @RequestBody SowSignatureUpdateRequest request) {
+        return ResponseEntity.ok(sowService.updateSignature(sowId, request));
     }
 
     @DeleteMapping("/{id}")

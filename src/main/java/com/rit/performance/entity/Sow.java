@@ -80,6 +80,9 @@ public class Sow extends BaseEntity {
             foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private LookupValue status;
 
+    @Column(name = "status_effective_date")
+    private LocalDate statusEffectiveDate;
+
     @Column(length = 2000)
     private String remarks;
 

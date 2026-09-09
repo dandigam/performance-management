@@ -9,7 +9,6 @@ import java.time.LocalDateTime;
 public class SowInvoicePaymentHistoryResponse {
     private Long id;
     private Long invoiceId;
-    private String invoiceNumber;
     private Long sowId;
     private String sowCode;
     private String sowName;

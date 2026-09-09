@@ -26,7 +26,6 @@ public class SowInvoiceHistory {
     @Column(name = "invoice_raised_date") private LocalDate invoiceRaisedDate;
     @Column(name = "invoice_raised_amount", precision = 15, scale = 2)
     private BigDecimal invoiceRaisedAmount;
-    @Column(name = "invoice_number", length = 100) private String invoiceNumber;
     @Column(name = "invoice_status", nullable = false, length = 30) private String invoiceStatus;
     @Column(name = "submitted_date") private LocalDate submittedDate;
     @Column(length = 500) private String notes;
