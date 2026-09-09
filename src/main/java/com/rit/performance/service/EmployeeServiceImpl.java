@@ -420,30 +420,36 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(employeeId)
                         .stream().collect(Collectors.groupingBy(
                                 item -> item.getEmployeeAssignment().getId()));
+        Map<Long, String> assignerNames = userRepository.findAllById(detailsByParent.values()
+                        .stream().flatMap(List::stream)
+                        .map(SowMilestonePositionAssignment::getCreatedBy)
+                        .filter(Objects::nonNull).collect(Collectors.toSet()))
+                .stream().collect(Collectors.toMap(User::getId, this::assignmentActorName));
         return EmployeeAssignmentsResponse.builder()
                 .employeeId(response.getEmployeeId())
                 .employeeName(response.getEmployeeName())
                 .assignmentList(response.getAssignmentList().stream()
                         .map(parent -> employeeSowAssignment(
                                 parent, detailsByParent.getOrDefault(
-                                        parent.getAssignmentId(), List.of())))
+                                        parent.getAssignmentId(), List.of()), assignerNames))
                         .toList())
                 .build();
     }
 
     private EmployeeSowAssignmentResponse employeeSowAssignment(
             EmployeeAssignmentResponse parent,
-            List<SowMilestonePositionAssignment> details) {
+            List<SowMilestonePositionAssignment> details,
+            Map<Long, String> assignerNames) {
         List<EmployeeMilestoneAssignmentResponse> milestoneAssignments = details.isEmpty()
                 ? legacyMilestoneAssignment(parent)
-                : details.stream().map(this::employeeMilestoneAssignment).toList();
+                : details.stream().map(detail -> employeeMilestoneAssignment(
+                        detail, assignerNames)).toList();
         return EmployeeSowAssignmentResponse.builder()
                 .employeeAssignmentId(parent.getAssignmentId())
                 .sowId(parent.getSowId())
                 .sowCode(parent.getSowCode())
                 .sowName(parent.getSowName())
                 .isPrimaryAssignment(parent.getIsPrimaryAssignment())
-                .allocationPercentage(parent.getAllocationPercentage())
                 .assignmentStartDate(parent.getAssignmentStartDate())
                 .assignmentEndDate(parent.getAssignmentEndDate())
                 .assignmentStatus(parent.getAssignmentStatus())
@@ -458,29 +464,57 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private EmployeeMilestoneAssignmentResponse employeeMilestoneAssignment(
-            SowMilestonePositionAssignment detail) {
+            SowMilestonePositionAssignment detail, Map<Long, String> assignerNames) {
         SowMilestonePosition position = detail.getMilestonePosition();
         SowMilestone milestone = position.getMilestone();
         LookupValue designation = position.getPosition();
+        LookupValue skill = position.getSkill();
         return EmployeeMilestoneAssignmentResponse.builder()
                 .assignmentId(detail.getId())
                 .milestoneId(milestone.getId())
                 .milestoneName(milestone.getMilestoneName())
+                .milestoneStartDate(milestone.getStartDate())
+                .milestoneEndDate(milestone.getEndDate())
+                .milestoneDurationDays(inclusiveDays(
+                        milestone.getStartDate(), milestone.getEndDate()))
                 .milestonePositionId(position.getId())
+                .positionStartDate(position.getStartDate())
+                .positionEndDate(position.getEndDate())
+                .positionDurationDays(inclusiveDays(
+                        position.getStartDate(), position.getEndDate()))
+                .hours(position.getHours())
                 .designationId(designation == null ? null : designation.getId())
                 .designationName(designation == null
                         ? position.getPositionName() : designation.getName())
+                .skillId(skill == null ? null : skill.getId())
+                .skillName(skill == null ? null : skill.getName())
                 .seniorityId(position.getSeniority() == null
                         ? null : position.getSeniority().getId())
                 .seniority(position.getSeniority() == null
                         ? null : position.getSeniority().getName())
                 .location(position.getLocationType())
                 .positionType(detail.getPositionType())
-                .allocationPercentage(detail.getAllocationPercentage())
                 .assignmentStartDate(detail.getAssignmentStartDate())
                 .assignmentEndDate(detail.getAssignmentEndDate())
+                .assignmentDurationDays(inclusiveDays(
+                        detail.getAssignmentStartDate(), detail.getAssignmentEndDate()))
                 .assignmentStatus(detail.getStatus())
+                .assignedByUserId(detail.getCreatedBy())
+                .assignedByName(detail.getCreatedBy() == null ? "System"
+                        : assignerNames.getOrDefault(detail.getCreatedBy(), "System"))
+                .assignedAt(detail.getCreatedOn())
                 .build();
+    }
+
+    private Long inclusiveDays(LocalDate startDate, LocalDate endDate) {
+        return startDate == null || endDate == null ? null
+                : java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1;
+    }
+
+    private String assignmentActorName(User user) {
+        if (user.getEmployee() != null) return employeeName(user.getEmployee());
+        return user.getUsername() == null || user.getUsername().isBlank()
+                ? "System" : user.getUsername();
     }
 
     private List<EmployeeMilestoneAssignmentResponse> legacyMilestoneAssignment(
@@ -496,7 +530,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .designationId(parent.getDesignationId())
                 .designationName(parent.getDesignationName())
                 .positionType(parent.getPositionType())
-                .allocationPercentage(parent.getAllocationPercentage())
                 .assignmentStartDate(parent.getAssignmentStartDate())
                 .assignmentEndDate(parent.getAssignmentEndDate())
                 .assignmentStatus(parent.getAssignmentStatus())

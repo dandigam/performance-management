@@ -20,7 +20,6 @@ public class EmployeeSowAssignmentResponse {
     private String sowCode;
     private String sowName;
     private Boolean isPrimaryAssignment;
-    private Integer allocationPercentage;
     private LocalDate assignmentStartDate;
     private LocalDate assignmentEndDate;
     private String assignmentStatus;

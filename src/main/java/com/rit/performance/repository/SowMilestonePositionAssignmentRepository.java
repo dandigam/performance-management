@@ -37,7 +37,8 @@ public interface SowMilestonePositionAssignmentRepository
 
     @EntityGraph(attributePaths = {"employeeAssignment", "milestonePosition",
             "milestonePosition.sow", "milestonePosition.milestone",
-            "milestonePosition.position", "milestonePosition.rateCard"})
+            "milestonePosition.position", "milestonePosition.skill",
+            "milestonePosition.seniority", "milestonePosition.rateCard"})
     List<SowMilestonePositionAssignment>
             findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(
                     Long employeeId);
