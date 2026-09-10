@@ -76,8 +76,10 @@ CREATE TABLE timesheet_employee_projects (
     id BIGINT NOT NULL AUTO_INCREMENT,
     employee_id BIGINT NOT NULL,
     sow_id BIGINT NOT NULL,
+    milestone_id BIGINT NOT NULL,
     start_date DATE NOT NULL,
-    end_date DATE NULL,
+    end_date DATE NOT NULL,
+    default_hours_per_day DECIMAL(4, 2) NULL,
     level1_approver_id BIGINT NOT NULL,
     level2_approver_id BIGINT NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
@@ -86,10 +88,11 @@ CREATE TABLE timesheet_employee_projects (
     updated_by BIGINT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT uk_timesheet_employee_project_start
-        UNIQUE (employee_id, sow_id, start_date),
+    CONSTRAINT uq_employee_project_milestone
+        UNIQUE (employee_id, sow_id, milestone_id),
     CONSTRAINT fk_tep_employee FOREIGN KEY (employee_id) REFERENCES employees (id),
     CONSTRAINT fk_tep_sow FOREIGN KEY (sow_id) REFERENCES sows (id),
+    CONSTRAINT fk_tep_milestone FOREIGN KEY (milestone_id) REFERENCES sow_milestones (id),
     CONSTRAINT fk_tep_level1_approver FOREIGN KEY (level1_approver_id) REFERENCES employees (id),
     CONSTRAINT fk_tep_level2_approver FOREIGN KEY (level2_approver_id) REFERENCES employees (id),
     CONSTRAINT chk_tep_dates CHECK (end_date IS NULL OR end_date >= start_date),
@@ -102,4 +105,30 @@ CREATE TABLE timesheet_employee_projects (
     INDEX idx_tep_sow_status (sow_id, status),
     INDEX idx_tep_level1_approver (level1_approver_id),
     INDEX idx_tep_level2_approver (level2_approver_id)
+);
+
+CREATE TABLE timesheet_employee_project_day (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    timesheet_employee_project_id BIGINT NOT NULL,
+    employee_id BIGINT NOT NULL,
+    sow_id BIGINT NOT NULL,
+    milestone_id BIGINT NOT NULL,
+    work_date DATE NOT NULL,
+    scheduled_hours DECIMAL(4, 2) NOT NULL DEFAULT 0,
+    day_type VARCHAR(30) NOT NULL,
+    holiday_id BIGINT NULL,
+    work_schedule_id BIGINT NULL,
+    locked BOOLEAN NOT NULL DEFAULT FALSE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by BIGINT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by BIGINT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_project_day_configuration FOREIGN KEY (timesheet_employee_project_id)
+        REFERENCES timesheet_employee_projects (id),
+    CONSTRAINT uq_project_work_date UNIQUE (timesheet_employee_project_id, work_date),
+    INDEX idx_employee_work_date (employee_id, work_date),
+    INDEX idx_sow_work_date (sow_id, work_date),
+    INDEX idx_milestone_work_date (milestone_id, work_date)
 );

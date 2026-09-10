@@ -418,7 +418,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         Map<Long, List<SowMilestonePositionAssignment>> detailsByParent =
                 milestonePositionAssignmentRepository
                         .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(employeeId)
-                        .stream().collect(Collectors.groupingBy(
+                        .stream()
+                        .filter(item -> "ACTIVE".equalsIgnoreCase(item.getStatus()))
+                        .collect(Collectors.groupingBy(
                                 item -> item.getEmployeeAssignment().getId()));
         Map<Long, String> assignerNames = userRepository.findAllById(detailsByParent.values()
                         .stream().flatMap(List::stream)
@@ -429,6 +431,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .employeeId(response.getEmployeeId())
                 .employeeName(response.getEmployeeName())
                 .assignmentList(response.getAssignmentList().stream()
+                        .filter(parent -> "ACTIVE".equalsIgnoreCase(
+                                parent.getAssignmentStatus()))
                         .map(parent -> employeeSowAssignment(
                                 parent, detailsByParent.getOrDefault(
                                         parent.getAssignmentId(), List.of()), assignerNames))

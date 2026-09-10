@@ -2,6 +2,7 @@ package com.rit.performance.controller;
 
 import com.rit.performance.dto.request.TimesheetEmployeeProjectRequest;
 import com.rit.performance.dto.response.TimesheetEmployeeProjectResponse;
+import com.rit.performance.dto.response.TimesheetEmployeeProjectSummaryResponse;
 import com.rit.performance.service.TimesheetEmployeeProjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -38,8 +39,16 @@ public class TimesheetEmployeeProjectController {
     }
 
     @GetMapping
-    public ResponseEntity<List<TimesheetEmployeeProjectResponse>> getAll(
+    public ResponseEntity<List<TimesheetEmployeeProjectSummaryResponse>> getAll(
             @PathVariable Long employeeId) {
         return ResponseEntity.ok(service.getAll(employeeId));
+    }
+
+    @GetMapping("/{sowId}/milestones/{milestoneId}")
+    public ResponseEntity<TimesheetEmployeeProjectResponse> get(
+            @PathVariable Long employeeId,
+            @PathVariable Long sowId,
+            @PathVariable Long milestoneId) {
+        return ResponseEntity.ok(service.get(employeeId, sowId, milestoneId));
     }
 }

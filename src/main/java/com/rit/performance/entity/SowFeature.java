@@ -3,8 +3,6 @@ package com.rit.performance.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.NotFound;
-import org.hibernate.annotations.NotFoundAction;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -40,7 +38,6 @@ public class SowFeature extends BaseEntity {
     private Sow sow;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @NotFound(action = NotFoundAction.IGNORE)
     @JoinColumn(
             name = "milestone_id",
             foreignKey = @ForeignKey(name = "fk_sow_features_milestone")

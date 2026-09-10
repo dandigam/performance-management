@@ -13,13 +13,22 @@ import java.util.Optional;
 public interface TimesheetEmployeeProjectRepository
         extends JpaRepository<TimesheetEmployeeProject, Long> {
 
-    Optional<TimesheetEmployeeProject> findByEmployeeIdAndSowIdAndStartDate(
-            Long employeeId, Long sowId, LocalDate startDate);
+    @EntityGraph(attributePaths = {
+            "employee", "sow", "sow.client", "milestone", "level1Approver", "level2Approver"
+    })
+    Optional<TimesheetEmployeeProject> findByEmployeeIdAndSowIdAndMilestoneId(
+            Long employeeId, Long sowId, Long milestoneId);
 
     @EntityGraph(attributePaths = {
-            "employee", "sow", "sow.client", "level1Approver", "level2Approver"
+            "employee", "sow", "sow.client", "milestone", "level1Approver", "level2Approver",
+            "dailySchedules", "dailySchedules.holiday"
     })
     List<TimesheetEmployeeProject> findByEmployeeIdOrderByStartDateDescIdDesc(Long employeeId);
+
+    @EntityGraph(attributePaths = {
+            "employee", "sow", "milestone", "level1Approver", "level2Approver"
+    })
+    List<TimesheetEmployeeProject> findAllByEmployeeIdOrderByStartDateAscIdAsc(Long employeeId);
 
     @Query("""
             select distinct tep.employee.id
