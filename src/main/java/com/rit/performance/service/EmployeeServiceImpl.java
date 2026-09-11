@@ -127,6 +127,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setEmploymentType(normalizeRequiredValue(request.getEmploymentType(), "employmentType"));
         employee.setJoiningDate(request.getJoiningDate());
         employee.setWorkMode(normalizeRequiredValue(request.getWorkMode(), "workMode"));
+        employee.setWorkLocation(request.getWorkLocation());
         employee.setVendor(resolveVendor(request.getVendorId(), employee.getEmploymentType()));
         employee.setDesignationId(resolveProfileDesignationId(request));
         employee.setStatus(request.getStatus() == null ? "ACTIVE" : request.getStatus().trim().toUpperCase());
@@ -606,6 +607,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .csxRacfId(employee.getCsxRacfId())
                         .employmentType(employee.getEmploymentType())
                         .workMode(employee.getWorkMode())
+                        .workLocation(employee.getWorkLocation())
                         .vendorId(employee.getVendor() == null ? null : employee.getVendor().getId())
                         .vendorCompanyName(employee.getVendor() == null ? null : employee.getVendor().getCompanyName())
                         .designationId(employee.getDesignationId())
@@ -1030,6 +1032,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             employee.setJoiningDate(request.getJoiningDate());
         if (request.getWorkMode() != null)
             employee.setWorkMode(normalizeRequiredValue(request.getWorkMode(), "workMode"));
+        if (request.getWorkLocation() != null)
+            employee.setWorkLocation(request.getWorkLocation());
         if (request.isVendorIdPresent() || request.getEmploymentType() != null) {
             Long vendorId = request.isVendorIdPresent() ? request.getVendorId()
                     : employee.getVendor() == null ? null : employee.getVendor().getId();
@@ -1288,6 +1292,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .employmentType(employee.getEmploymentType())
                 .joiningDate(employee.getJoiningDate())
                 .workMode(employee.getWorkMode())
+                .workLocation(employee.getWorkLocation())
                 .vendorId(employee.getVendor() == null ? null : employee.getVendor().getId())
                 .vendorCompanyName(employee.getVendor() == null ? null : employee.getVendor().getCompanyName())
                 .roleId(role == null ? null : role.getRoleId())

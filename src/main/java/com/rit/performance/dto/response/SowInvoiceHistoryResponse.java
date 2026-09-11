@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SowInvoiceHistoryResponse {
     private Long id;
+    private String csxInvoiceNumber;
     private Long invoiceId;
     private Long sowId;
     private String sowCode;
@@ -22,6 +23,9 @@ public class SowInvoiceHistoryResponse {
     private LocalDate submittedDate;
     private String notes;
     private String action;
+    private LocalDate actionDate;
+    private String reason;
+    private String previousStatus;
     private Long changedBy;
     private String changedByName;
     private LocalDateTime changedOn;

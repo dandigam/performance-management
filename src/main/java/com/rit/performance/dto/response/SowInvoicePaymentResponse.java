@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SowInvoicePaymentResponse {
     private Long id;
+    private String csxInvoiceNumber;
     private Long invoiceId;
     private LocalDate paymentDate;
     private BigDecimal receivedAmount;

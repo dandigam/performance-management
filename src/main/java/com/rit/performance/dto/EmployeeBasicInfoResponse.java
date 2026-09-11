@@ -1,5 +1,7 @@
 package com.rit.performance.dto;
 
+import com.rit.performance.entity.WorkLocation;
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,6 +32,7 @@ public class EmployeeBasicInfoResponse {
     private String employmentType;
     private LocalDate joiningDate;
     private String workMode;
+    private WorkLocation workLocation;
     private Long vendorId;
     private String vendorCompanyName;
     private Long roleId;

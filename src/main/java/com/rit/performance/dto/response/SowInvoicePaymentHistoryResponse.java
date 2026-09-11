@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SowInvoicePaymentHistoryResponse {
     private Long id;
+    private String csxInvoiceNumber;
     private Long invoiceId;
     private Long sowId;
     private String sowCode;

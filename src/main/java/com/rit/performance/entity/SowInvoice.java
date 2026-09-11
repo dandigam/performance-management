@@ -41,6 +41,9 @@ public class SowInvoice extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_sow_invoice_milestone"))
     private SowMilestone milestone;
 
+    @Column(name = "csx_invoice_number", length = 100)
+    private String csxInvoiceNumber;
+
     @Column(name = "milestone_invoice_date")
     private LocalDate milestoneInvoiceDate;
 

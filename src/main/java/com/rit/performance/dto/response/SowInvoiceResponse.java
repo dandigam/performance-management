@@ -15,6 +15,7 @@ import java.util.List;
 @Builder
 public class SowInvoiceResponse {
     private Long id;
+    private String csxInvoiceNumber;
     private Long departmentId;
     private String departmentName;
     private Long sowId;

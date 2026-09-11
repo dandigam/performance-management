@@ -1,6 +1,7 @@
 package com.rit.performance.controller;
 
 import com.rit.performance.dto.request.SowInvoiceRequest;
+import com.rit.performance.dto.request.SowInvoiceStatusRequest;
 import com.rit.performance.dto.response.SowInvoiceResponse;
 import com.rit.performance.dto.request.SowInvoicePaymentRequest;
 import com.rit.performance.dto.response.SowInvoicePaymentResponse;
@@ -45,6 +46,13 @@ public class SowInvoiceController {
     public ResponseEntity<SowInvoiceResponse> update(
             @PathVariable Long id, @Valid @RequestBody SowInvoiceRequest request) {
         return ResponseEntity.ok(service.update(id, request));
+    }
+
+    @PostMapping("/{invoiceId}/status")
+    public ResponseEntity<SowInvoiceResponse> updateStatus(
+            @PathVariable Long invoiceId,
+            @Valid @RequestBody SowInvoiceStatusRequest request) {
+        return ResponseEntity.ok(service.updateStatus(invoiceId, request));
     }
 
     @GetMapping("/{invoiceId}/payments")

@@ -56,6 +56,10 @@ public class Employee extends BaseEntity {
     @Column(name = "work_mode", length = 50)
     private String workMode;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "work_location", length = 20, columnDefinition = "VARCHAR(20)")
+    private WorkLocation workLocation;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "vendor_id", foreignKey = @ForeignKey(name = "fk_employee_vendor"))
     private Vendor vendor;

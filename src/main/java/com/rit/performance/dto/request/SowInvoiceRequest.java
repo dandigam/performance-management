@@ -18,6 +18,9 @@ public class SowInvoiceRequest {
     @NotNull(message = "milestoneId is required")
     private Long milestoneId;
 
+    @Size(max = 100, message = "csxInvoiceNumber must not exceed 100 characters")
+    private String csxInvoiceNumber;
+
     private LocalDate milestoneInvoiceDate;
 
     @DecimalMin(value = "0.0", message = "milestoneInvoiceAmount cannot be negative")
