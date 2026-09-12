@@ -2,6 +2,7 @@ package com.rit.performance.repository;
 
 import com.rit.performance.entity.TimesheetEmployeeProjectDay;
 import org.springframework.data.jpa.repository.JpaRepository;
+
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -12,6 +13,9 @@ import java.util.List;
 public interface TimesheetEmployeeProjectDayRepository
         extends JpaRepository<TimesheetEmployeeProjectDay, Long> {
     List<TimesheetEmployeeProjectDay> findByTimesheetEmployeeProjectIdOrderByWorkDate(Long projectId);
+
+    List<TimesheetEmployeeProjectDay> findByTimesheetEmployeeProjectIdAndWorkDateIn(
+            Long projectId, java.util.Collection<LocalDate> workDates);
 
     @Query("""
             select coalesce(sum(day.scheduledHours), 0)

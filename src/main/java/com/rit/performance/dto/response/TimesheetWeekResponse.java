@@ -16,6 +16,5 @@ public class TimesheetWeekResponse {
     private LocalDate weekEnd;
     private String workMode;
     private List<TimesheetWeekProjectResponse> projects;
-    private List<TimesheetWeekDayResponse> days;
     private TimesheetStatus status;
 }

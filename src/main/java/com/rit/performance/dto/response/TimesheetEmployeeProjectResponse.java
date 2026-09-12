@@ -23,7 +23,7 @@ public class TimesheetEmployeeProjectResponse {
     private LocalDate startDate;
     private LocalDate endDate;
     private BigDecimal defaultHoursPerDay;
-    private List<TimesheetDailyOverrideResponse> dailyOverrides;
+    private List<TimesheetDailyOverrideResponse> scheduleDates;
     private Long level1ApproverId;
     private String level1ApproverName;
     private Long level2ApproverId;

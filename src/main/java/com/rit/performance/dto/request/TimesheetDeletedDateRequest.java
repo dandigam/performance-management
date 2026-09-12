@@ -8,10 +8,7 @@ import java.time.LocalDate;
 
 @Getter
 @Setter
-public class TimesheetGenerateRequest {
+public class TimesheetDeletedDateRequest {
     @NotNull
-    private LocalDate periodStartDate;
-
-    @NotNull
-    private LocalDate periodEndDate;
+    private LocalDate workDate;
 }

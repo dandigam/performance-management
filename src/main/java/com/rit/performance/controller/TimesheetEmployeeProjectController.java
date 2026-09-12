@@ -5,6 +5,8 @@ import com.rit.performance.dto.response.TimesheetEmployeeProjectResponse;
 import com.rit.performance.dto.response.TimesheetEmployeeProjectSummaryResponse;
 import com.rit.performance.service.TimesheetEmployeeProjectService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,7 +28,7 @@ public class TimesheetEmployeeProjectController {
     @PostMapping
     public ResponseEntity<List<TimesheetEmployeeProjectResponse>> create(
             @PathVariable Long employeeId,
-            @Valid @RequestBody List<@Valid TimesheetEmployeeProjectRequest> requests) {
+            @NotEmpty @RequestBody List<@NotNull @Valid TimesheetEmployeeProjectRequest> requests) {
         List<TimesheetEmployeeProjectResponse> saved = service.create(employeeId, requests);
         return ResponseEntity.ok(saved);
     }
@@ -34,7 +36,7 @@ public class TimesheetEmployeeProjectController {
     @PutMapping
     public ResponseEntity<List<TimesheetEmployeeProjectResponse>> update(
             @PathVariable Long employeeId,
-            @Valid @RequestBody List<@Valid TimesheetEmployeeProjectRequest> requests) {
+            @NotEmpty @RequestBody List<@NotNull @Valid TimesheetEmployeeProjectRequest> requests) {
         return ResponseEntity.ok(service.update(employeeId, requests));
     }
 

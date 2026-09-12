@@ -37,6 +37,7 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
     private final SowMilestonePositionAssignmentRepository milestoneAssignmentRepository;
     private final SowMilestoneRepository milestoneRepository;
     private final TimesheetProjectScheduleService scheduleService;
+    private final com.rit.performance.service.TimesheetGenerationService generationService;
 
     @Override
     public List<TimesheetEmployeeProjectResponse> create(
@@ -73,7 +74,13 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
             return assignment;
         }).toList();
         List<TimesheetEmployeeProject> saved = repository.saveAll(assignments);
-        for (int i = 0; i < saved.size(); i++) scheduleService.regenerate(saved.get(i), requests.get(i));
+        for (int i = 0; i < saved.size(); i++) scheduleService.applyChanges(saved.get(i), requests.get(i));
+        generationService.ensureWeeklyTimesheets(employeeId, requests.stream()
+                .flatMap(request -> request.getScheduleDates().stream())
+                .map(date -> date.getWorkDate()).toList());
+        generationService.cleanupEmptyDraftWeeks(employeeId, requests.stream()
+                .flatMap(request -> request.getDeletedDates().stream())
+                .map(date -> date.getWorkDate()).toList());
         return saved.stream().map(this::response).toList();
     }
 
@@ -94,7 +101,13 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
             return assignment;
         }).toList();
         List<TimesheetEmployeeProject> saved = repository.saveAll(assignments);
-        for (int i = 0; i < saved.size(); i++) scheduleService.regenerate(saved.get(i), requests.get(i));
+        for (int i = 0; i < saved.size(); i++) scheduleService.applyChanges(saved.get(i), requests.get(i));
+        generationService.ensureWeeklyTimesheets(employeeId, requests.stream()
+                .flatMap(request -> request.getScheduleDates().stream())
+                .map(date -> date.getWorkDate()).toList());
+        generationService.cleanupEmptyDraftWeeks(employeeId, requests.stream()
+                .flatMap(request -> request.getDeletedDates().stream())
+                .map(date -> date.getWorkDate()).toList());
         return saved.stream().map(this::response).toList();
     }
 
@@ -121,7 +134,12 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
 
     private void apply(TimesheetEmployeeProject assignment,
                        TimesheetEmployeeProjectRequest request) {
-        validateDatesAndApprovers(assignment.getEmployee().getId(), request);
+        validateDatesAndApprovers(assignment.getEmployee().getId(), request, assignment.getId() != null);
+        if (assignment.getId() != null && (!assignment.getSow().getId().equals(request.getSowId())
+                || !assignment.getMilestone().getId().equals(request.getMilestoneId())
+                || (request.getTimesheetEmployeeProjectId() != null
+                && !assignment.getId().equals(request.getTimesheetEmployeeProjectId()))))
+            throw new InvalidOperationException("Assignment ID must match the employee, SOW and milestone configuration");
         assignment.setSow(sow(request.getSowId()));
         var milestone = milestoneRepository.findByIdAndSow_Id(request.getMilestoneId(), request.getSowId())
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone not found for SOW: " + request.getMilestoneId()));
@@ -143,7 +161,11 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
             throw new InvalidOperationException("At least one timesheet project is required");
         }
         Set<String> keys = new HashSet<>();
+        Set<Long> assignmentIds = new HashSet<>();
         for (TimesheetEmployeeProjectRequest request : requests) {
+            if (request.getTimesheetEmployeeProjectId() != null
+                    && !assignmentIds.add(request.getTimesheetEmployeeProjectId()))
+                throw new DuplicateResourceException("Duplicate timesheet employee project ID in request");
             String key = request.getSowId() + ":" + request.getMilestoneId();
             if (!keys.add(key)) {
                 throw new DuplicateResourceException(
@@ -153,12 +175,13 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
     }
 
     private void validateDatesAndApprovers(
-            Long employeeId, TimesheetEmployeeProjectRequest request) {
-        if (request.getDefaultHoursPerDay() == null
-                && (request.getDailyOverrides() == null || request.getDailyOverrides().isEmpty())) {
-            throw new InvalidOperationException(
-                    "Provide defaultHoursPerDay or at least one daily override");
-        }
+            Long employeeId, TimesheetEmployeeProjectRequest request, boolean updating) {
+        if (request.getDailyOverrides() != null)
+            throw new InvalidOperationException("dailyOverrides is no longer supported; use scheduleDates and deletedDates");
+        if (request.getScheduleDates() == null || request.getDeletedDates() == null)
+            throw new InvalidOperationException("scheduleDates and deletedDates must be arrays; use [] for no changes");
+        if (!updating && !request.getDeletedDates().isEmpty())
+            throw new InvalidOperationException("deletedDates must be empty when creating an assignment");
         if (request.getEndDate() != null
                 && request.getEndDate().isBefore(request.getStartDate())) {
             throw new InvalidOperationException("endDate cannot be before startDate");
@@ -211,7 +234,7 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
                 .milestoneId(assignment.getMilestone().getId())
                 .milestoneName(assignment.getMilestone().getMilestoneName())
                 .defaultHoursPerDay(assignment.getDefaultHoursPerDay())
-                .dailyOverrides(scheduleService.overrides(assignment))
+                .scheduleDates(scheduleService.overrides(assignment))
                 .level1ApproverId(assignment.getLevel1Approver().getId())
                 .level1ApproverName(name(assignment.getLevel1Approver()))
                 .level2ApproverId(assignment.getLevel2Approver().getId())

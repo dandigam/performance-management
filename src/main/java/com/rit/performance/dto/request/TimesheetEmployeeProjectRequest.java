@@ -38,8 +38,15 @@ public class TimesheetEmployeeProjectRequest {
     @DecimalMax("24.00")
     private BigDecimal defaultHoursPerDay;
 
-    @Valid
-    private List<TimesheetDailyOverrideRequest> dailyOverrides = new ArrayList<>();
+    @NotNull
+    private List<@NotNull @Valid TimesheetScheduleDateRequest> scheduleDates = new ArrayList<>();
+
+    @NotNull
+    private List<@NotNull @Valid TimesheetDeletedDateRequest> deletedDates = new ArrayList<>();
+
+    // Reject the previous replacement contract explicitly instead of silently ignoring it.
+    @Deprecated
+    private List<TimesheetDailyOverrideRequest> dailyOverrides;
 
     @NotNull
     @Positive

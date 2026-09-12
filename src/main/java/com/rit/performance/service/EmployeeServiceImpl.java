@@ -416,6 +416,14 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional(readOnly = true)
     public EmployeeAssignmentsResponse getAssignmentsByEmployeeId(Long employeeId) {
         EmployeeBasicInfoResponse response = getById(employeeId);
+        Set<Long> eligibleSowIds = sowRepository.findAllById(response.getAssignmentList().stream()
+                        .map(EmployeeAssignmentResponse::getSowId)
+                        .filter(Objects::nonNull).collect(Collectors.toSet()))
+                .stream()
+                .filter(sow -> sow.getStatus() != null
+                        && ("ACTIVE".equalsIgnoreCase(sow.getStatus().getCode())
+                        || "COMPLETED".equalsIgnoreCase(sow.getStatus().getCode())))
+                .map(Sow::getId).collect(Collectors.toSet());
         Map<Long, List<SowMilestonePositionAssignment>> detailsByParent =
                 milestonePositionAssignmentRepository
                         .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(employeeId)
@@ -432,6 +440,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .employeeId(response.getEmployeeId())
                 .employeeName(response.getEmployeeName())
                 .assignmentList(response.getAssignmentList().stream()
+                        .filter(parent -> eligibleSowIds.contains(parent.getSowId()))
                         .filter(parent -> "ACTIVE".equalsIgnoreCase(
                                 parent.getAssignmentStatus()))
                         .map(parent -> employeeSowAssignment(

@@ -7,7 +7,6 @@ import com.rit.performance.entity.Timesheet;
 import com.rit.performance.entity.TimesheetEmployeeProject;
 import com.rit.performance.entity.TimesheetEmployeeProjectStatus;
 import com.rit.performance.repository.EmployeeRepository;
-import com.rit.performance.repository.HolidayRepository;
 import com.rit.performance.repository.SowMilestonePositionAssignmentRepository;
 import com.rit.performance.repository.TimesheetEmployeeProjectRepository;
 import com.rit.performance.repository.TimesheetRepository;
@@ -29,12 +28,11 @@ class TimesheetGenerationServiceImplTest {
         TimesheetEmployeeProjectRepository projectRepository =
                 mock(TimesheetEmployeeProjectRepository.class);
         EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
-        HolidayRepository holidayRepository = mock(HolidayRepository.class);
         SowMilestonePositionAssignmentRepository milestoneAssignmentRepository =
                 mock(SowMilestonePositionAssignmentRepository.class);
         TimesheetGenerationServiceImpl service = new TimesheetGenerationServiceImpl(
-                timesheetRepository, projectRepository, employeeRepository,
-                holidayRepository, milestoneAssignmentRepository);
+                timesheetRepository, java.time.Clock.systemDefaultZone(), projectRepository, employeeRepository,
+                milestoneAssignmentRepository);
 
         long employeeId = 10L;
         long timesheetId = 20L;
@@ -69,8 +67,6 @@ class TimesheetGenerationServiceImplTest {
                 .thenReturn(List.of(previousProject));
         when(milestoneAssignmentRepository
                 .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(employeeId))
-                .thenReturn(List.of());
-        when(holidayRepository.findByHolidayDateBetweenOrderByHolidayDateAsc(weekStart, weekEnd))
                 .thenReturn(List.of());
 
         TimesheetWeekResponse response = service.getWeek(employeeId, weekStart, timesheetId);

@@ -13,6 +13,9 @@ public class TimesheetWeekProjectResponse {
     private Long sowId;
     private String sowCode;
     private String sowName;
+    private Long milestoneId;
+    private String milestoneName;
+    private List<TimesheetDailyOverrideResponse> scheduleDates;
     private String designationName;
     private LocalDate startDate;
     private LocalDate endDate;

@@ -1,22 +1,15 @@
 package com.rit.performance.controller;
 
-import com.rit.performance.dto.request.TimesheetGenerateRequest;
-import com.rit.performance.dto.request.TimesheetHistoryGenerateRequest;
-import com.rit.performance.dto.response.TimesheetGenerateResponse;
 import com.rit.performance.dto.response.TimesheetSummaryResponse;
 import com.rit.performance.dto.response.TimesheetWeekResponse;
 import com.rit.performance.service.TimesheetGenerationService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
 import java.util.List;
 import java.time.LocalDate;
 
@@ -28,8 +21,9 @@ public class TimesheetController {
 
     @GetMapping
     public ResponseEntity<List<TimesheetSummaryResponse>> getAll(
-            @RequestParam(required = false) Long employeeId) {
-        return ResponseEntity.ok(service.getAll(employeeId));
+            @RequestParam(required = false) Long employeeId,
+            @RequestParam(defaultValue = "ALL") String status) {
+        return ResponseEntity.ok(service.getAll(employeeId, status));
     }
 
     @GetMapping("/week")
@@ -38,19 +32,6 @@ public class TimesheetController {
             @RequestParam LocalDate weekStart,
             @RequestParam(required = false) Long timesheetId) {
         return ResponseEntity.ok(service.getWeek(employeeId, weekStart, timesheetId));
-    }
-
-    @PostMapping("/generate")
-    public ResponseEntity<TimesheetGenerateResponse> generate(
-            @Valid @RequestBody TimesheetGenerateRequest request) {
-        return ResponseEntity.ok(service.generate(request));
-    }
-
-    @PostMapping("/generate-previous-dates-timesheets")
-    public ResponseEntity<Map<String, String>> generatePreviousDatesTimesheets(
-            @Valid @RequestBody TimesheetHistoryGenerateRequest request) {
-        return ResponseEntity.ok(Map.of(
-                "message", service.generatePreviousDatesTimesheets(request)));
     }
 
 }
