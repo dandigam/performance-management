@@ -11,8 +11,8 @@ ALTER TABLE csx_employees DROP COLUMN created_date, DROP COLUMN updated_date;
 UPDATE email_notifications SET created_on = COALESCE(created_on, created_date);
 ALTER TABLE email_notifications DROP COLUMN created_date;
 
-UPDATE employee_assignments SET created_on = COALESCE(created_on, created_date), updated_on = COALESCE(updated_on, updated_date);
-ALTER TABLE employee_assignments DROP COLUMN created_date, DROP COLUMN updated_date;
+UPDATE sow_employee_assignments SET created_on = COALESCE(created_on, created_date), updated_on = COALESCE(updated_on, updated_date);
+ALTER TABLE sow_employee_assignments DROP COLUMN created_date, DROP COLUMN updated_date;
 
 UPDATE employee_compensations SET created_on = COALESCE(created_on, created_at), updated_on = COALESCE(updated_on, updated_at);
 ALTER TABLE employee_compensations DROP COLUMN created_at, DROP COLUMN updated_at;

@@ -30,12 +30,13 @@ class TimesheetEmployeeProjectServiceImplTest {
     private final com.rit.performance.service.TimesheetGenerationService generation = mock(com.rit.performance.service.TimesheetGenerationService.class);
     private final PlatformTransactionManager transactions = mock(PlatformTransactionManager.class);
     private final SimpleTransactionStatus transaction = new SimpleTransactionStatus();
+    private final SowMilestonePositionAssignmentRepository resources = mock(SowMilestonePositionAssignmentRepository.class);
     private TimesheetEmployeeProjectServiceImpl service;
 
     @BeforeEach
     void setup() {
         TimesheetEmployeeProjectServiceImpl target = new TimesheetEmployeeProjectServiceImpl(projects,
-                employees, sows, mock(SowMilestonePositionAssignmentRepository.class), milestones, schedules, generation);
+                employees, sows, resources, milestones, schedules, generation);
         ProxyFactory proxy = new ProxyFactory(target);
         proxy.setProxyTargetClass(true);
         proxy.addAdvice(new TransactionInterceptor(transactions, new AnnotationTransactionAttributeSource()));
@@ -83,11 +84,47 @@ class TimesheetEmployeeProjectServiceImplTest {
     @Test
     void createsWithoutAssignmentIdAndEmptyDeletionsInOneTransaction() {
         TimesheetEmployeeProjectRequest request = request(null, 67L);
-        assertThat(service.create(3L, List.of(request))).hasSize(1);
+        var result = service.create(3L, List.of(request));
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getAssignmentEndDate()).isNull();
+        assertThat(result.get(0).getAssignmentStartDate()).isEqualTo(LocalDate.of(2026, 9, 1));
+        assertThat(result.get(0).getEndDate()).isEqualTo(LocalDate.of(2026, 9, 30));
+        assertThat(result.get(0).getMilestonePositionAssignmentId()).isEqualTo(67L);
         verify(schedules).applyChanges(argThat(project -> project.getId().equals(123L)), same(request));
         verify(transactions).getTransaction(any());
         verify(transactions).commit(transaction);
         verify(transactions, never()).rollback(any());
+    }
+
+    @Test void internalSetupRequiresNoProjectAndKeepsActualEndNull() {
+        var request = request(null, 67L);
+        request.setWorkType(TimesheetWorkType.INTERNAL);
+        request.setInternalWorkType("TRAINING");
+        request.setSowId(null); request.setMilestoneId(null); request.setMilestonePositionAssignmentId(null);
+        var result = service.create(3L, List.of(request)).get(0);
+        assertThat(result.getSowId()).isNull();
+        assertThat(result.getMilestoneId()).isNull();
+        assertThat(result.getWorkType()).isEqualTo(TimesheetWorkType.INTERNAL);
+        assertThat(result.getInternalWorkType()).isEqualTo("TRAINING");
+        assertThat(result.getAssignmentEndDate()).isNull();
+        assertThat(result.getEndDate()).isEqualTo(LocalDate.of(2026, 9, 30));
+    }
+
+    @Test void projectActualEndCannotBeSetByAdminSetupRequest() {
+        var request = request(null, 67L);
+        request.setAssignmentEndDate(LocalDate.of(2026, 9, 15));
+        assertThatThrownBy(() -> service.create(3L, List.of(request)))
+                .isInstanceOf(InvalidOperationException.class).hasMessageContaining("unassign API");
+        verify(projects, never()).saveAll(any());
+    }
+
+    @Test void rejectsResourceAssignmentForAnotherEmployee() {
+        var request = request(null, 67L);
+        var parent = new EmployeeAssignment(); parent.setEmployeeId(99L);
+        when(resources.findOneById(67L)).thenReturn(Optional.of(SowMilestonePositionAssignment.builder()
+                .employeeAssignment(parent).build()));
+        assertThatThrownBy(() -> service.create(3L, List.of(request)))
+                .isInstanceOf(InvalidOperationException.class).hasMessageContaining("must match employee");
     }
 
     @Test
@@ -187,11 +224,17 @@ class TimesheetEmployeeProjectServiceImplTest {
     private TimesheetEmployeeProjectRequest request(Long id, Long milestoneId) {
         TimesheetEmployeeProjectRequest request = new TimesheetEmployeeProjectRequest();
         request.setTimesheetEmployeeProjectId(id); request.setSowId(45L); request.setMilestoneId(milestoneId);
+        request.setMilestonePositionAssignmentId(milestoneId);
+        var parent = new EmployeeAssignment(); parent.setEmployeeId(3L);
+        var position = SowMilestonePosition.builder().sow(Sow.builder().id(45L).build())
+                .milestone(SowMilestone.builder().id(milestoneId).build()).build();
+        when(resources.findOneById(milestoneId)).thenReturn(Optional.of(SowMilestonePositionAssignment.builder()
+                .id(milestoneId).employeeAssignment(parent).milestonePosition(position).status("ASSIGNED")
+                .assignmentStartDate(LocalDate.of(2026, 9, 1)).build()));
         request.setStartDate(LocalDate.of(2026, 9, 1)); request.setEndDate(LocalDate.of(2026, 9, 30));
         request.setLevel1ApproverId(10L); request.setLevel2ApproverId(20L);
         request.setStatus(TimesheetEmployeeProjectStatus.ACTIVE);
         return request;
     }
 }
-
 

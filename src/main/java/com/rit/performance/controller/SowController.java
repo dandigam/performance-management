@@ -1,8 +1,13 @@
 package com.rit.performance.controller;
 
 import com.rit.performance.dto.request.SowRequest;
+import com.rit.performance.dto.request.SowMilestoneUpdateRequest;
+import com.rit.performance.dto.response.SowMilestoneResponse;
 import com.rit.performance.dto.request.SowAssignmentUpdateRequest;
 import com.rit.performance.dto.response.SowResponse;
+import com.rit.performance.dto.response.SowSummaryPageResponse;
+import com.rit.performance.dto.response.SowPositionSummaryPageResponse;
+import com.rit.performance.dto.response.SowMilestoneSummaryPageResponse;
 import com.rit.performance.dto.response.SowAssignmentResponse;
 import com.rit.performance.dto.request.SowMilestonePositionRequest;
 import com.rit.performance.dto.response.SowMilestonePositionResponse;
@@ -29,6 +34,36 @@ import java.util.List;
 public class SowController {
     private final SowService sowService;
     private final SowMilestonePositionAssignmentService positionAssignmentService;
+
+    @PutMapping("/{sowId}/milestones/{milestoneId}")
+    public ResponseEntity<SowMilestoneResponse> updateMilestone(
+            @PathVariable Long sowId, @PathVariable Long milestoneId,
+            @Valid @RequestBody SowMilestoneUpdateRequest request) {
+        return ResponseEntity.ok(sowService.updateMilestone(sowId, milestoneId, request));
+    }
+
+    @GetMapping("/{sowId}/milestones/{milestoneId}/positions/summaries")
+    public ResponseEntity<SowPositionSummaryPageResponse> getPositionSummaries(
+            @PathVariable Long sowId, @PathVariable Long milestoneId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(sowService.getPositionSummaries(sowId, milestoneId, page, size));
+    }
+
+    @GetMapping("/{sowId}/milestones/summaries")
+    public ResponseEntity<SowMilestoneSummaryPageResponse> getMilestoneSummaries(
+            @PathVariable Long sowId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(sowService.getMilestoneSummaries(sowId, page, size));
+    }
+
+    @GetMapping("/summaries")
+    public ResponseEntity<SowSummaryPageResponse> getSummaries(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(sowService.getSummaries(page, size));
+    }
 
     @PostMapping
     public ResponseEntity<SowResponse> create(@Valid @RequestBody SowRequest request) {

@@ -45,8 +45,6 @@ public class EmployeeBasicInfoResponse {
     @JsonIgnore
     private Long sowId;
     @JsonIgnore
-    private String sowCode;
-    @JsonIgnore
     private String sowName;
     @JsonIgnore
     private Long milestoneId;

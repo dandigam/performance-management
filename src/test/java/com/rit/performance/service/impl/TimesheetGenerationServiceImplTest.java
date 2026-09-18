@@ -50,7 +50,6 @@ class TimesheetGenerationServiceImplTest {
 
         Sow sow = new Sow();
         sow.setId(30L);
-        sow.setSowCode("PROJECT-A");
         sow.setSowName("Project A");
 
         TimesheetEmployeeProject previousProject = new TimesheetEmployeeProject();

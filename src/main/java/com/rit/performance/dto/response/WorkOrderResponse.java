@@ -16,7 +16,6 @@ public class WorkOrderResponse {
     private LocalDate endDate;
     private String location;
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private BigDecimal amount;
     private BigDecimal hourlyRate;

@@ -27,9 +27,6 @@ public class SowMilestonePositionAssignment extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_smpa_milestone_position"))
     private SowMilestonePosition milestonePosition;
 
-    @Column(name = "allocation_percentage", nullable = false)
-    private Integer allocationPercentage;
-
     @Column(name = "position_type", nullable = false, length = 20)
     private String positionType;
 
@@ -43,6 +40,6 @@ public class SowMilestonePositionAssignment extends BaseEntity {
     private String status;
     @PrePersist
     void prePersist() {
-        if (status == null || status.isBlank()) status = "ACTIVE";
+        if (status == null || status.isBlank()) status = "ASSIGNED";
     }
 }

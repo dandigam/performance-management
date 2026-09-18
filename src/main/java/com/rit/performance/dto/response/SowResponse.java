@@ -15,7 +15,6 @@ import java.util.List;
 @Builder
 public class SowResponse {
     private Long id;
-    private String sowCode;
     private String sowName;
     private Integer year;
     private Long clientId;

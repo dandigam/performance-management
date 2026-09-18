@@ -1,13 +1,14 @@
 package com.rit.performance.config;
 
+import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import java.time.Clock;
 
 @Configuration
 public class TimesheetClockConfig {
+
     @Bean
-    public Clock clock() {
+    public Clock timesheetClock() {
         return Clock.systemDefaultZone();
     }
 }

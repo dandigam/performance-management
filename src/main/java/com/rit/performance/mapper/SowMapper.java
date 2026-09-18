@@ -32,7 +32,6 @@ public final class SowMapper {
                 csxEmployees, sow.getCsxEscalationEmployeeId());
         return SowResponse.builder()
                 .id(sow.getId())
-                .sowCode(sow.getSowCode())
                 .sowName(sow.getSowName())
                 .year(sow.getYear())
                 .clientId(sow.getClient() == null ? null : sow.getClient().getId())
@@ -94,7 +93,7 @@ public final class SowMapper {
                 .build();
     }
 
-    private static SowMilestoneResponse toMilestoneResponse(SowMilestone milestone) {
+    public static SowMilestoneResponse toMilestoneResponse(SowMilestone milestone) {
         return SowMilestoneResponse.builder()
                 .id(milestone.getId())
                 .milestoneName(milestone.getMilestoneName())

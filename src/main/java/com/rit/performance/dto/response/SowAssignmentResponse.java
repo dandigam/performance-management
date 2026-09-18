@@ -16,7 +16,6 @@ public class SowAssignmentResponse {
     private String employeeName;
     private String email;
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private Long milestoneId;
     private String milestoneName;

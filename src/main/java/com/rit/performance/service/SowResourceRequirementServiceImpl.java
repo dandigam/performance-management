@@ -41,7 +41,7 @@ import java.util.*;
  * resource group. If the Java/Senior/Offshore combination appears twice in one
  * milestone, that milestone's count for the resource group is 2. Only OPEN
  * milestone positions contribute; assigning a resource changes the position to
- * FILLED and therefore reduces the derived requirement.</p>
+ * ASSIGNED and therefore reduces the derived requirement.</p>
  *
  * <p>Milestones are treated as sequential rather than concurrent. Required
  * headcount is therefore the largest count of a resource group in any one
@@ -69,7 +69,7 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
         List<SowMilestonePosition> positions = positionRepository.findBySowId(sowId).stream()
                 .filter(position -> position.getSkill() != null)
                 // The derived table represents vacancies, not original planned HC.
-                // Assignment changes OPEN -> FILLED; unassignment changes it back to OPEN.
+                // Assignment changes OPEN -> ASSIGNED; unassignment changes it back to OPEN.
                 .filter(position -> "OPEN".equalsIgnoreCase(position.getStatus()))
                 .toList();
 
@@ -289,7 +289,7 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
             List<SowResourceRequirementItemResponse> positionInfo) {
         return SowResourceRequirementSummaryResponse.builder()
                 .sowId(sow.getId())
-                .sowCode(sow.getSowCode())
+                
                 .sowName(sow.getSowName())
                 .sowStatus(sow.getStatus() == null ? null : sow.getStatus().getCode())
                 .businessUnitId(sow.getBusinessUnit() == null
@@ -357,7 +357,7 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
         return SowResourceRequirementResponse.builder()
                 .id(requirement.getId())
                 .sowId(requirement.getSow().getId())
-                .sowCode(requirement.getSow().getSowCode())
+                
                 .sowName(requirement.getSow().getSowName())
                 .positionId(requirement.getPositionId())
                 .positionName(requirement.getPositionName())

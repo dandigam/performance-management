@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 @Builder
 public class EmployeeMilestoneAssignmentResponse {
     private Long assignmentId;
+    private Long milestonePositionAssignmentId;
     private Long milestoneId;
     private String milestoneName;
     private LocalDate milestoneStartDate;

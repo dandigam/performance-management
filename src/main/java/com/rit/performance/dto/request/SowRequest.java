@@ -17,8 +17,6 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class SowRequest {
-    @Size(max = 50, message = "sowCode must not exceed 50 characters")
-    private String sowCode;
 
     @NotBlank(message = "sowName is required")
     @Size(max = 200, message = "sowName must not exceed 200 characters")

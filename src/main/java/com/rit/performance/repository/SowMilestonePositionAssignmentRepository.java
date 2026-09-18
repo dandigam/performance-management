@@ -8,6 +8,10 @@ import java.util.Optional;
 
 public interface SowMilestonePositionAssignmentRepository
         extends JpaRepository<SowMilestonePositionAssignment, Long> {
+    @EntityGraph(attributePaths = {"milestonePosition"})
+    List<SowMilestonePositionAssignment> findByMilestonePosition_Milestone_IdAndStatusIgnoreCase(
+            Long milestoneId, String status);
+
     boolean existsByEmployeeAssignment_EmployeeIdAndMilestonePosition_Milestone_IdAndStatusIgnoreCase(
             Long employeeId, Long milestoneId, String status);
 
@@ -25,9 +29,15 @@ public interface SowMilestonePositionAssignmentRepository
     List<SowMilestonePositionAssignment>
             findByMilestonePosition_IdOrderByAssignmentStartDateDescIdDesc(Long positionId);
 
+    @EntityGraph(attributePaths = {"milestonePosition", "milestonePosition.position",
+            "milestonePosition.milestone"})
     List<SowMilestonePositionAssignment>
             findByEmployeeAssignment_IdOrderByAssignmentStartDateDescIdDesc(
                     Long employeeAssignmentId);
+
+    @EntityGraph(attributePaths = {"employeeAssignment", "milestonePosition",
+            "milestonePosition.position", "milestonePosition.milestone"})
+    List<SowMilestonePositionAssignment> findByEmployeeAssignment_IdIn(List<Long> assignmentIds);
 
     @EntityGraph(attributePaths = {"employeeAssignment", "milestonePosition",
             "milestonePosition.sow", "milestonePosition.milestone",

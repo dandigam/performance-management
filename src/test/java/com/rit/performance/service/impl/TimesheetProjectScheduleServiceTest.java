@@ -185,7 +185,7 @@ class TimesheetProjectScheduleServiceTest {
 
     @Test
     void doesNotInsertIntoASubmittedTimesheetDate() {
-        when(timesheets.isDateLocked(10L, date(1))).thenReturn(true);
+        when(timesheets.isDateLocked(eq(10L), eq(date(1)), any())).thenReturn(true);
         assertThatThrownBy(() -> service.applyChanges(project, request(schedule(1, "6"))))
                 .isInstanceOf(InvalidOperationException.class).hasMessageContaining("locked");
     }

@@ -5,5 +5,6 @@ public enum TimesheetStatus {
     SUBMITTED,
     LEVEL1_APPROVED,
     REJECTED,
-    APPROVED
+    APPROVED,
+    CANCELLED
 }

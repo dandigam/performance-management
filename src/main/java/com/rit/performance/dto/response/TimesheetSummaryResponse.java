@@ -6,11 +6,13 @@ import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Getter
 @Builder
 public class TimesheetSummaryResponse {
     private Long timesheetId;
+    private Long timesheetEmployeeProjectId;
     private Long employeeId;
     private String employeeName;
     private LocalDate periodStartDate;
@@ -26,4 +28,5 @@ public class TimesheetSummaryResponse {
     private BigDecimal totalTimeOffHours;
     private String file;
     private String commentsNotes;
+    private List<TimesheetAuditLogResponse> auditLog;
 }

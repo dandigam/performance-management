@@ -35,6 +35,8 @@ class TimesheetEmployeeProjectControllerTest {
     void detailReturnsScheduleDatesInsteadOfDailyOverrides() throws Exception {
         when(service.get(3L, 11L, 89L)).thenReturn(TimesheetEmployeeProjectResponse.builder()
                 .timesheetEmployeeProjectId(4L)
+                .startDate(LocalDate.of(2026, 10, 1)).endDate(LocalDate.of(2026, 12, 31))
+                .assignmentStartDate(LocalDate.of(2026, 9, 1))
                 .scheduleDates(List.of(TimesheetDailyOverrideResponse.builder()
                         .workDate(LocalDate.of(2026, 10, 1))
                         .scheduledHours(new BigDecimal("2.00"))
@@ -45,11 +47,28 @@ class TimesheetEmployeeProjectControllerTest {
         mvc.perform(get("/api/v1/employees/3/timesheet-projects/11/milestones/89"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.timesheetEmployeeProjectId").value(4))
+                .andExpect(jsonPath("$.plannedStartDate").value("2026-10-01"))
+                .andExpect(jsonPath("$.plannedEndDate").value("2026-12-31"))
+                .andExpect(jsonPath("$.assignmentStartDate").value("2026-09-01"))
+                .andExpect(jsonPath("$.assignmentEndDate").doesNotExist())
                 .andExpect(jsonPath("$.scheduleDates.length()").value(1))
                 .andExpect(jsonPath("$.scheduleDates[0].workDate").value("2026-10-01"))
                 .andExpect(jsonPath("$.scheduleDates[0].scheduledHours").value(2.0))
                 .andExpect(jsonPath("$.scheduleDates[0].dayType").value("WORKING_DAY"))
                 .andExpect(jsonPath("$.dailyOverrides").doesNotExist());
+    }
+
+    @Test void acceptsExplicitPlannedDatesAndAssignmentLink() throws Exception {
+        mvc.perform(post("/api/v1/employees/3/timesheet-projects")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload("[]", "[]").replace("\"startDate\"", "\"plannedStartDate\"")
+                        .replace("\"endDate\"", "\"plannedEndDate\"")
+                        .replace("\"sowId\":45", "\"milestonePositionAssignmentId\":7,\"sowId\":45")))
+                .andExpect(status().isOk());
+        ArgumentCaptor<List<TimesheetEmployeeProjectRequest>> captured = ArgumentCaptor.forClass(List.class);
+        verify(service).create(eq(3L), captured.capture());
+        assertThat(captured.getValue().get(0).getStartDate()).isEqualTo(LocalDate.of(2026, 9, 1));
+        assertThat(captured.getValue().get(0).getMilestonePositionAssignmentId()).isEqualTo(7L);
     }
 
     private String payload(String scheduleDates, String deletedDates) {

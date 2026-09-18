@@ -11,6 +11,7 @@ import java.util.List;
 @Builder
 public class TimesheetWeekResponse {
     private Long timesheetId;
+    private Long timesheetEmployeeProjectId;
     private Long employeeId;
     private LocalDate weekStart;
     private LocalDate weekEnd;

@@ -53,4 +53,10 @@ public class TimesheetEmployeeProjectController {
             @PathVariable Long milestoneId) {
         return ResponseEntity.ok(service.get(employeeId, sowId, milestoneId));
     }
+
+    @GetMapping("/setups/{setupId}")
+    public ResponseEntity<TimesheetEmployeeProjectResponse> getBySetupId(
+            @PathVariable Long employeeId, @PathVariable Long setupId) {
+        return ResponseEntity.ok(service.getBySetupId(employeeId, setupId));
+    }
 }

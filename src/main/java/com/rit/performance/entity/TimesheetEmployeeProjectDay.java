@@ -34,12 +34,12 @@ public class TimesheetEmployeeProjectDay extends BaseEntity {
     @JoinColumn(name = "employee_id", nullable = false)
     private Employee employee;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "sow_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sow_id")
     private Sow sow;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "milestone_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "milestone_id")
     private SowMilestone milestone;
 
     @Column(name = "work_date", nullable = false)
@@ -66,6 +66,11 @@ public class TimesheetEmployeeProjectDay extends BaseEntity {
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    @Builder.Default
+    private TimesheetScheduleStatus status = TimesheetScheduleStatus.ACTIVE;
 
     @PrePersist @PreUpdate
     void validate() {

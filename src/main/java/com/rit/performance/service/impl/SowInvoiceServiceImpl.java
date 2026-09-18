@@ -347,7 +347,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                 .id(invoice.getId())
                 .departmentId(department == null ? null : department.getId())
                 .departmentName(department == null ? null : department.getName())
-                .sowId(sow.getId()).sowCode(sow.getSowCode()).sowName(sow.getSowName())
+                .sowId(sow.getId()).sowName(sow.getSowName())
                 .milestoneId(milestone.getId()).milestoneName(milestone.getMilestoneName())
                 .expectedCompletionDate(milestone.getEndDate())
                 .csxInvoiceNumber(invoice.getCsxInvoiceNumber())
@@ -451,7 +451,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         SowInvoice invoice = history.getInvoice();
         return SowInvoiceHistoryResponse.builder()
                 .id(history.getId()).invoiceId(invoice.getId())
-                .sowId(invoice.getSow().getId()).sowCode(invoice.getSow().getSowCode())
+                .sowId(invoice.getSow().getId())
                 .sowName(invoice.getSow().getSowName())
                 .milestoneId(invoice.getMilestone().getId())
                 .milestoneName(invoice.getMilestone().getMilestoneName())
@@ -475,7 +475,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         SowInvoice invoice = history.getInvoice();
         return SowInvoicePaymentHistoryResponse.builder()
                 .id(history.getId()).invoiceId(invoice.getId())
-                .sowId(invoice.getSow().getId()).sowCode(invoice.getSow().getSowCode())
+                .sowId(invoice.getSow().getId())
                 .sowName(invoice.getSow().getSowName())
                 .milestoneId(invoice.getMilestone().getId())
                 .milestoneName(invoice.getMilestone().getMilestoneName())

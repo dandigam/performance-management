@@ -16,7 +16,6 @@ import java.time.LocalDate;
 public class EmployeeAssignmentResponse {
     private Long assignmentId;
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private Long milestoneId;
     private String milestoneName;

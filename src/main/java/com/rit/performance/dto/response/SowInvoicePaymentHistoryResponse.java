@@ -11,7 +11,6 @@ public class SowInvoicePaymentHistoryResponse {
     private String csxInvoiceNumber;
     private Long invoiceId;
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private Long milestoneId;
     private String milestoneName;

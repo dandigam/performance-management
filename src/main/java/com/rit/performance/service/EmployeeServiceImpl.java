@@ -1,38 +1,6 @@
 package com.rit.performance.service;
 
-import com.rit.performance.dto.EmployeeBasicInfoResponse;
-import com.rit.performance.dto.EmployeeUpdateRequest;
-import com.rit.performance.dto.EmployeeCreateRequest;
-import com.rit.performance.dto.EmployeeCreateResponse;
-import com.rit.performance.dto.EmployeeCurrentProjectResponse;
-import com.rit.performance.dto.EmployeeMilestoneAssignmentResponse;
-import com.rit.performance.dto.EmployeeSowAssignmentResponse;
-import com.rit.performance.dto.EmployeeReviewSummaryResponse;
-import com.rit.performance.dto.ReportingManagerResponse;
-import com.rit.performance.dto.DirectReportsResponse;
-import com.rit.performance.dto.EmployeeHierarchyMemberResponse;
-import com.rit.performance.dto.EmployeeHierarchyResponse;
-import com.rit.performance.dto.EmployeeInformationResponse;
-import com.rit.performance.dto.EmployeeAddressRequest;
-import com.rit.performance.dto.EmployeeAddressResponse;
-import com.rit.performance.dto.EmployeeCompensationRequest;
-import com.rit.performance.dto.EmployeeCompensationResponse;
-import com.rit.performance.dto.EmployeeFinanceHistoryResponse;
-import com.rit.performance.dto.EmployeeAuditHistoryResponse;
-import com.rit.performance.dto.EmployeeProfessionalDetailsRequest;
-import com.rit.performance.dto.EmployeeProfessionalDetailsResponse;
-import com.rit.performance.dto.EmployeeEducationRequest;
-import com.rit.performance.dto.EmployeeEducationResponse;
-import com.rit.performance.dto.EmployeeExperienceRequest;
-import com.rit.performance.dto.EmployeeExperienceResponse;
-import com.rit.performance.dto.EmployeeBankDetailsRequest;
-import com.rit.performance.dto.EmployeeBankDetailsResponse;
-import com.rit.performance.dto.DocumentResponse;
-import com.rit.performance.dto.EmployeeDocumentRequest;
-import com.rit.performance.dto.EmployeeAssignmentRequest;
-import com.rit.performance.dto.EmployeeAssignmentResponse;
-import com.rit.performance.dto.EmployeeAssignmentsResponse;
-import com.rit.performance.dto.ProjectAssignmentRequest;
+import com.rit.performance.dto.*;
 import com.rit.performance.dto.response.SowMilestonePositionAssignmentResponse;
 import com.rit.performance.dto.request.SowMilestonePositionAssignmentRequest;
 import com.rit.performance.entity.*;
@@ -244,9 +212,17 @@ public class EmployeeServiceImpl implements EmployeeService {
     private EmployeeAssignment createInitialAssignment(Long employeeId, EmployeeCreateRequest request) {
         ProjectAssignmentRequest nested = request.getProjectAssignment();
         if (nested == null) return null;
+        if (nested.getDesignationId() != null || nested.getPositionType() != null) {
+            throw new InvalidOperationException(
+                    "Assign designation and position type through a milestone position assignment");
+        }
         Long designationId = nested.getDesignationId() == null
                 ? request.getDesignationId() : nested.getDesignationId();
         Long sowId = nested.getSowId();
+        if (nested.getDepartmentId() != null
+                && (sowId == null || !nested.getDepartmentId().equals(departmentIdForSow(sowId)))) {
+            throw new InvalidOperationException("Department is derived from the SOW business unit");
+        }
         Long departmentId = sowId == null ? nested.getDepartmentId() : departmentIdForSow(sowId);
         Long leadId = nested.getLeadId();
         Long managerId = nested.getManagerId();
@@ -256,20 +232,16 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeAssignment assignment = new EmployeeAssignment();
         assignment.setEmployeeId(employeeId);
-        assignment.setDepartmentId(departmentId);
-        assignment.setDesignationId(designationId);
         assignment.setLeadId(leadId);
         assignment.setManagerId(managerId);
         assignment.setSowId(sowId);
-        assignment.setMilestoneId(nested.getMilestoneId());
-        assignment.setPositionType(normalizePositionType(nested.getPositionType()));
+
         assignment.setEffectiveFrom(effectiveFrom == null ? LocalDate.now() : effectiveFrom);
         assignment.setEffectiveTo(nested.getAssignmentEndDate());
         validateAssignmentDates(assignment.getEffectiveFrom(), assignment.getEffectiveTo());
-        assignment.setAllocationPercentage(nested.getAllocationPercentage() == null
-                ? 100 : nested.getAllocationPercentage());
+
         assignment.setStatus(normalizeAssignmentStatus(nested.getStatus()));
-        assignment.setIsPrimaryAssignment(true);
+
         assignment.setCreatedBy(request.getCreatedBy());
         assignment.setUpdatedBy(request.getCreatedBy());
         return assignmentRepository.save(assignment);
@@ -277,63 +249,28 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional
-    public EmployeeBasicInfoResponse assign(EmployeeAssignmentRequest request) {
+    public com.rit.performance.dto.EmployeeAssignmentSuccessResponse assign(EmployeeAssignmentRequest request) {
         Employee employee = employeeRepository.findById(request.getEmployeeId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Employee not found: " + request.getEmployeeId()));
-        Long departmentId = departmentIdForSow(request.getSowId());
-        validateAssignmentValues(employee.getId(), departmentId, null,
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found: " + request.getEmployeeId()));
+
+        validateAssignmentValues(employee.getId(), null, null,
                 request.getSowId(), null, request.getLeadId(), request.getManagerId());
-        Optional<EmployeeAssignment> existingAssignment = assignmentRepository
-                .findFirstBySowIdAndEmployeeIdAndStatusIgnoreCaseOrderByEffectiveFromDescIdDesc(
-                        request.getSowId(), employee.getId(), "ACTIVE");
 
-        EmployeeAssignment assignment;
-        boolean primary;
-        if (existingAssignment.isPresent()) {
-            assignment = existingAssignment.get();
-            primary = Boolean.TRUE.equals(assignment.getIsPrimaryAssignment())
-                    || Boolean.TRUE.equals(request.getIsPrimaryAssignment());
-            if (Boolean.TRUE.equals(request.getIsPrimaryAssignment())
-                    && !Boolean.TRUE.equals(assignment.getIsPrimaryAssignment())) {
-                clearPrimaryAssignment(employee.getId(), request.getUpdatedBy());
-            }
-            if (request.getLeadId() != null) assignment.setLeadId(request.getLeadId());
-            if (request.getManagerId() != null) assignment.setManagerId(request.getManagerId());
-            assignment.setIsPrimaryAssignment(primary);
-            assignment.setUpdatedBy(request.getUpdatedBy());
-            assignment = assignmentRepository.save(assignment);
-        } else {
-            primary = Boolean.TRUE.equals(request.getIsPrimaryAssignment())
-                    || !assignmentRepository
-                            .existsByEmployeeIdAndStatusIgnoreCaseAndIsPrimaryAssignmentTrue(
-                                    employee.getId(), "ACTIVE");
-            if (primary) clearPrimaryAssignment(employee.getId(), request.getUpdatedBy());
+        EmployeeAssignment assignment = new EmployeeAssignment();
+        assignment.setEmployeeId(employee.getId());
+        assignment.setSowId(request.getSowId());
+        assignment.setLeadId(request.getLeadId());
+        assignment.setManagerId(request.getManagerId());
 
-            assignment = new EmployeeAssignment();
-            assignment.setEmployeeId(employee.getId());
-            assignment.setSowId(request.getSowId());
-            assignment.setMilestoneId(null);
-            assignment.setDepartmentId(departmentId);
-            assignment.setDesignationId(null);
-            assignment.setLeadId(request.getLeadId());
-            assignment.setManagerId(request.getManagerId());
-            assignment.setPositionType(null);
-            assignment.setAllocationPercentage(100);
-            LocalDate firstMilestoneStart = request.getMilestoneAssignments().stream()
-                    .map(com.rit.performance.dto.EmployeeMilestoneAssignmentRequest
-                            ::getAssignmentStartDate)
-                    .min(LocalDate::compareTo)
-                    .orElse(LocalDate.now());
-            assignment.setEffectiveFrom(request.getEffectiveFrom() == null
-                    ? firstMilestoneStart : request.getEffectiveFrom());
-            assignment.setStatus("ACTIVE");
-            assignment.setIsPrimaryAssignment(primary);
-            assignment.setCreatedBy(request.getUpdatedBy());
-            assignment.setUpdatedBy(request.getUpdatedBy());
-            assignment = assignmentRepository.save(assignment);
-            seedReviewsForNewEmployee(employee, request.getUpdatedBy(), assignment);
-        }
+        assignment.setEffectiveFrom( request.getEffectiveFrom());
+        assignment.setStatus("ASSIGNED");
+
+        assignment.setCreatedBy(request.getUpdatedBy());
+        assignment.setUpdatedBy(request.getUpdatedBy());
+
+        assignment = assignmentRepository.save(assignment);
+
+        seedReviewsForNewEmployee(employee, request.getUpdatedBy(), assignment);
         Long employeeAssignmentId = assignment.getId();
         List<SowMilestonePositionAssignmentResponse> milestoneAssignments = request
                 .getMilestoneAssignments().stream()
@@ -346,19 +283,15 @@ public class EmployeeServiceImpl implements EmployeeService {
                                 .positionType(item.getPositionType())
                                 .assignmentStartDate(item.getAssignmentStartDate())
                                 .assignmentEndDate(item.getAssignmentEndDate())
-                                .status(item.getStatus() == null || item.getStatus().isBlank()
-                                        ? "ACTIVE" : item.getStatus())
+                                .status("ASSIGNED")
                                 .updatedBy(request.getUpdatedBy())
                                 .build()))
                 .toList();
-        EmployeeBasicInfoResponse response = currentEmployeeResponse(employee, primary
-                ? assignment : assignmentRepository.findActiveByEmployeeId(employee.getId())
-                        .orElse(assignment));
-        response.setMilestoneAssignments(milestoneAssignments);
         employeeAuditService.record(employee.getId(), "EMPLOYEE_ASSIGNMENT",
-                existingAssignment.isPresent() ? "UPDATED" : "CREATED",
-                null, response, request.getUpdatedBy());
-        return response;
+                "CREATED",
+                null, Map.of("assignment", assignment, "milestoneAssignments", milestoneAssignments),
+                request.getUpdatedBy());
+        return new EmployeeAssignmentSuccessResponse(200, "Assigned successfully");
     }
 
     @Override
@@ -422,13 +355,13 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .stream()
                 .filter(sow -> sow.getStatus() != null
                         && ("ACTIVE".equalsIgnoreCase(sow.getStatus().getCode())
+                        || "DRAFT".equalsIgnoreCase(sow.getStatus().getCode())
                         || "COMPLETED".equalsIgnoreCase(sow.getStatus().getCode())))
                 .map(Sow::getId).collect(Collectors.toSet());
         Map<Long, List<SowMilestonePositionAssignment>> detailsByParent =
                 milestonePositionAssignmentRepository
                         .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(employeeId)
                         .stream()
-                        .filter(item -> "ACTIVE".equalsIgnoreCase(item.getStatus()))
                         .collect(Collectors.groupingBy(
                                 item -> item.getEmployeeAssignment().getId()));
         Map<Long, String> assignerNames = userRepository.findAllById(detailsByParent.values()
@@ -441,8 +374,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .employeeName(response.getEmployeeName())
                 .assignmentList(response.getAssignmentList().stream()
                         .filter(parent -> eligibleSowIds.contains(parent.getSowId()))
-                        .filter(parent -> "ACTIVE".equalsIgnoreCase(
-                                parent.getAssignmentStatus()))
                         .map(parent -> employeeSowAssignment(
                                 parent, detailsByParent.getOrDefault(
                                         parent.getAssignmentId(), List.of()), assignerNames))
@@ -455,13 +386,13 @@ public class EmployeeServiceImpl implements EmployeeService {
             List<SowMilestonePositionAssignment> details,
             Map<Long, String> assignerNames) {
         List<EmployeeMilestoneAssignmentResponse> milestoneAssignments = details.isEmpty()
-                ? legacyMilestoneAssignment(parent)
+                ? List.of()
                 : details.stream().map(detail -> employeeMilestoneAssignment(
                         detail, assignerNames)).toList();
         return EmployeeSowAssignmentResponse.builder()
                 .employeeAssignmentId(parent.getAssignmentId())
                 .sowId(parent.getSowId())
-                .sowCode(parent.getSowCode())
+                
                 .sowName(parent.getSowName())
                 .isPrimaryAssignment(parent.getIsPrimaryAssignment())
                 .assignmentStartDate(parent.getAssignmentStartDate())
@@ -485,17 +416,16 @@ public class EmployeeServiceImpl implements EmployeeService {
         LookupValue skill = position.getSkill();
         return EmployeeMilestoneAssignmentResponse.builder()
                 .assignmentId(detail.getId())
+                .milestonePositionAssignmentId(detail.getId())
                 .milestoneId(milestone.getId())
                 .milestoneName(milestone.getMilestoneName())
                 .milestoneStartDate(milestone.getStartDate())
                 .milestoneEndDate(milestone.getEndDate())
-                .milestoneDurationDays(inclusiveDays(
-                        milestone.getStartDate(), milestone.getEndDate()))
+                .milestoneDurationDays(inclusiveDays(milestone.getStartDate(), milestone.getEndDate()))
                 .milestonePositionId(position.getId())
                 .positionStartDate(position.getStartDate())
                 .positionEndDate(position.getEndDate())
-                .positionDurationDays(inclusiveDays(
-                        position.getStartDate(), position.getEndDate()))
+                .positionDurationDays(inclusiveDays(position.getStartDate(), position.getEndDate()))
                 .hours(position.getHours())
                 .designationId(designation == null ? null : designation.getId())
                 .designationName(designation == null
@@ -531,24 +461,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 ? "System" : user.getUsername();
     }
 
-    private List<EmployeeMilestoneAssignmentResponse> legacyMilestoneAssignment(
-            EmployeeAssignmentResponse parent) {
-        if (parent.getMilestoneId() == null && parent.getDesignationId() == null
-                && parent.getPositionType() == null) {
-            return List.of();
-        }
-        return List.of(EmployeeMilestoneAssignmentResponse.builder()
-                .assignmentId(parent.getAssignmentId())
-                .milestoneId(parent.getMilestoneId())
-                .milestoneName(parent.getMilestoneName())
-                .designationId(parent.getDesignationId())
-                .designationName(parent.getDesignationName())
-                .positionType(parent.getPositionType())
-                .assignmentStartDate(parent.getAssignmentStartDate())
-                .assignmentEndDate(parent.getAssignmentEndDate())
-                .assignmentStatus(parent.getAssignmentStatus())
-                .build());
-    }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -646,7 +559,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         Map<Long, Employee> employees = allEmployees.stream()
                 .collect(Collectors.toMap(Employee::getId, Function.identity()));
         Map<Long, EmployeeAssignment> assignments = assignmentRepository
-                .findByStatusIgnoreCaseOrderByIsPrimaryAssignmentDescEffectiveFromDesc("ACTIVE").stream()
+                .findByStatusIgnoreCaseOrderByEffectiveFromDesc("ACTIVE").stream()
                 .collect(Collectors.toMap(EmployeeAssignment::getEmployeeId, Function.identity(),
                         (first, ignored) -> first));
         Map<Long, EmployeeRole> roles = employeeRoleRepository.findByIsCurrentTrue().stream()
@@ -694,16 +607,17 @@ public class EmployeeServiceImpl implements EmployeeService {
             Map<Long, EmployeeReview> reviews) {
         if (employee == null) return null;
         EmployeeAssignment assignment = assignments.get(employee.getId());
+        var summary = assignmentSummary(assignment);
         EmployeeRole employeeRole = roles.get(employee.getId());
         LookupValue role = employeeRole == null ? null : lookups.get(employeeRole.getRoleId());
-        LookupValue department = assignment == null ? null : lookups.get(assignment.getDepartmentId());
+        LookupValue department = assignment == null ? null : lookups.get(summary.getDepartmentId());
         Long profileDesignationId = employee.getDesignationId() != null
                 ? employee.getDesignationId()
-                : assignment == null ? null : assignment.getDesignationId();
+                : assignment == null ? null : summary.getDesignationId();
         LookupValue designation = lookups.get(profileDesignationId);
         Sow sow = assignment == null ? null : sows.get(assignment.getSowId());
-        SowMilestone milestone = assignment == null || assignment.getMilestoneId() == null
-                ? null : sowMilestoneRepository.findById(assignment.getMilestoneId()).orElse(null);
+        SowMilestone milestone = assignment == null || summary.getMilestoneId() == null
+                ? null : sowMilestoneRepository.findById(summary.getMilestoneId()).orElse(null);
         Employee manager = assignment == null ? null : employees.get(assignment.getManagerId());
         Employee lead = assignment == null ? null : employees.get(assignment.getLeadId());
         EmployeeReview review = reviews.get(employee.getId());
@@ -727,17 +641,17 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .ritId(employee.getRitId()).csxRacfId(employee.getCsxRacfId())
                 .roleId(employeeRole == null ? null : employeeRole.getRoleId())
                 .roleName(role == null ? null : role.getName())
-                .departmentId(assignment == null ? null : assignment.getDepartmentId())
+                .departmentId(assignment == null ? null : summary.getDepartmentId())
                 .departmentName(department == null ? null : department.getName())
                 .designationId(profileDesignationId)
                 .designationName(designation == null ? null : designation.getName())
                 .sowId(assignment == null ? null : assignment.getSowId())
                 .sowName(sow == null ? null : sow.getSowName())
-                .milestoneId(assignment == null ? null : assignment.getMilestoneId())
+                .milestoneId(assignment == null ? null : summary.getMilestoneId())
                 .milestoneName(assignment == null ? null
                         : milestone == null ? "All milestones" : milestone.getMilestoneName())
-                .positionType(assignment == null ? null : assignment.getPositionType())
-                .isPrimaryAssignment(assignment == null ? null : assignment.getIsPrimaryAssignment())
+                .positionType(assignment == null ? null : summary.getPositionType())
+                .isPrimaryAssignment(null)
                 .managerId(assignment == null ? null : assignment.getManagerId())
                 .managerName(manager == null ? null : employeeName(manager))
                 .leadId(assignment == null ? null : assignment.getLeadId())
@@ -808,11 +722,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional(readOnly = true)
     public List<ReportingManagerResponse> getReportingManagers(Long sowId, Long departmentId,
             Long designationId, Long excludeEmployeeId) {
-        List<Long> employeeIds = assignmentRepository.findByStatusIgnoreCase("ACTIVE").stream()
-                .filter(assignment -> sowId == null || sowId.equals(assignment.getSowId()))
-                .filter(assignment -> departmentId == null || departmentId.equals(assignment.getDepartmentId()))
-                .filter(assignment -> designationId == null || designationId.equals(assignment.getDesignationId()))
-                .map(EmployeeAssignment::getEmployeeId)
+        List<Long> employeeIds = assignmentRepository.findReportingEmployeeIds(sowId, departmentId, designationId).stream()
                 .filter(id -> excludeEmployeeId == null || !excludeEmployeeId.equals(id))
                 .distinct().toList();
         if (employeeIds.isEmpty()) return List.of();
@@ -1061,25 +971,21 @@ public class EmployeeServiceImpl implements EmployeeService {
     private EmployeeAssignment replaceAssignmentWhenChanged(Long employeeId, EmployeeAssignment current,
             EmployeeUpdateRequest request, boolean reactivating) {
         ProjectAssignmentRequest nested = request.getProjectAssignment();
-        Long designationId = nested.isDesignationIdPresent() ? nested.getDesignationId()
-                : current == null ? null : current.getDesignationId();
+        if (nested.isDesignationIdPresent() || nested.isPositionTypePresent() || nested.isMilestoneIdPresent()
+                || nested.getAllocationPercentage() != null) {
+            throw new InvalidOperationException(
+                    "Update milestone, designation, position type and allocation through the milestone position assignment");
+        }
+        if (nested.isDepartmentIdPresent()) {
+            throw new InvalidOperationException("Department is derived from the SOW business unit");
+        }
         Long leadId = nested.isLeadIdPresent() ? nested.getLeadId()
                 : current == null ? null : current.getLeadId();
         Long managerId = nested.isManagerIdPresent() ? nested.getManagerId()
                 : current == null ? null : current.getManagerId();
         Long sowId = nested.isSowIdPresent() ? nested.getSowId()
                 : current == null ? null : current.getSowId();
-        Long departmentId = sowId == null
-                ? nested.isDepartmentIdPresent() ? nested.getDepartmentId()
-                        : current == null ? null : current.getDepartmentId()
-                : departmentIdForSow(sowId);
-        Long milestoneId = nested.isMilestoneIdPresent() ? nested.getMilestoneId()
-                : current == null ? null : current.getMilestoneId();
-        String positionType = nested.isPositionTypePresent() ? normalizePositionType(nested.getPositionType())
-                : current == null ? null : current.getPositionType();
-        Integer allocationPercentage = nested.getAllocationPercentage() != null
-                ? nested.getAllocationPercentage()
-                : current == null || current.getAllocationPercentage() == null ? 100 : current.getAllocationPercentage();
+        Long departmentId = sowId == null ? null : departmentIdForSow(sowId);
         LocalDate assignmentEndDate = nested.getAssignmentEndDate() != null
                 ? nested.getAssignmentEndDate() : current == null ? null : current.getEffectiveTo();
         String assignmentStatus = nested.getStatus() != null
@@ -1089,7 +995,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             assignmentEndDate = null;
             assignmentStatus = "ACTIVE";
         }
-        validateAssignmentValues(employeeId, departmentId, designationId, sowId, milestoneId,
+        validateAssignmentValues(employeeId, departmentId, null, sowId, null,
                 leadId, managerId);
 
         LocalDate effectiveFrom = nested.getEffectiveFrom() != null
@@ -1097,31 +1003,23 @@ public class EmployeeServiceImpl implements EmployeeService {
                 : LocalDate.now();
         validateAssignmentDates(effectiveFrom, assignmentEndDate);
         if (reactivating) {
-            current.setDepartmentId(departmentId);
-            current.setDesignationId(designationId);
             current.setLeadId(leadId);
             current.setManagerId(managerId);
             current.setSowId(sowId);
-            current.setMilestoneId(milestoneId);
-            current.setPositionType(positionType);
-            current.setAllocationPercentage(allocationPercentage);
+
+
             current.setEffectiveFrom(effectiveFrom);
             current.setEffectiveTo(null);
             current.setStatus("ACTIVE");
-            current.setIsPrimaryAssignment(Boolean.TRUE.equals(current.getIsPrimaryAssignment()));
+
             current.setUpdatedBy(request.getUpdatedBy());
             return assignmentRepository.save(current);
         }
 
         boolean changed = current == null
-                || !Objects.equals(current.getDepartmentId(), departmentId)
-                || !Objects.equals(current.getDesignationId(), designationId)
                 || !Objects.equals(current.getLeadId(), leadId)
                 || !Objects.equals(current.getManagerId(), managerId)
                 || !Objects.equals(current.getSowId(), sowId)
-                || !Objects.equals(current.getMilestoneId(), milestoneId)
-                || !Objects.equals(current.getPositionType(), positionType)
-                || !Objects.equals(current.getAllocationPercentage(), allocationPercentage)
                 || !Objects.equals(current.getEffectiveTo(), assignmentEndDate)
                 || !Objects.equals(current.getStatus(), assignmentStatus);
         if (!changed) return current;
@@ -1136,19 +1034,15 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeAssignment replacement = new EmployeeAssignment();
         replacement.setEmployeeId(employeeId);
-        replacement.setDepartmentId(departmentId);
-        replacement.setDesignationId(designationId);
         replacement.setLeadId(leadId);
         replacement.setManagerId(managerId);
         replacement.setSowId(sowId);
-        replacement.setMilestoneId(milestoneId);
-        replacement.setPositionType(positionType);
+
         replacement.setEffectiveFrom(effectiveFrom);
         replacement.setEffectiveTo(assignmentEndDate);
-        replacement.setAllocationPercentage(allocationPercentage);
+
         replacement.setStatus(assignmentStatus);
-        replacement.setIsPrimaryAssignment(current == null
-                || Boolean.TRUE.equals(current.getIsPrimaryAssignment()));
+
         replacement.setCreatedBy(request.getUpdatedBy());
         replacement.setUpdatedBy(request.getUpdatedBy());
         return assignmentRepository.save(replacement);
@@ -1244,18 +1138,21 @@ public class EmployeeServiceImpl implements EmployeeService {
         List<EmployeeAssignment> assignments = assignmentRepository.findByEmployeeId(employee.getId()).stream()
                 .sorted(assignmentDisplayOrder()).toList();
         Map<Long, SowMilestone> milestones = sowMilestoneRepository.findAllById(assignments.stream()
-                        .map(EmployeeAssignment::getMilestoneId).filter(Objects::nonNull).distinct().toList())
+                        .map(item -> assignmentSummary(item).getMilestoneId()).filter(Objects::nonNull).distinct().toList())
                 .stream().collect(Collectors.toMap(SowMilestone::getId, Function.identity()));
         EmployeeRole role = employeeRoleRepository
                 .findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDesc(employee.getId()).orElse(null);
         EmployeeBasicInfoResponse response = toResponse(
                 employee, assignment, role, employees, lookupValues, sows, null,
                 assignments, milestones);
+        LocalDate today = LocalDate.now();
         response.setCurrentProjects(currentProjects(
                 assignments.stream()
-                        .filter(item -> "ACTIVE".equalsIgnoreCase(item.getStatus()))
+                        .filter(item -> item.getEffectiveFrom() != null
+                                && !item.getEffectiveFrom().isAfter(today)
+                                && (item.getEffectiveTo() == null || !item.getEffectiveTo().isBefore(today)))
                         .toList(),
-                lookupValues, sows));
+                lookupValues, sows, "ASSIGNED"));
         return response;
     }
 
@@ -1267,9 +1164,10 @@ public class EmployeeServiceImpl implements EmployeeService {
     private EmployeeBasicInfoResponse toResponse(Employee employee, EmployeeAssignment assignment, EmployeeRole role,
             Map<Long, Employee> employees, Map<Long, LookupValue> lookupValues, Map<Long, Sow> sows,
             EmployeeReviewAssessment review) {
-        Map<Long, SowMilestone> milestones = assignment == null || assignment.getMilestoneId() == null
+        var summary = assignmentSummary(assignment);
+        Map<Long, SowMilestone> milestones = assignment == null || summary.getMilestoneId() == null
                 ? Map.of()
-                : sowMilestoneRepository.findById(assignment.getMilestoneId()).stream()
+                : sowMilestoneRepository.findById(summary.getMilestoneId()).stream()
                         .collect(Collectors.toMap(SowMilestone::getId, Function.identity()));
         return toResponse(employee, assignment, role, employees, lookupValues, sows, review,
                 assignment == null ? List.of() : List.of(assignment), milestones);
@@ -1279,15 +1177,16 @@ public class EmployeeServiceImpl implements EmployeeService {
             Map<Long, Employee> employees, Map<Long, LookupValue> lookupValues, Map<Long, Sow> sows,
             EmployeeReviewAssessment review, List<EmployeeAssignment> assignments,
         Map<Long, SowMilestone> milestones) {
+        var summary = assignmentSummary(assignment);
         Long profileDesignationId = employee.getDesignationId() != null
                 ? employee.getDesignationId()
-                : assignment == null ? null : assignment.getDesignationId();
+                : assignment == null ? null : summary.getDesignationId();
         LookupValue designation = lookupValues.get(profileDesignationId);
-        LookupValue department = assignment == null ? null : lookupValues.get(assignment.getDepartmentId());
+        LookupValue department = assignment == null ? null : lookupValues.get(summary.getDepartmentId());
         LookupValue roleLookup = role == null ? null : lookupValues.get(role.getRoleId());
         Sow sow = assignment == null ? null : sows.get(assignment.getSowId());
-        SowMilestone milestone = assignment == null || assignment.getMilestoneId() == null
-                ? null : milestones.get(assignment.getMilestoneId());
+        SowMilestone milestone = assignment == null || summary.getMilestoneId() == null
+                ? null : milestones.get(summary.getMilestoneId());
         Employee manager = assignment == null ? null : employees.get(assignment.getManagerId());
         Employee lead = assignment == null ? null : employees.get(assignment.getLeadId());
 
@@ -1311,21 +1210,20 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .designationName(designation == null ? null : designation.getName())
                 .assignmentId(assignment == null ? null : assignment.getId())
                 .sowId(assignment == null ? null : assignment.getSowId())
-                .sowCode(sow == null ? null : sow.getSowCode())
+                
                 .sowName(sow == null ? null : sow.getSowName())
-                .milestoneId(assignment == null ? null : assignment.getMilestoneId())
+                .milestoneId(assignment == null ? null : summary.getMilestoneId())
                 .milestoneName(assignment == null ? null
                         : milestone == null ? "All milestones" : milestone.getMilestoneName())
-                .positionType(assignment == null ? null : assignment.getPositionType())
-                .isPrimaryAssignment(assignment == null ? null : assignment.getIsPrimaryAssignment())
-                .allocationPercentage(assignment == null ? null : assignment.getAllocationPercentage())
+                .positionType(assignment == null ? null : summary.getPositionType())
+                .isPrimaryAssignment(null)
                 .assignmentStartDate(assignment == null ? null : assignment.getEffectiveFrom())
                 .assignmentEndDate(assignment == null ? null : assignment.getEffectiveTo())
                 .assignmentStatus(assignment == null ? null
                         : assignment.getStatus() == null
                         ? "INACTIVE"
                         : assignment.getStatus())
-                .departmentId(assignment == null ? null : assignment.getDepartmentId())
+                .departmentId(assignment == null ? null : summary.getDepartmentId())
                 .departmentName(department == null ? null : department.getName())
                 .managerId(assignment == null ? null : assignment.getManagerId())
                 .managerName(manager == null ? null : employeeName(manager))
@@ -1352,30 +1250,30 @@ public class EmployeeServiceImpl implements EmployeeService {
     private EmployeeAssignmentResponse assignmentResponse(EmployeeAssignment assignment,
             Map<Long, Employee> employees, Map<Long, LookupValue> lookupValues, Map<Long, Sow> sows,
             Map<Long, SowMilestone> milestones) {
-        LookupValue designation = lookupValues.get(assignment.getDesignationId());
-        LookupValue department = lookupValues.get(assignment.getDepartmentId());
+        var summary = assignmentSummary(assignment);
+        LookupValue designation = lookupValues.get(summary.getDesignationId());
+        LookupValue department = lookupValues.get(summary.getDepartmentId());
         Sow sow = sows.get(assignment.getSowId());
-        SowMilestone milestone = assignment.getMilestoneId() == null
-                ? null : milestones.get(assignment.getMilestoneId());
+        SowMilestone milestone = summary.getMilestoneId() == null
+                ? null : milestones.get(summary.getMilestoneId());
         Employee manager = employees.get(assignment.getManagerId());
         Employee lead = employees.get(assignment.getLeadId());
         return EmployeeAssignmentResponse.builder()
                 .assignmentId(assignment.getId())
                 .sowId(assignment.getSowId())
-                .sowCode(sow == null ? null : sow.getSowCode())
+                
                 .sowName(sow == null ? null : sow.getSowName())
-                .milestoneId(assignment.getMilestoneId())
-                .milestoneName(assignment.getMilestoneId() == null
+                .milestoneId(summary.getMilestoneId())
+                .milestoneName(summary.getMilestoneId() == null
                         ? "All milestones" : milestone == null ? null : milestone.getMilestoneName())
-                .designationId(assignment.getDesignationId())
+                .designationId(summary.getDesignationId())
                 .designationName(designation == null ? null : designation.getName())
-                .positionType(assignment.getPositionType())
-                .isPrimaryAssignment(assignment.getIsPrimaryAssignment())
-                .allocationPercentage(assignment.getAllocationPercentage())
+                .positionType(summary.getPositionType())
+                .isPrimaryAssignment(null)
                 .assignmentStartDate(assignment.getEffectiveFrom())
                 .assignmentEndDate(assignment.getEffectiveTo())
                 .assignmentStatus(assignment.getStatus() == null ? "INACTIVE" : assignment.getStatus())
-                .departmentId(assignment.getDepartmentId())
+                .departmentId(summary.getDepartmentId())
                 .departmentName(department == null ? null : department.getName())
                 .managerId(assignment.getManagerId())
                 .managerName(manager == null ? null : employeeName(manager))
@@ -1388,13 +1286,22 @@ public class EmployeeServiceImpl implements EmployeeService {
             List<EmployeeAssignment> assignments,
             Map<Long, LookupValue> lookupValues,
             Map<Long, Sow> sows) {
+        // Preserve the existing employee list endpoint's behavior.
+        return currentProjects(assignments, lookupValues, sows, "ACTIVE");
+    }
+
+    private List<EmployeeCurrentProjectResponse> currentProjects(
+            List<EmployeeAssignment> assignments,
+            Map<Long, LookupValue> lookupValues,
+            Map<Long, Sow> sows, String assignmentStatus) {
         Map<String, EmployeeCurrentProjectResponse> uniqueProjects = new LinkedHashMap<>();
         assignments.stream()
-                .filter(assignment -> "ACTIVE".equalsIgnoreCase(assignment.getStatus()))
+                .filter(assignment -> assignmentStatus.equalsIgnoreCase(assignment.getStatus()))
                 .forEach(assignment -> {
+                    var assignmentDetails = assignmentSummary(assignment);
                     Sow assignmentSow = sows.get(assignment.getSowId());
                     LookupValue assignmentDesignation =
-                            lookupValues.get(assignment.getDesignationId());
+                            lookupValues.get(assignmentDetails.getDesignationId());
                     EmployeeCurrentProjectResponse summary =
                             EmployeeCurrentProjectResponse.builder()
                                     .projectId(assignmentSow == null
@@ -1416,9 +1323,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private static Comparator<EmployeeAssignment> assignmentDisplayOrder() {
         return Comparator
-                .comparing((EmployeeAssignment assignment) ->
-                        Boolean.TRUE.equals(assignment.getIsPrimaryAssignment())).reversed()
-                .thenComparing(assignment -> "ACTIVE".equalsIgnoreCase(assignment.getStatus()),
+                .comparing((EmployeeAssignment assignment) -> "ACTIVE".equalsIgnoreCase(assignment.getStatus()),
                         Comparator.reverseOrder())
                 .thenComparing(EmployeeAssignment::getEffectiveFrom,
                         Comparator.nullsLast(Comparator.reverseOrder()))
@@ -1777,25 +1682,16 @@ public class EmployeeServiceImpl implements EmployeeService {
         return normalized;
     }
 
-    private String normalizePositionType(String positionType) {
-        if (positionType == null || positionType.isBlank()) return null;
-        String normalized = positionType.trim().toUpperCase().replace(' ', '_');
-        if ("NONBILLABLE".equals(normalized)) normalized = "NON_BILLABLE";
-        if (!Set.of("BILLABLE", "NON_BILLABLE").contains(normalized)) {
-            throw new InvalidOperationException("positionType must be BILLABLE or NON_BILLABLE");
-        }
-        return normalized;
+
+
+
+    private EmployeeAssignmentSummary assignmentSummary(EmployeeAssignment assignment) {
+        if (assignment == null) return EmployeeAssignmentSummary.from(null, List.of());
+        Sow sow = assignment.getSowId() == null ? null
+                : sowRepository.findById(assignment.getSowId()).orElse(null);
+        return EmployeeAssignmentSummary.from(sow, assignment.getId() == null ? List.of()
+                : milestonePositionAssignmentRepository
+                        .findByEmployeeAssignment_IdOrderByAssignmentStartDateDescIdDesc(assignment.getId()));
     }
 
-    private void clearPrimaryAssignment(Long employeeId, Long updatedBy) {
-        List<EmployeeAssignment> activeAssignments =
-                assignmentRepository.findAllByEmployeeIdAndStatusIgnoreCase(employeeId, "ACTIVE");
-        activeAssignments.stream()
-                .filter(assignment -> Boolean.TRUE.equals(assignment.getIsPrimaryAssignment()))
-                .forEach(assignment -> {
-                    assignment.setIsPrimaryAssignment(false);
-                    assignment.setUpdatedBy(updatedBy);
-                });
-        assignmentRepository.saveAll(activeAssignments);
-    }
 }

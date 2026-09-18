@@ -42,7 +42,7 @@ public class TimesheetEntry extends BaseEntity {
     @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal hours;
 
-    @Column(name = "job_id")
+    @Transient
     private Long jobId;
 
     @ManyToOne(fetch = FetchType.LAZY)

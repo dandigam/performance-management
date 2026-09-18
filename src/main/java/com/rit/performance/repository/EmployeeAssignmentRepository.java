@@ -14,26 +14,29 @@ import java.util.Optional;
 @Repository
 public interface EmployeeAssignmentRepository extends JpaRepository<EmployeeAssignment, Long> {
 
+    @Query("""
+            select assignment from EmployeeAssignment assignment
+            where assignment.employeeId in :employeeIds
+              and upper(assignment.status) = 'ASSIGNED'
+              and assignment.effectiveFrom <= :onDate
+              and (assignment.effectiveTo is null or assignment.effectiveTo >= :onDate)
+            order by assignment.effectiveFrom desc, assignment.id desc
+            """)
+    List<EmployeeAssignment> findCurrentForEmployees(@Param("employeeIds") List<Long> employeeIds,
+            @Param("onDate") java.time.LocalDate onDate);
+
     List<EmployeeAssignment> findByEmployeeId(Long employeeId);
 
-    Optional<EmployeeAssignment> findFirstByEmployeeIdOrderByEffectiveFromDescIdDesc(Long employeeId);
 
     Optional<EmployeeAssignment> findFirstByEmployeeIdAndStatusIgnoreCaseOrderByEffectiveFromDescIdDesc(
             Long employeeId, String status);
 
     default Optional<EmployeeAssignment> findActiveByEmployeeId(Long employeeId) {
-        return findFirstByEmployeeIdAndStatusIgnoreCaseAndIsPrimaryAssignmentTrueOrderByEffectiveFromDescIdDesc(
-                employeeId, "ACTIVE")
-                .or(() -> findFirstByEmployeeIdAndStatusIgnoreCaseOrderByEffectiveFromDescIdDesc(
-                        employeeId, "ACTIVE"));
+        return findFirstByEmployeeIdAndStatusIgnoreCaseOrderByEffectiveFromDescIdDesc(employeeId, "ACTIVE");
     }
 
-    Optional<EmployeeAssignment> findFirstByEmployeeIdAndStatusIgnoreCaseAndIsPrimaryAssignmentTrueOrderByEffectiveFromDescIdDesc(
-            Long employeeId, String status);
 
-    List<EmployeeAssignment> findAllByEmployeeIdAndStatusIgnoreCase(Long employeeId, String status);
 
-    boolean existsByEmployeeIdAndStatusIgnoreCaseAndIsPrimaryAssignmentTrue(Long employeeId, String status);
 
     @Query("""
             select assignment from EmployeeAssignment assignment
@@ -47,21 +50,37 @@ public interface EmployeeAssignmentRepository extends JpaRepository<EmployeeAssi
 
     List<EmployeeAssignment> findByStatusIgnoreCase(String status);
 
-    List<EmployeeAssignment> findByStatusIgnoreCaseOrderByIsPrimaryAssignmentDescEffectiveFromDesc(String status);
+    List<EmployeeAssignment> findByStatusIgnoreCaseOrderByEffectiveFromDesc(String status);
 
-    List<EmployeeAssignment> findByManagerId(Long managerId);
 
     List<EmployeeAssignment> findByManagerIdAndStatusIgnoreCase(Long managerId, String status);
 
-    List<EmployeeAssignment> findByLeadId(Long leadId);
 
     List<EmployeeAssignment> findByLeadIdAndStatusIgnoreCase(Long leadId, String status);
 
-    List<EmployeeAssignment> findByDepartmentId(Long departmentId);
 
+    @Query("""
+            select assignment from EmployeeAssignment assignment
+            join Sow sow on sow.id = assignment.sowId
+            where sow.businessUnit.id in :departmentIds and upper(assignment.status) = upper(:status)
+            """)
     List<EmployeeAssignment> findByDepartmentIdInAndStatusIgnoreCase(List<Long> departmentIds, String status);
 
-    List<EmployeeAssignment> findByDesignationIdInAndStatusIgnoreCase(List<Long> designationIds, String status);
+    @Query("""
+            select distinct assignment.employeeId from EmployeeAssignment assignment
+            left join Sow sow on sow.id = assignment.sowId
+            where upper(assignment.status) = 'ACTIVE'
+              and (:sowId is null or assignment.sowId = :sowId)
+              and (:departmentId is null or sow.businessUnit.id = :departmentId)
+              and (:designationId is null or exists (
+                  select detail.id from SowMilestonePositionAssignment detail
+                  where detail.employeeAssignment.id = assignment.id
+                    and upper(detail.status) = 'ASSIGNED'
+                    and detail.milestonePosition.position.id = :designationId))
+            """)
+    List<Long> findReportingEmployeeIds(@Param("sowId") Long sowId,
+            @Param("departmentId") Long departmentId, @Param("designationId") Long designationId);
+
 
     Optional<EmployeeAssignment> findFirstBySowIdAndEmployeeIdOrderByEffectiveFromDescIdDesc(
             Long sowId, Long employeeId);
@@ -71,7 +90,7 @@ public interface EmployeeAssignmentRepository extends JpaRepository<EmployeeAssi
 
     Page<EmployeeAssignment> findBySowIdAndStatusIgnoreCase(Long sowId, String status, Pageable pageable);
 
-    List<EmployeeAssignment> findBySowIdAndStatusIgnoreCaseOrderByIsPrimaryAssignmentDescEffectiveFromDescIdDesc(
+    List<EmployeeAssignment> findBySowIdAndStatusIgnoreCaseOrderByEffectiveFromDescIdDesc(
             Long sowId, String status);
 
     boolean existsBySowIdAndEmployeeIdAndStatusIgnoreCase(Long sowId, Long employeeId, String status);
@@ -79,8 +98,5 @@ public interface EmployeeAssignmentRepository extends JpaRepository<EmployeeAssi
     boolean existsBySowIdAndEmployeeIdAndStatusIgnoreCaseAndIdNot(
             Long sowId, Long employeeId, String status, Long assignmentId);
 
-    List<EmployeeAssignment> findBySowIdAndDepartmentIdAndDesignationIdAndStatusIgnoreCase(
-            Long sowId, Long departmentId, Long designationId, String status);
 
-    boolean existsByEmployeeIdAndStatusIgnoreCase(Long employeeId, String status);
 }

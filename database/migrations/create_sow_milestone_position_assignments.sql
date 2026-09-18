@@ -15,7 +15,7 @@ CREATE TABLE sow_milestone_position_assignments (
     INDEX idx_smpa_employee_assignment_id (employee_assignment_id),
     INDEX idx_smpa_milestone_position_id (milestone_position_id),
     CONSTRAINT fk_smpa_employee_assignment
-        FOREIGN KEY (employee_assignment_id) REFERENCES employee_assignments (id),
+        FOREIGN KEY (employee_assignment_id) REFERENCES sow_employee_assignments (id),
     CONSTRAINT fk_smpa_milestone_position
         FOREIGN KEY (milestone_position_id) REFERENCES sow_milestone_positions (id)
         ON DELETE CASCADE

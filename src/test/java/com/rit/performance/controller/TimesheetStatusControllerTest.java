@@ -34,4 +34,11 @@ class TimesheetStatusControllerTest {
         mvc.perform(get("/api/timesheets").param("employeeId", "3").param("status", "WRONG"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void emptyStatusDefaultsToAll() throws Exception {
+        mvc.perform(get("/api/timesheets").param("employeeId", "2").param("status", ""))
+                .andExpect(status().isOk());
+        verify(service).getAll(2L, "ALL");
+    }
 }

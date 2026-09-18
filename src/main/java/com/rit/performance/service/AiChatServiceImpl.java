@@ -170,7 +170,6 @@ public class AiChatServiceImpl implements AiChatService {
         if (sows.isEmpty()) return "No statements of work found.";
         return sows.stream()
                 .map(sow -> "- " + value(sow.getSowName())
-                        + " (" + value(sow.getSowCode()) + ")"
                         + " | status: " + value(sow.getStatus())
                         + " | CSX project: " + value(sow.getCsxProjectId())
                         + " | start: " + value(sow.getStartDate())

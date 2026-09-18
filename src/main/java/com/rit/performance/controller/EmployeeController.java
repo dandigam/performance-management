@@ -33,6 +33,22 @@ import java.util.List;
 public class EmployeeController {
     private final EmployeeService employeeService;
     private final EmployeeAuditService employeeAuditService;
+    private final com.rit.performance.service.EmployeeSummaryService employeeSummaryService;
+
+    @GetMapping("/summaries")
+    public ResponseEntity<com.rit.performance.dto.EmployeeSummaryPageResponse> getSummaries(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) Long sowId,
+            @RequestParam(required = false) String assignmentStatus,
+            @RequestParam(required = false) String workMode,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "employeeName,asc") String sort) {
+        return ResponseEntity.ok(employeeSummaryService.getSummaries(page, size, search,
+                departmentId, sowId, assignmentStatus, workMode, status, sort));
+    }
 
     @PostMapping
     public ResponseEntity<EmployeeCreateResponse> create(@Valid @RequestBody EmployeeCreateRequest request) {

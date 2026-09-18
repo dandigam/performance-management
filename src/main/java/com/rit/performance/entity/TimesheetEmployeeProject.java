@@ -16,8 +16,8 @@ import java.util.List;
         @AttributeOverride(name = "updatedOn", column = @Column(name = "updated_at", nullable = false))
 })
 @Table(name = "timesheet_employee_projects",
-        uniqueConstraints = @UniqueConstraint(name = "uq_employee_project_milestone",
-                columnNames = {"employee_id", "sow_id", "milestone_id"}),
+        uniqueConstraints = @UniqueConstraint(name = "uq_timesheet_position_assignment",
+                columnNames = {"milestone_position_assignment_id"}),
         indexes = {
                 @Index(name = "idx_tep_employee_status", columnList = "employee_id,status"),
                 @Index(name = "idx_tep_sow_status", columnList = "sow_id,status"),
@@ -40,20 +40,39 @@ public class TimesheetEmployeeProject extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_tep_employee"))
     private Employee employee;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "sow_id", nullable = false,
+    @Enumerated(EnumType.STRING)
+    @Column(name = "work_type", nullable = false, columnDefinition = "VARCHAR(20)")
+    @Builder.Default
+    private TimesheetWorkType workType = TimesheetWorkType.PROJECT;
+
+    @Column(name = "internal_work_type", length = 50)
+    private String internalWorkType;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "milestone_position_assignment_id",
+            foreignKey = @ForeignKey(name = "fk_tep_resource_assignment"))
+    private SowMilestonePositionAssignment milestonePositionAssignment;
+
+    @Column(name = "assignment_start_date")
+    private LocalDate assignmentStartDate;
+
+    @Column(name = "assignment_end_date")
+    private LocalDate assignmentEndDate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sow_id",
             foreignKey = @ForeignKey(name = "fk_tep_sow"))
     private Sow sow;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "milestone_id", nullable = false,
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "milestone_id",
             foreignKey = @ForeignKey(name = "fk_tep_milestone"))
     private SowMilestone milestone;
 
-    @Column(name = "start_date", nullable = false)
+    @Column(name = "planned_start_date", nullable = false)
     private LocalDate startDate;
 
-    @Column(name = "end_date", nullable = false)
+    @Column(name = "planned_end_date", nullable = false)
     private LocalDate endDate;
 
     @Column(name = "default_hours_per_day", precision = 4, scale = 2)
@@ -84,6 +103,10 @@ public class TimesheetEmployeeProject extends BaseEntity {
     @PreUpdate
     void validateAssignment() {
         if (status == null) status = TimesheetEmployeeProjectStatus.ACTIVE;
+        if (assignmentEndDate != null && assignmentStartDate != null
+                && assignmentEndDate.isBefore(assignmentStartDate)) {
+            throw new IllegalStateException("assignmentEndDate cannot be before assignmentStartDate");
+        }
         if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
             throw new IllegalStateException("endDate cannot be before startDate");
         }
@@ -98,6 +121,15 @@ public class TimesheetEmployeeProject extends BaseEntity {
         if (sameEmployee(level1Approver, level2Approver)) {
             throw new IllegalStateException("Level 1 and Level 2 approvers must be different employees");
         }
+    }
+
+    /** Compatibility for the existing weekly timesheet response. */
+    public LocalDate getEffectiveStartDate() {
+        return assignmentStartDate != null && assignmentStartDate.isAfter(startDate) ? assignmentStartDate : startDate;
+    }
+
+    public LocalDate getEffectiveEndDate() {
+        return assignmentEndDate != null && assignmentEndDate.isBefore(endDate) ? assignmentEndDate : endDate;
     }
 
     /** Compatibility for the existing weekly timesheet response. */

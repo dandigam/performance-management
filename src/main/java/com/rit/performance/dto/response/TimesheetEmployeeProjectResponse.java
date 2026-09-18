@@ -20,8 +20,15 @@ public class TimesheetEmployeeProjectResponse {
     private Long milestoneId;
     private String milestoneName;
     private String designationName;
+    @com.fasterxml.jackson.annotation.JsonProperty("plannedStartDate")
     private LocalDate startDate;
+    @com.fasterxml.jackson.annotation.JsonProperty("plannedEndDate")
     private LocalDate endDate;
+    private LocalDate assignmentStartDate;
+    private LocalDate assignmentEndDate;
+    private Long milestonePositionAssignmentId;
+    private com.rit.performance.entity.TimesheetWorkType workType;
+    private String internalWorkType;
     private BigDecimal defaultHoursPerDay;
     private List<TimesheetDailyOverrideResponse> scheduleDates;
     private Long level1ApproverId;
@@ -31,4 +38,9 @@ public class TimesheetEmployeeProjectResponse {
     private TimesheetEmployeeProjectStatus status;
     private LocalDateTime createdOn;
     private LocalDateTime updatedOn;
+    // Legacy aliases retain planned-date semantics during client migration.
+    @com.fasterxml.jackson.annotation.JsonProperty("startDate")
+    public LocalDate legacyStartDate() { return startDate; }
+    @com.fasterxml.jackson.annotation.JsonProperty("endDate")
+    public LocalDate legacyEndDate() { return endDate; }
 }

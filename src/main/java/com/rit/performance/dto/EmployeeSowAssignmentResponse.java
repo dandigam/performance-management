@@ -17,7 +17,6 @@ import java.util.List;
 public class EmployeeSowAssignmentResponse {
     private Long employeeAssignmentId;
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private Boolean isPrimaryAssignment;
     private LocalDate assignmentStartDate;

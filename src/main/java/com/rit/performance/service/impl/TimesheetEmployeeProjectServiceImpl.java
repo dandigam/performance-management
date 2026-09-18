@@ -7,6 +7,9 @@ import com.rit.performance.entity.Employee;
 import com.rit.performance.entity.Sow;
 import com.rit.performance.entity.SowMilestonePositionAssignment;
 import com.rit.performance.entity.TimesheetEmployeeProject;
+import com.rit.performance.entity.TimesheetWorkType;
+import com.rit.performance.entity.TimesheetEmployeeProjectStatus;
+import java.util.Objects;
 import com.rit.performance.exception.DuplicateResourceException;
 import com.rit.performance.exception.InvalidOperationException;
 import com.rit.performance.exception.ResourceNotFoundException;
@@ -56,9 +59,10 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
                                 "Timesheet employee project not found: "
                                         + request.getTimesheetEmployeeProjectId()));
             }
-            TimesheetEmployeeProject conflicting = repository
-                    .findByEmployeeIdAndSowIdAndMilestoneId(
-                            employeeId, request.getSowId(), request.getMilestoneId())
+            apply(assignment, request);
+            TimesheetEmployeeProject conflicting = (assignment.getMilestonePositionAssignment() == null
+                    ? java.util.Optional.<TimesheetEmployeeProject>empty()
+                    : repository.findByMilestonePositionAssignment_Id(assignment.getMilestonePositionAssignment().getId()))
                     .filter(existing -> request.getTimesheetEmployeeProjectId() == null
                             || !existing.getId().equals(request.getTimesheetEmployeeProjectId()))
                     .orElse(null);
@@ -70,7 +74,6 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
                                 + "; use timesheetEmployeeProjectId "
                                 + conflicting.getId() + " to update it");
             }
-            apply(assignment, request);
             return assignment;
         }).toList();
         List<TimesheetEmployeeProject> saved = repository.saveAll(assignments);
@@ -90,9 +93,12 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
         validateBatch(requests);
         employee(employeeId);
         List<TimesheetEmployeeProject> assignments = requests.stream().map(request -> {
-            TimesheetEmployeeProject assignment = repository
-                    .findByEmployeeIdAndSowIdAndMilestoneId(
-                            employeeId, request.getSowId(), request.getMilestoneId())
+            TimesheetEmployeeProject assignment = (request.getTimesheetEmployeeProjectId() != null
+                    ? repository.findById(request.getTimesheetEmployeeProjectId())
+                    : request.getMilestonePositionAssignmentId() != null
+                        ? repository.findByMilestonePositionAssignment_Id(request.getMilestonePositionAssignmentId())
+                        : java.util.Optional.ofNullable(uniqueLegacySetup(employeeId, request.getSowId(), request.getMilestoneId())))
+                    .filter(item -> item.getEmployee().getId().equals(employeeId))
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Timesheet project assignment not found for employee "
                                     + employeeId + ", SOW " + request.getSowId()
@@ -124,22 +130,85 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
     @Transactional(readOnly = true)
     public TimesheetEmployeeProjectResponse get(Long employeeId, Long sowId, Long milestoneId) {
         employee(employeeId);
-        TimesheetEmployeeProject assignment = repository
-                .findByEmployeeIdAndSowIdAndMilestoneId(employeeId, sowId, milestoneId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Timesheet project assignment not found for employee " + employeeId
-                                + ", SOW " + sowId + " and milestone " + milestoneId));
+        TimesheetEmployeeProject assignment = uniqueLegacySetup(employeeId, sowId, milestoneId);
+        if (assignment == null) throw new ResourceNotFoundException("Timesheet setup not found");
         return response(assignment);
+    }
+
+    private TimesheetEmployeeProject uniqueLegacySetup(Long employeeId, Long sowId, Long milestoneId) {
+        var matches = repository.findAllByEmployeeIdAndSowIdAndMilestoneId(employeeId, sowId, milestoneId);
+        if (matches.size() > 1) throw new InvalidOperationException("Multiple assignment periods exist; use timesheetEmployeeProjectId");
+        return matches.isEmpty() ? null : matches.get(0);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TimesheetEmployeeProjectResponse getBySetupId(Long employeeId, Long setupId) {
+        return response(repository.findById(setupId).filter(item -> item.getEmployee().getId().equals(employeeId))
+                .orElseThrow(() -> new ResourceNotFoundException("Timesheet setup not found for employee")));
     }
 
     private void apply(TimesheetEmployeeProject assignment,
                        TimesheetEmployeeProjectRequest request) {
         validateDatesAndApprovers(assignment.getEmployee().getId(), request, assignment.getId() != null);
-        if (assignment.getId() != null && (!assignment.getSow().getId().equals(request.getSowId())
-                || !assignment.getMilestone().getId().equals(request.getMilestoneId())
+        if (assignment.getId() != null && (!Objects.equals(assignment.getSow() == null ? null : assignment.getSow().getId(), request.getSowId())
+                || !Objects.equals(assignment.getMilestone() == null ? null : assignment.getMilestone().getId(), request.getMilestoneId())
+                || assignment.getWorkType() != request.getWorkType()
                 || (request.getTimesheetEmployeeProjectId() != null
                 && !assignment.getId().equals(request.getTimesheetEmployeeProjectId()))))
             throw new InvalidOperationException("Assignment ID must match the employee, SOW and milestone configuration");
+        if (assignment.getStatus() == TimesheetEmployeeProjectStatus.COMPLETED && assignment.getId() != null)
+            throw new InvalidOperationException("Completed setup cannot be modified; create a new setup for the new assignment");
+        assignment.setWorkType(request.getWorkType());
+        if (request.getWorkType() == TimesheetWorkType.INTERNAL) {
+            if (request.getSowId() != null || request.getMilestoneId() != null || request.getMilestonePositionAssignmentId() != null)
+                throw new InvalidOperationException("Internal work must not reference a SOW, milestone or resource assignment");
+            if (request.getInternalWorkType() == null || request.getInternalWorkType().isBlank())
+                throw new InvalidOperationException("internalWorkType is required for internal work");
+            assignment.setInternalWorkType(request.getInternalWorkType().trim());
+            assignment.setStartDate(request.getStartDate());
+            assignment.setEndDate(request.getEndDate());
+            if (assignment.getAssignmentStartDate() == null)
+                assignment.setAssignmentStartDate(request.getAssignmentStartDate() == null ? request.getStartDate() : request.getAssignmentStartDate());
+            assignment.setAssignmentEndDate(request.getAssignmentEndDate());
+            if (request.getStatus() == TimesheetEmployeeProjectStatus.COMPLETED && request.getAssignmentEndDate() == null
+                    || request.getStatus() != TimesheetEmployeeProjectStatus.COMPLETED && request.getAssignmentEndDate() != null)
+                throw new InvalidOperationException("assignmentEndDate is required only for COMPLETED internal work");
+        } else {
+        if (request.getSowId() == null || request.getMilestoneId() == null)
+            throw new InvalidOperationException("sowId and milestoneId are required for project work");
+        if (request.getInternalWorkType() != null && !request.getInternalWorkType().isBlank())
+            throw new InvalidOperationException("internalWorkType must be empty for project work");
+        Long linkId = request.getMilestonePositionAssignmentId();
+        if (linkId == null && assignment.getMilestonePositionAssignment() != null)
+            linkId = assignment.getMilestonePositionAssignment().getId();
+        if (linkId == null) {
+            var candidates = milestoneAssignmentRepository
+                    .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(assignment.getEmployee().getId())
+                    .stream().filter(item -> "ASSIGNED".equalsIgnoreCase(item.getStatus()))
+                    .filter(item -> Objects.equals(item.getMilestonePosition().getSow().getId(), request.getSowId())
+                            && Objects.equals(item.getMilestonePosition().getMilestone().getId(), request.getMilestoneId()))
+                    .toList();
+            if (candidates.size() == 1) linkId = candidates.get(0).getId();
+        }
+        if (linkId == null) throw new InvalidOperationException("milestonePositionAssignmentId is required for project work");
+        var resource = milestoneAssignmentRepository.findOneById(linkId)
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone position assignment not found"));
+        if (!Objects.equals(resource.getEmployeeAssignment().getEmployeeId(), assignment.getEmployee().getId())
+                || !Objects.equals(resource.getMilestonePosition().getSow().getId(), request.getSowId())
+                || !Objects.equals(resource.getMilestonePosition().getMilestone().getId(), request.getMilestoneId()))
+            throw new InvalidOperationException("Resource assignment must match employee, SOW and milestone");
+        if (assignment.getMilestonePositionAssignment() != null && !Objects.equals(assignment.getMilestonePositionAssignment().getId(), linkId))
+            throw new InvalidOperationException("Cannot change the resource assignment of an existing setup");
+        if (!"ASSIGNED".equalsIgnoreCase(resource.getStatus()))
+            throw new InvalidOperationException("Timesheet setup requires an ASSIGNED resource");
+        if (request.getAssignmentEndDate() != null || request.getStatus() == TimesheetEmployeeProjectStatus.COMPLETED)
+            throw new InvalidOperationException("Complete project work through the resource unassign API");
+        if (request.getAssignmentStartDate() != null && !request.getAssignmentStartDate().equals(resource.getAssignmentStartDate()))
+            throw new InvalidOperationException("assignmentStartDate must match the linked resource assignment");
+        assignment.setMilestonePositionAssignment(resource);
+        assignment.setAssignmentStartDate(resource.getAssignmentStartDate());
+        assignment.setAssignmentEndDate(null);
         assignment.setSow(sow(request.getSowId()));
         var milestone = milestoneRepository.findByIdAndSow_Id(request.getMilestoneId(), request.getSowId())
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone not found for SOW: " + request.getMilestoneId()));
@@ -148,8 +217,11 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
                 ? request.getStartDate() : milestone.getStartDate());
         assignment.setEndDate(request.getEndDate().isBefore(milestone.getEndDate())
                 ? request.getEndDate() : milestone.getEndDate());
+        }
         if (assignment.getEndDate().isBefore(assignment.getStartDate()))
             throw new InvalidOperationException("Assignment range does not overlap milestone range");
+        if (assignment.getEffectiveEndDate().isBefore(assignment.getEffectiveStartDate()))
+            throw new InvalidOperationException("Planned setup does not overlap the assignment period");
         assignment.setDefaultHoursPerDay(request.getDefaultHoursPerDay());
         assignment.setLevel1Approver(employee(request.getLevel1ApproverId()));
         assignment.setLevel2Approver(employee(request.getLevel2ApproverId()));
@@ -166,7 +238,10 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
             if (request.getTimesheetEmployeeProjectId() != null
                     && !assignmentIds.add(request.getTimesheetEmployeeProjectId()))
                 throw new DuplicateResourceException("Duplicate timesheet employee project ID in request");
-            String key = request.getSowId() + ":" + request.getMilestoneId();
+            String key = request.getWorkType() == TimesheetWorkType.INTERNAL
+                    ? "INTERNAL:" + request.getInternalWorkType() + ":" + request.getStartDate()
+                    : "PROJECT:" + (request.getMilestonePositionAssignmentId() == null
+                            ? request.getSowId() + ":" + request.getMilestoneId() : request.getMilestonePositionAssignmentId());
             if (!keys.add(key)) {
                 throw new DuplicateResourceException(
                         "Duplicate SOW and start date in request: " + key);
@@ -178,6 +253,11 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
             Long employeeId, TimesheetEmployeeProjectRequest request, boolean updating) {
         if (request.getDailyOverrides() != null)
             throw new InvalidOperationException("dailyOverrides is no longer supported; use scheduleDates and deletedDates");
+        if (request.getWorkType() == null || request.getStatus() == null || request.getStartDate() == null || request.getEndDate() == null)
+            throw new InvalidOperationException("workType, status, plannedStartDate and plannedEndDate are required");
+        if (request.getAssignmentEndDate() != null && request.getAssignmentStartDate() != null
+                && request.getAssignmentEndDate().isBefore(request.getAssignmentStartDate()))
+            throw new InvalidOperationException("assignmentEndDate cannot precede assignmentStartDate");
         if (request.getScheduleDates() == null || request.getDeletedDates() == null)
             throw new InvalidOperationException("scheduleDates and deletedDates must be arrays; use [] for no changes");
         if (!updating && !request.getDeletedDates().isEmpty())
@@ -211,13 +291,13 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
         LocalDate weekStart = LocalDate.now().with(
                 TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY));
         LocalDate weekEnd = weekStart.plusDays(6);
-        String designationName = milestoneAssignmentRepository
+        String designationName = assignment.getSow() == null ? null : milestoneAssignmentRepository
                 .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(
                         assignment.getEmployee().getId())
                 .stream()
                 .filter(item -> item.getMilestonePosition().getSow().getId()
                         .equals(assignment.getSow().getId()))
-                .filter(item -> "ACTIVE".equalsIgnoreCase(item.getStatus()))
+                .filter(item -> ("ASSIGNED".equalsIgnoreCase(item.getStatus())))
                 .filter(item -> overlaps(item, weekStart, weekEnd))
                 .map(item -> item.getMilestonePosition().getPosition().getName())
                 .findFirst()
@@ -226,13 +306,16 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
                 .timesheetEmployeeProjectId(assignment.getId())
                 .employeeId(assignment.getEmployee().getId())
                 .employeeName(name(assignment.getEmployee()))
-                .sowId(assignment.getSow().getId())
-                .sowName(assignment.getSow().getSowName())
+                .sowId(assignment.getSow() == null ? null : assignment.getSow().getId())
+                .sowName(assignment.getSow() == null ? null : assignment.getSow().getSowName())
                 .designationName(designationName)
                 .startDate(assignment.getStartDate())
                 .endDate(assignment.getEndDate())
-                .milestoneId(assignment.getMilestone().getId())
-                .milestoneName(assignment.getMilestone().getMilestoneName())
+                .assignmentStartDate(assignment.getAssignmentStartDate()).assignmentEndDate(assignment.getAssignmentEndDate())
+                .workType(assignment.getWorkType()).internalWorkType(assignment.getInternalWorkType())
+                .milestonePositionAssignmentId(assignment.getMilestonePositionAssignment() == null ? null : assignment.getMilestonePositionAssignment().getId())
+                .milestoneId(assignment.getMilestone() == null ? null : assignment.getMilestone().getId())
+                .milestoneName(assignment.getMilestone() == null ? null : assignment.getMilestone().getMilestoneName())
                 .defaultHoursPerDay(assignment.getDefaultHoursPerDay())
                 .scheduleDates(scheduleService.overrides(assignment))
                 .level1ApproverId(assignment.getLevel1Approver().getId())
@@ -250,12 +333,15 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
         return TimesheetEmployeeProjectSummaryResponse.builder()
                 .timesheetEmployeeProjectId(assignment.getId())
                 .employeeId(assignment.getEmployee().getId())
-                .sowId(assignment.getSow().getId())
-                .sowName(assignment.getSow().getSowName())
-                .milestoneId(assignment.getMilestone().getId())
-                .milestoneName(assignment.getMilestone().getMilestoneName())
+                .sowId(assignment.getSow() == null ? null : assignment.getSow().getId())
+                .sowName(assignment.getSow() == null ? null : assignment.getSow().getSowName())
+                .milestoneId(assignment.getMilestone() == null ? null : assignment.getMilestone().getId())
+                .milestoneName(assignment.getMilestone() == null ? null : assignment.getMilestone().getMilestoneName())
                 .startDate(assignment.getStartDate())
                 .endDate(assignment.getEndDate())
+                .assignmentStartDate(assignment.getAssignmentStartDate()).assignmentEndDate(assignment.getAssignmentEndDate())
+                .workType(assignment.getWorkType()).internalWorkType(assignment.getInternalWorkType())
+                .milestonePositionAssignmentId(assignment.getMilestonePositionAssignment() == null ? null : assignment.getMilestonePositionAssignment().getId())
                 .defaultHoursPerDay(assignment.getDefaultHoursPerDay())
                 .level1ApproverId(assignment.getLevel1Approver().getId())
                 .level1ApproverName(name(assignment.getLevel1Approver()))

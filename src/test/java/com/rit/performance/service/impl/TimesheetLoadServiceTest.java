@@ -41,9 +41,9 @@ class TimesheetLoadServiceTest {
         service.getAll(3L, "REJECTED");
         verify(timesheets).findForStatusTab(3L, current, List.of(TimesheetStatus.REJECTED));
         service.getAll(3L, "ALL");
-        verify(timesheets).findForStatusTab(3L, current, List.of(TimesheetStatus.values()));
+        verify(timesheets).findForStatusTab(3L, current, java.util.Arrays.stream(TimesheetStatus.values()).filter(s -> s != TimesheetStatus.CANCELLED).toList());
         service.getAll(null, "ALL");
-        verify(timesheets).findForStatusTab(null, current, List.of(TimesheetStatus.values()));
+        verify(timesheets).findForStatusTab(null, current, java.util.Arrays.stream(TimesheetStatus.values()).filter(s -> s != TimesheetStatus.CANCELLED).toList());
     }
 
     @Test
@@ -67,7 +67,7 @@ class TimesheetLoadServiceTest {
         var employee = new Employee();
         employee.setId(3L);
         saved.setEmployee(employee);
-        when(timesheets.findByEmployeeIdAndWeekStartDate(3L, current)).thenReturn(Optional.of(saved));
+        when(timesheets.findAllByEmployeeIdAndWeekStartDate(3L, current)).thenReturn(List.of(saved));
         assertThat(service.getWeek(3L, current, null).getTimesheetId()).isEqualTo(saved.getId());
         verify(timesheets, never()).findOneById(any());
     }

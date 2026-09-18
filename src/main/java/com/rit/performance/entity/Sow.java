@@ -10,7 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "sows", uniqueConstraints = @UniqueConstraint(name = "uk_sow_code", columnNames = "sow_code"))
+@Table(name = "sows")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -22,8 +22,6 @@ public class Sow extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "sow_code", length = 50)
-    private String sowCode;
 
     @Column(name = "sow_name", nullable = false, length = 200)
     private String sowName;

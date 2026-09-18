@@ -28,8 +28,8 @@ class TimesheetProjectScheduleService {
     void applyChanges(TimesheetEmployeeProject project, TimesheetEmployeeProjectRequest request) {
         Map<LocalDate, TimesheetScheduleDateRequest> scheduled = new LinkedHashMap<>();
         for (TimesheetScheduleDateRequest date : request.getScheduleDates()) {
-            if (date.getWorkDate().isBefore(project.getStartDate())
-                    || date.getWorkDate().isAfter(project.getEndDate()))
+            if (date.getWorkDate().isBefore(project.getEffectiveStartDate())
+                    || date.getWorkDate().isAfter(project.getEffectiveEndDate()))
                 throw new InvalidOperationException("Schedule date is outside effective range: " + date.getWorkDate());
             if (scheduled.put(date.getWorkDate(), date) != null)
                 throw new DuplicateResourceException("Duplicate schedule date: " + date.getWorkDate());
@@ -53,6 +53,9 @@ class TimesheetProjectScheduleService {
         // Only explicitly deleted dates are removed, including dates outside the new range.
         for (LocalDate date : deleted) {
             TimesheetEmployeeProjectDay day = current.get(date);
+            if ((day != null && day.isLocked())
+                    || timesheetRepository.isDateLocked(project.getEmployee().getId(), date, project.getId()))
+                throw new InvalidOperationException("Cannot delete a locked schedule date: " + date);
             if (day != null) dayRepository.delete(day);
         }
 
@@ -60,7 +63,7 @@ class TimesheetProjectScheduleService {
             LocalDate date = entry.getKey();
             TimesheetEmployeeProjectDay day = current.get(date);
             if ((day != null && day.isLocked())
-                    || timesheetRepository.isDateLocked(project.getEmployee().getId(), date))
+                    || timesheetRepository.isDateLocked(project.getEmployee().getId(), date, project.getId()))
                 throw new InvalidOperationException("Cannot change a locked schedule date: " + date);
             TimesheetScheduleDateRequest schedule = entry.getValue();
             BigDecimal other = dayRepository.sumOtherProjectHours(project.getEmployee().getId(), date, project.getId());

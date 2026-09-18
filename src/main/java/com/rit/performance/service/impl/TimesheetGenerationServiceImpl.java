@@ -1,6 +1,10 @@
 package com.rit.performance.service.impl;
 
 import com.rit.performance.dto.response.TimesheetSummaryResponse;
+import com.rit.performance.dto.response.TimesheetAuditLogResponse;
+import com.rit.performance.entity.TimesheetApprovalStatus;
+import java.util.ArrayList;
+import java.util.Comparator;
 import com.rit.performance.dto.response.TimesheetWeekEntryResponse;
 import com.rit.performance.dto.response.TimesheetWeekProjectResponse;
 import com.rit.performance.dto.response.TimesheetWeekResponse;
@@ -107,18 +111,23 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
         LocalDate weekEnd = weekStart.plusDays(6);
 
         Timesheet timesheet = (timesheetId == null
-                ? timesheetRepository.findByEmployeeIdAndWeekStartDate(employeeId, weekStart)
+                ? uniqueWeek(employeeId, weekStart)
                 : timesheetRepository.findOneById(timesheetId))
                     .filter(item -> item.getEmployee().getId().equals(employeeId)
                             && item.getWeekStartDate().equals(weekStart))
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Timesheet " + timesheetId + " does not match employee " + employeeId + " and week " + weekStart));
 
+        if (timesheet.getStatus() == TimesheetStatus.CANCELLED)
+            throw new InvalidOperationException("Cancelled timesheets cannot be loaded for entry");
+
         List<TimesheetEmployeeProject> eligibleProjects = projectRepository.
                 findByEmployeeIdOrderByStartDateDescIdDesc(employeeId)
                 .stream()
-                .filter(project -> !project.getStartDate().isAfter(weekEnd)
-                        && (project.getEndDate() == null || !project.getEndDate().isBefore(weekStart)))
+                .filter(project -> timesheet.getTimesheetEmployeeProject() == null
+                        || Objects.equals(project.getId(), timesheet.getTimesheetEmployeeProject().getId()))
+                .filter(project -> !project.getEffectiveStartDate().isAfter(weekEnd)
+                        && (project.getEffectiveEndDate() == null || !project.getEffectiveEndDate().isBefore(weekStart)))
                 .toList();
 
         List<SowMilestonePositionAssignment> milestoneAssignments = milestoneAssignmentRepository
@@ -127,25 +136,31 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
         List<TimesheetWeekProjectResponse> projects = eligibleProjects.stream()
                 .map(project -> TimesheetWeekProjectResponse.builder()
                         .timesheetEmployeeProjectId(project.getId())
-                        .sowId(project.getSow().getId())
-                        .sowCode(project.getSow().getSowCode())
-                        .sowName(project.getSow().getSowName())
+                        .sowId(project.getSow() == null ? null : project.getSow().getId())
+                        
+                        .sowName(project.getSow() == null ? null : project.getSow().getSowName())
                         .milestoneId(project.getMilestone() == null ? null : project.getMilestone().getId())
                         .milestoneName(project.getMilestone() == null ? null : project.getMilestone().getMilestoneName())
                         .scheduleDates(project.getDailySchedules().stream()
                                 .filter(TimesheetEmployeeProjectDay::isActive)
                                 .filter(day -> !day.getWorkDate().isBefore(weekStart)
                                         && !day.getWorkDate().isAfter(weekEnd))
+                                .filter(day -> !day.getWorkDate().isBefore(project.getEffectiveStartDate())
+                                        && !day.getWorkDate().isAfter(project.getEffectiveEndDate()))
                                 .map(day -> com.rit.performance.dto.response.TimesheetDailyOverrideResponse.builder()
                                         .workDate(day.getWorkDate()).scheduledHours(day.getScheduledHours())
                                         .dayType(day.getDayType()).build()).toList())
-                        .designationName(designationForWeek(milestoneAssignments,
+                        .designationName(project.getSow() == null ? null : designationForWeek(milestoneAssignments,
                                 project.getSow().getId(), weekStart, weekEnd))
                         .startDate(project.getStartDate())
                         .endDate(project.getEndDate())
+                        .assignmentStartDate(project.getAssignmentStartDate()).assignmentEndDate(project.getAssignmentEndDate())
+                        .workType(project.getWorkType()).internalWorkType(project.getInternalWorkType())
+                        .milestonePositionAssignmentId(project.getMilestonePositionAssignment() == null ? null : project.getMilestonePositionAssignment().getId())
                         .maxHoursPerDay(project.getMaxHoursPerDay())
                         .entries(timesheet.getEntries().stream()
-                                .filter(entry -> entry.getSow() != null
+                                .filter(entry -> timesheet.getTimesheetEmployeeProject() != null
+                                        || project.getSow() != null && entry.getSow() != null
                                         && entry.getSow().getId().equals(project.getSow().getId()))
                                 .map(this::weekEntry)
                                 .toList())
@@ -156,6 +171,8 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
 
         return TimesheetWeekResponse.builder()
                 .timesheetId(timesheet.getId())
+                .timesheetEmployeeProjectId(timesheet.getTimesheetEmployeeProject() == null ? null
+                        : timesheet.getTimesheetEmployeeProject().getId())
                 .employeeId(employeeId)
                 .weekStart(weekStart)
                 .weekEnd(weekEnd)
@@ -165,11 +182,18 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
                 .build();
     }
 
+    private java.util.Optional<Timesheet> uniqueWeek(Long employeeId, LocalDate weekStart) {
+        List<Timesheet> rows = timesheetRepository.findAllByEmployeeIdAndWeekStartDate(employeeId, weekStart);
+        if (rows.size() > 1) throw new InvalidOperationException(
+                "Multiple timesheets exist for this week; supply timesheetId");
+        return rows.stream().findFirst();
+    }
+
     private String designationForWeek(List<SowMilestonePositionAssignment> assignments,
                                       Long sowId, LocalDate weekStart, LocalDate weekEnd) {
         return assignments.stream()
                 .filter(item -> item.getMilestonePosition().getSow().getId().equals(sowId))
-                .filter(item -> "ACTIVE".equalsIgnoreCase(item.getStatus()))
+                .filter(item -> ("ASSIGNED".equalsIgnoreCase(item.getStatus())))
                 .filter(item -> !item.getAssignmentStartDate().isAfter(weekEnd)
                         && (item.getAssignmentEndDate() == null
                         || !item.getAssignmentEndDate().isBefore(weekStart)))
@@ -194,9 +218,11 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
     private TimesheetSummaryResponse summary(
             Timesheet timesheet, List<TimesheetEmployeeProject> projects) {
         String clients = projects.stream()
-                .filter(project -> !project.getStartDate().isAfter(timesheet.getWeekEndDate())
-                        && (project.getEndDate() == null
-                        || !project.getEndDate().isBefore(timesheet.getWeekStartDate())))
+                .filter(project -> timesheet.getTimesheetEmployeeProject() == null
+                        || Objects.equals(project.getId(), timesheet.getTimesheetEmployeeProject().getId()))
+                .filter(project -> !project.getEffectiveStartDate().isAfter(timesheet.getWeekEndDate())
+                        && (project.getEffectiveEndDate() == null
+                        || !project.getEffectiveEndDate().isBefore(timesheet.getWeekStartDate())))
                 .map(TimesheetEmployeeProject::getSow)
                 .filter(Objects::nonNull)
                 .map(sow -> sow.getClient() == null ? null : sow.getClient().getClientName())
@@ -213,6 +239,8 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
         BigDecimal leaveHours = zero(timesheet.getLeaveHours());
         return TimesheetSummaryResponse.builder()
                 .timesheetId(timesheet.getId())
+                .timesheetEmployeeProjectId(timesheet.getTimesheetEmployeeProject() == null ? null
+                        : timesheet.getTimesheetEmployeeProject().getId())
                 .employeeId(timesheet.getEmployee().getId())
                 .employeeName(employeeName(timesheet.getEmployee()))
                 .periodStartDate(timesheet.getWeekStartDate())
@@ -228,7 +256,32 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
                 .totalTimeOffHours(holidayHours.add(leaveHours))
                 .file(null)
                 .commentsNotes(comments.isBlank() ? null : comments)
+                .auditLog(auditLog(timesheet))
                 .build();
+    }
+
+    private List<TimesheetAuditLogResponse> auditLog(Timesheet timesheet) {
+        List<TimesheetAuditLogResponse> events = new ArrayList<>();
+        if (timesheet.getSubmittedAt() != null) {
+            var employee = timesheet.getEmployee();
+            events.add(new TimesheetAuditLogResponse("SUBMITTED", "Submitted", null,
+                    employee.getId(), employeeName(employee), timesheet.getSubmittedAt(), null));
+        }
+        for (var approval : timesheet.getApprovals()) {
+            if (approval.getStatus() != TimesheetApprovalStatus.APPROVED
+                    && approval.getStatus() != TimesheetApprovalStatus.REJECTED) continue;
+            var approver = approval.getApproverEmployee();
+            events.add(new TimesheetAuditLogResponse(approval.getStatus().name(),
+                    Integer.valueOf(1).equals(approval.getApprovalLevel()) ? "Primary" : "Secondary",
+                    approval.getApprovalLevel(), approver == null ? null : approver.getId(),
+                    approver == null ? null : employeeName(approver), approval.getActionAt(),
+                    approval.getComments()));
+        }
+        events.sort(Comparator.comparing(TimesheetAuditLogResponse::actionAt,
+                Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(TimesheetAuditLogResponse::approvalLevel,
+                        Comparator.nullsLast(Comparator.reverseOrder())));
+        return List.copyOf(events);
     }
 
     private String statusDisplay(TimesheetStatus status) {
@@ -238,11 +291,12 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
             case LEVEL1_APPROVED -> "Level 1 Approved";
             case REJECTED -> "Rejected";
             case APPROVED -> "Approved";
+            case CANCELLED -> "Cancelled";
         };
     }
 
     private List<TimesheetStatus> tabStatuses(String status) {
-        String tab = status == null ? "ALL" : status.trim().toUpperCase(java.util.Locale.ROOT);
+        String tab = status == null || status.isBlank() ? "ALL" : status.trim().toUpperCase(java.util.Locale.ROOT);
         return switch (tab) {
             case "NEW", "DRAFT" -> List.of(TimesheetStatus.DRAFT);
             case "PENDING" -> List.of(TimesheetStatus.SUBMITTED, TimesheetStatus.LEVEL1_APPROVED);
@@ -250,9 +304,11 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
             case "APPROVED" -> List.of(TimesheetStatus.APPROVED);
             case "SUBMITTED" -> List.of(TimesheetStatus.SUBMITTED);
             case "LEVEL1_APPROVED" -> List.of(TimesheetStatus.LEVEL1_APPROVED);
-            case "ALL" -> List.of(TimesheetStatus.values());
+            case "CANCELLED" -> List.of(TimesheetStatus.CANCELLED);
+            case "ALL" -> java.util.Arrays.stream(TimesheetStatus.values())
+                    .filter(value -> value != TimesheetStatus.CANCELLED).toList();
             default -> throw new InvalidOperationException(
-                    "Invalid status; use NEW, DRAFT, PENDING, REJECTED, APPROVED or ALL");
+                    "Invalid status; use NEW, DRAFT, PENDING, REJECTED, APPROVED, CANCELLED or ALL");
         };
     }
 
@@ -263,6 +319,7 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
             case LEVEL1_APPROVED -> "Pending Level 2 Approval";
             case REJECTED -> "Rejected";
             case APPROVED -> "Approved";
+            case CANCELLED -> "Cancelled";
         };
     }
 

@@ -10,6 +10,10 @@ import java.util.Optional;
 public interface TimesheetEmployeeProjectRepository
         extends JpaRepository<TimesheetEmployeeProject, Long> {
 
+    Optional<TimesheetEmployeeProject> findByMilestonePositionAssignment_Id(Long assignmentId);
+
+    List<TimesheetEmployeeProject> findAllByEmployeeIdAndSowIdAndMilestoneId(Long employeeId, Long sowId, Long milestoneId);
+
     @EntityGraph(attributePaths = {
             "employee", "sow", "sow.client", "milestone", "level1Approver", "level2Approver"
     })

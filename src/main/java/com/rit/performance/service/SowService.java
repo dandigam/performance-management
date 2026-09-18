@@ -1,8 +1,13 @@
 package com.rit.performance.service;
 
 import com.rit.performance.dto.request.SowRequest;
+import com.rit.performance.dto.request.SowMilestoneUpdateRequest;
+import com.rit.performance.dto.response.SowMilestoneResponse;
 import com.rit.performance.dto.request.SowAssignmentUpdateRequest;
 import com.rit.performance.dto.response.SowResponse;
+import com.rit.performance.dto.response.SowSummaryPageResponse;
+import com.rit.performance.dto.response.SowPositionSummaryPageResponse;
+import com.rit.performance.dto.response.SowMilestoneSummaryPageResponse;
 import com.rit.performance.dto.response.SowAssignmentResponse;
 import com.rit.performance.dto.request.SowMilestonePositionRequest;
 import com.rit.performance.dto.response.SowMilestonePositionResponse;
@@ -14,6 +19,14 @@ import com.rit.performance.dto.request.SowStatusUpdateRequest;
 import java.util.List;
 
 public interface SowService {
+    SowMilestoneResponse updateMilestone(Long sowId, Long milestoneId, SowMilestoneUpdateRequest request);
+
+    SowPositionSummaryPageResponse getPositionSummaries(Long sowId, Long milestoneId, int page, int size);
+
+    SowMilestoneSummaryPageResponse getMilestoneSummaries(Long sowId, int page, int size);
+
+    SowSummaryPageResponse getSummaries(int page, int size);
+
     SowResponse create(SowRequest request);
 
     List<SowResponse> getAll();

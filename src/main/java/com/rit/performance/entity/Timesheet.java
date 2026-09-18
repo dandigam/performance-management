@@ -16,8 +16,8 @@ import java.util.List;
         @AttributeOverride(name = "updatedOn", column = @Column(name = "updated_at"))
 })
 @Table(name = "timesheets",
-        uniqueConstraints = @UniqueConstraint(name = "uk_timesheet_employee_week",
-                columnNames = {"employee_id", "week_start_date"}),
+        uniqueConstraints = @UniqueConstraint(name = "uk_timesheet_employee_setup_week",
+                columnNames = {"employee_id", "timesheet_employee_project_id", "week_start_date"}),
         indexes = @Index(name = "idx_timesheet_status", columnList = "status"))
 @Getter
 @Setter
@@ -34,6 +34,11 @@ public class Timesheet extends BaseEntity {
     @JoinColumn(name = "employee_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_timesheet_employee"))
     private Employee employee;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "timesheet_employee_project_id",
+            foreignKey = @ForeignKey(name = "fk_timesheet_project_setup"))
+    private TimesheetEmployeeProject timesheetEmployeeProject;
 
     @Column(name = "week_start_date", nullable = false)
     private LocalDate weekStartDate;

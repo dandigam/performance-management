@@ -8,7 +8,6 @@ import java.util.List;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SowResourceRequirementSummaryResponse {
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private String sowStatus;
     private Long businessUnitId;

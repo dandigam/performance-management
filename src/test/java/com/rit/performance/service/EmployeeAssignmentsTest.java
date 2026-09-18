@@ -30,7 +30,55 @@ class EmployeeAssignmentsTest {
     @Spy @InjectMocks EmployeeServiceImpl service;
 
     @Test
-    void assignmentsRequireActiveOrCompletedSow() {
+    void returnsAssignmentHistoryRegardlessOfParentAndMilestoneStatus() {
+        var statuses = List.of("ASSIGNED", "ACTIVE", "COMPLETED", "INACTIVE");
+        var parents = IntStream.range(0, statuses.size()).mapToObj(index ->
+                EmployeeAssignmentResponse.builder().assignmentId((long) index + 1)
+                        .sowId(10L).assignmentStatus(statuses.get(index)).build()).toList();
+        doReturn(EmployeeBasicInfoResponse.builder().employeeId(2L)
+                .assignmentList(parents).build()).when(service).getById(2L);
+        var sow = new Sow();
+        sow.setId(10L);
+        var sowStatus = new LookupValue();
+        sowStatus.setCode("ACTIVE");
+        sow.setStatus(sowStatus);
+        when(sowRepository.findAllById(any())).thenReturn(List.of(sow));
+        var parent = new com.rit.performance.entity.EmployeeAssignment();
+        parent.setId(3L);
+        var milestone = new com.rit.performance.entity.SowMilestone();
+        milestone.setId(20L);
+        var position = new com.rit.performance.entity.SowMilestonePosition();
+        position.setId(30L);
+        position.setMilestone(milestone);
+        var details = IntStream.range(0, statuses.size()).mapToObj(index -> {
+            var detail = new com.rit.performance.entity.SowMilestonePositionAssignment();
+            detail.setId((long) index + 100);
+            detail.setEmployeeAssignment(parent);
+            detail.setMilestonePosition(position);
+            detail.setStatus(statuses.get(index));
+            return detail;
+        }).toList();
+        when(milestonePositionAssignmentRepository
+                .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(2L))
+                .thenReturn(details);
+
+        var response = service.getAssignmentsByEmployeeId(2L);
+
+        assertThat(response.getAssignmentList()).extracting(item -> item.getAssignmentStatus())
+                .containsExactlyElementsOf(statuses);
+        var result = response.getAssignmentList().get(2);
+        assertThat(result.getEmployeeAssignmentId()).isEqualTo(3L);
+        assertThat(result.getAssignmentStatus()).isEqualTo("COMPLETED");
+        assertThat(result.getMilestoneAssignments()).extracting(item -> item.getAssignmentId())
+                .containsExactly(100L, 101L, 102L, 103L);
+        assertThat(result.getMilestoneAssignments()).extracting(item -> item.getMilestonePositionAssignmentId())
+                .containsExactly(100L, 101L, 102L, 103L);
+        assertThat(result.getMilestoneAssignments()).extracting(item -> item.getAssignmentStatus())
+                .containsExactlyElementsOf(statuses);
+    }
+
+    @Test
+    void assignmentsIncludeDraftActiveAndCompletedSows() {
         var codes = List.of("DRAFT", "ACTIVE", "completed", "ON_HOLD", "CANCELLED", "APPROVED");
         var sows = IntStream.range(0, codes.size()).mapToObj(index -> {
             var status = new LookupValue();
@@ -42,7 +90,7 @@ class EmployeeAssignmentsTest {
         }).toList();
         var assignments = sows.stream().map(sow -> EmployeeAssignmentResponse.builder()
                 .assignmentId(sow.getId()).sowId(sow.getId())
-                .sowCode("SOW-" + sow.getId()).assignmentStatus("ACTIVE").build()).toList();
+                .assignmentStatus("ASSIGNED").build()).toList();
         doReturn(EmployeeBasicInfoResponse.builder().employeeId(3L)
                 .employeeName("Employee").assignmentList(assignments).build())
                 .when(service).getById(3L);
@@ -51,7 +99,6 @@ class EmployeeAssignmentsTest {
         var response = service.getAssignmentsByEmployeeId(3L);
 
         assertThat(response.getAssignmentList()).extracting(item -> item.getSowId())
-                .containsExactly(2L, 3L);
-        assertThat(response.getAssignmentList().get(0).getSowCode()).isEqualTo("SOW-2");
+                .containsExactly(1L, 2L, 3L);
     }
 }

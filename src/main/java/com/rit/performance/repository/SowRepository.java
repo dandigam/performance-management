@@ -1,6 +1,8 @@
 package com.rit.performance.repository;
 
 import com.rit.performance.entity.Sow;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -9,8 +11,10 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SowRepository extends JpaRepository<Sow, Long> {
-    boolean existsBySowCodeIgnoreCase(String sowCode);
-    boolean existsBySowCodeIgnoreCaseAndIdNot(String sowCode, Long id);
+    @EntityGraph(attributePaths = {"businessUnit", "status"})
+    @Query("select sow from Sow sow")
+    Page<Sow> findSummaryPage(Pageable pageable);
+
 
     @EntityGraph(attributePaths = {
             "client", "businessUnit", "status", "ritContactEmployee", "ritEscalationEmployee",

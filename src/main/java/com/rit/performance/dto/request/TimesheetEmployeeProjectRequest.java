@@ -20,18 +20,28 @@ public class TimesheetEmployeeProjectRequest {
     @Positive
     private Long timesheetEmployeeProjectId;
 
-    @NotNull
     @Positive
     private Long sowId;
 
-    @NotNull
     @Positive
     private Long milestoneId;
 
+    private com.rit.performance.entity.TimesheetWorkType workType = com.rit.performance.entity.TimesheetWorkType.PROJECT;
+    @jakarta.validation.constraints.Size(max = 50)
+    private String internalWorkType;
+    @Positive
+    private Long milestonePositionAssignmentId;
+    private LocalDate assignmentStartDate;
+    private LocalDate assignmentEndDate;
+
     @NotNull
+    @com.fasterxml.jackson.annotation.JsonProperty("plannedStartDate")
+    @com.fasterxml.jackson.annotation.JsonAlias("startDate")
     private LocalDate startDate;
 
     @NotNull
+    @com.fasterxml.jackson.annotation.JsonProperty("plannedEndDate")
+    @com.fasterxml.jackson.annotation.JsonAlias("endDate")
     private LocalDate endDate;
 
     @DecimalMin("0.00")

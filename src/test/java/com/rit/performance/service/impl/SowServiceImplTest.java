@@ -1,4 +1,6 @@
 package com.rit.performance.service.impl;
+import com.rit.performance.entity.Employee;
+import com.rit.performance.entity.EmployeeAssignment;
 
 import com.rit.performance.dto.request.SowSignatureUpdateRequest;
 import com.rit.performance.dto.request.SowStatusUpdateRequest;
@@ -44,6 +46,32 @@ class SowServiceImplTest {
     @InjectMocks private SowServiceImpl service;
 
     @Test
+    void allAssignmentsAllowsMissingDesignationLeadAndManager() {
+        Sow sow = sowWithStatus("ACTIVE", LocalDate.now());
+        EmployeeAssignment assignment = new EmployeeAssignment();
+        assignment.setId(9L);
+        assignment.setSowId(sow.getId());
+        assignment.setEmployeeId(3L);
+        Employee employee = new Employee();
+        employee.setId(3L);
+        employee.setFirstName("Test");
+        when(sowRepository.findAllWithDetails()).thenReturn(List.of(sow));
+        when(assignmentRepository
+                .findByStatusIgnoreCaseOrderByEffectiveFromDesc("ACTIVE"))
+                .thenReturn(List.of(assignment));
+        when(employeeRepository.findByIdIn(List.of(3L))).thenReturn(List.of(employee));
+
+        var responses = service.getAllAssignments();
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getAssignmentId()).isEqualTo(9L);
+        assertThat(responses.get(0).getDesignationName()).isNull();
+        assertThat(responses.get(0).getLeadName()).isNull();
+        assertThat(responses.get(0).getManagerName()).isNull();
+        assertThat(responses.get(0).getMilestoneName()).isEqualTo("All milestones");
+    }
+
+    @Test
     void updateStatusAppliesValidTransitionAndEffectiveDate() {
         LocalDate effectiveDate = LocalDate.now().minusDays(1);
         Sow sow = sowWithStatus("ACTIVE", LocalDate.now().minusMonths(1));
@@ -55,7 +83,7 @@ class SowServiceImplTest {
                 .thenReturn(Optional.of(completed));
         when(sowRepository.save(any(Sow.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(positionAssignmentRepository
-                .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(20L, "ACTIVE"))
+                .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(20L, "ASSIGNED"))
                 .thenReturn(List.of());
 
         SowResponse response = service.updateStatus(20L, SowStatusUpdateRequest.builder()
@@ -96,7 +124,7 @@ class SowServiceImplTest {
                 .thenReturn(Optional.of(status("WAITING_FOR_APPROVAL")));
         when(sowRepository.save(any(Sow.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(positionAssignmentRepository
-                .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(20L, "ACTIVE"))
+                .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(20L, "ASSIGNED"))
                 .thenReturn(List.of());
 
         SowResponse response = service.updateStatus(20L, SowStatusUpdateRequest.builder()
@@ -119,7 +147,7 @@ class SowServiceImplTest {
                 .thenReturn(Optional.of(status("APPROVED")));
         when(sowRepository.save(any(Sow.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(positionAssignmentRepository
-                .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(20L, "ACTIVE"))
+                .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(20L, "ASSIGNED"))
                 .thenReturn(List.of());
 
         SowResponse response = service.updateStatus(20L, SowStatusUpdateRequest.builder()
@@ -139,7 +167,7 @@ class SowServiceImplTest {
         when(sowRepository.findByIdWithDetails(20L)).thenReturn(Optional.of(sow));
         when(sowRepository.save(any(Sow.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(positionAssignmentRepository
-                .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(20L, "ACTIVE"))
+                .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(20L, "ASSIGNED"))
                 .thenReturn(List.of());
 
         SowResponse response = service.updateSignature(20L,
@@ -157,7 +185,7 @@ class SowServiceImplTest {
         when(sowRepository.findByIdWithDetails(20L)).thenReturn(Optional.of(sow));
         when(sowRepository.save(any(Sow.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(positionAssignmentRepository
-                .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(20L, "ACTIVE"))
+                .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(20L, "ASSIGNED"))
                 .thenReturn(List.of());
 
         SowResponse response = service.updateSignature(20L,

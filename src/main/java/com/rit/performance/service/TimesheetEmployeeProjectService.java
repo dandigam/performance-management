@@ -7,6 +7,7 @@ import com.rit.performance.dto.response.TimesheetEmployeeProjectSummaryResponse;
 import java.util.List;
 
 public interface TimesheetEmployeeProjectService {
+    com.rit.performance.dto.response.TimesheetEmployeeProjectResponse getBySetupId(Long employeeId, Long setupId);
     List<TimesheetEmployeeProjectResponse> create(
             Long employeeId, List<TimesheetEmployeeProjectRequest> requests);
 

@@ -19,7 +19,6 @@ public class SowInvoiceResponse {
     private Long departmentId;
     private String departmentName;
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private Long milestoneId;
     private String milestoneName;

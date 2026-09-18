@@ -127,10 +127,12 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
             Map<Long, Sow> sows, FinalRating rating, Map<Long, LocalDate> dueDatesByRole,
             Map<Integer, LocalDate> dueDatesByLevel) {
         Employee employee = review.getEmployee();
-        Long departmentId = legacyAssignment == null ? null : legacyAssignment.getDepartmentId();
-        Long designationId = legacyAssignment == null ? null : legacyAssignment.getDesignationId();
         Long sowId = snapshotOrLegacy(review.getSowId(),
                 legacyAssignment == null ? null : legacyAssignment.getSowId());
+        Sow assignmentSow = sows.get(sowId);
+        Long departmentId = assignmentSow == null || assignmentSow.getBusinessUnit() == null
+                ? null : assignmentSow.getBusinessUnit().getId();
+        Long designationId = employee.getDesignationId();
         Long managerId = legacyAssignment == null ? null : legacyAssignment.getManagerId();
         Long leadId = legacyAssignment == null ? null : legacyAssignment.getLeadId();
         LookupValue department = lookups.get(departmentId);
