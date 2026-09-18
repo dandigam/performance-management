@@ -13,10 +13,12 @@ import org.springframework.stereotype.Component;
         havingValue = "true")
 public class SowPositionStatusMigrationRunner implements ApplicationRunner {
 
-    private final SowPositionStatusMigration migration;
+    private final SowPositionStatusMigration positionStatusMigration;
+    private final EmployeeAssignmentStatusMigration employeeAssignmentStatusMigration;
 
     @Override
     public void run(ApplicationArguments args) {
-        migration.migrate();
+        positionStatusMigration.migrate();
+        employeeAssignmentStatusMigration.migrate();
     }
 }
