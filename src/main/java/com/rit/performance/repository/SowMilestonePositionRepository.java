@@ -13,18 +13,10 @@ public interface SowMilestonePositionRepository
     @EntityGraph(attributePaths = {"sow", "sow.status", "milestone", "position", "skill", "seniority"})
     @org.springframework.data.jpa.repository.Query("""
             select p from SowMilestonePosition p
-            where upper(p.sow.status.code) in ('DRAFT', 'ACTIVE')
-              and upper(p.status) = 'OPEN'
-              and p.milestone.sow.id = p.sow.id
-              and (p.sow.endDate is null or p.sow.endDate >= :today)
-              and (p.milestone.endDate is null or p.milestone.endDate >= :today)
-              and (p.endDate is null or p.endDate >= :today)
-              and not exists (select a.id from SowMilestonePositionAssignment a
-                  where a.milestonePosition.id = p.id and upper(a.status) = 'ASSIGNED')
+            where upper(p.status) = 'OPEN'
             order by p.sow.sowName, p.sow.id, p.milestone.startDate, p.milestone.id, p.positionName, p.id
             """)
-    List<SowMilestonePosition> findAssignmentOptions(
-            @org.springframework.data.repository.query.Param("today") java.time.LocalDate today);
+    List<SowMilestonePosition> findAssignmentOptions();
 
     Page<SowMilestonePosition> findBySow_IdAndMilestone_Id(Long sowId, Long milestoneId, Pageable pageable);
 

@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
 import static org.assertj.core.api.Assertions.*;
 
 class AssignmentOptionsQueryTest extends EmployeeSummaryQueryTest {
-    @Test void onlyReturnsEligibleOpenPositionsWithoutAssignedResources() {
+    @Test void returnsEveryOpenPositionRegardlessOfDatesOrAssignment() {
         var type = LookupType.builder().code("OPTIONS").name("Options").build(); em.persist(type);
         var active = LookupValue.builder().lookupType(type).code("ACTIVE").name("Active").build(); em.persist(active);
         var draft = LookupValue.builder().lookupType(type).code("DRAFT").name("Draft").build(); em.persist(draft);
@@ -23,13 +23,13 @@ class AssignmentOptionsQueryTest extends EmployeeSummaryQueryTest {
         var assignment = SowMilestonePositionAssignment.builder().milestonePosition(occupied).employeeAssignment(parent)
                 .assignmentStartDate(today).positionType("BILLABLE").status("ASSIGNED").build(); em.persist(assignment);
         var repo = new JpaRepositoryFactory(em).getRepository(SowMilestonePositionRepository.class);
-        assertThat(repo.findAssignmentOptions(today)).containsExactly(open);
+        assertThat(repo.findAssignmentOptions()).containsExactly(open, occupied, expired);
         sow.setStatus(draft);
-        assertThat(repo.findAssignmentOptions(today)).containsExactly(open);
+        assertThat(repo.findAssignmentOptions()).containsExactly(open, occupied, expired);
         sow.setStatus(hold);
-        assertThat(repo.findAssignmentOptions(today)).isEmpty();
+        assertThat(repo.findAssignmentOptions()).containsExactly(open, occupied, expired);
         sow.setStatus(active); milestone.setEndDate(today.minusDays(1));
-        assertThat(repo.findAssignmentOptions(today)).isEmpty();
+        assertThat(repo.findAssignmentOptions()).containsExactly(open, occupied, expired);
     }
 
     private SowMilestonePosition position(Sow sow, SowMilestone milestone, LookupValue lookup, String status) {

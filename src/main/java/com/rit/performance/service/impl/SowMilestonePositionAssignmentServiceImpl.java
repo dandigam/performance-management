@@ -212,9 +212,7 @@ public class SowMilestonePositionAssignmentServiceImpl
                 position.getId(), "ASSIGNED")) {
             position.setStatus("ASSIGNED");
         } else {
-            LocalDate milestoneEnd = position.getMilestone().getEndDate();
-            position.setStatus(milestoneEnd != null && !LocalDate.now().isBefore(milestoneEnd)
-                    ? "CLOSED" : "OPEN");
+            position.setStatus("OPEN");
         }
         positionRepository.saveAndFlush(position);
     }

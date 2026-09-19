@@ -7,7 +7,6 @@ import com.rit.performance.repository.SowMilestonePositionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.time.LocalDate;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -19,7 +18,7 @@ public class AssignmentOptionsService {
 
     @Transactional(readOnly = true)
     public List<AssignmentSowOptionResponse> getSows() {
-        var bySow = positionRepository.findAssignmentOptions(LocalDate.now()).stream()
+        var bySow = positionRepository.findAssignmentOptions().stream()
                 .collect(Collectors.groupingBy(p -> p.getSow().getId(), LinkedHashMap::new, Collectors.toList()));
         return bySow.values().stream().map(positions -> {
             var sow = positions.get(0).getSow();
