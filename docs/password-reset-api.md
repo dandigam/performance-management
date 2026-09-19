@@ -71,5 +71,4 @@ are treated as version zero and are also revoked by a reset. The normal
 password-changed notification is queued in the same transaction.
 
 The schema is created/updated by the current Hibernate ddl-auto=update setting.
-For deployments with schema updates disabled, apply
-`database/migrations/create_password_reset_tokens.sql` once before deployment.
+Deployments with schema updates disabled must provision `password_reset_tokens` before using these endpoints.

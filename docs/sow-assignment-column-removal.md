@@ -18,8 +18,6 @@ Set designation and position type through milestone-position assignment APIs.
 Parent assignment APIs reject attempts to write those fields. Employee profile
 designation remains independent. Department follows the SOW business unit.
 
-Before applying `database/migrations/drop_sow_assignment_duplicate_columns.sql`,
+Before removing obsolete parent-assignment columns from an existing database,
 populate the milestone-position records that should replace any legacy parent
-values. The script removes local foreign keys on the obsolete columns and drops
-the columns if present. It does not migrate legacy assignment data automatically.
-It has not been executed against the application database.
+values. Legacy assignment data is not migrated automatically.
