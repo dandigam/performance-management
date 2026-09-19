@@ -33,6 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -116,7 +117,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         User user = new User();
         user.setUsername(email);
         user.setPassword(DEFAULT_PASSWORD);
-        user.setStatus("ACTIVE");
+        user.setStatus(userStatusFor(employee));
         user.setRole(role);
         user.setEmployee(employee);
         user = userRepository.save(user);
@@ -278,8 +279,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                         item.getMilestoneId(), item.getMilestonePositionId(),
                         SowMilestonePositionAssignmentRequest.builder()
                                 .employeeAssignmentId(employeeAssignmentId)
-                                .allocationPercentage(item.getAllocationPercentage() == null
-                                        ? 100 : item.getAllocationPercentage())
                                 .positionType(item.getPositionType())
                                 .assignmentStartDate(item.getAssignmentStartDate())
                                 .assignmentEndDate(item.getAssignmentEndDate())
@@ -349,14 +348,17 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional(readOnly = true)
     public EmployeeAssignmentsResponse getAssignmentsByEmployeeId(Long employeeId) {
         EmployeeBasicInfoResponse response = getById(employeeId);
-        Set<Long> eligibleSowIds = sowRepository.findAllById(response.getAssignmentList().stream()
+        List<Sow> employeeSows = sowRepository.findAllById(response.getAssignmentList().stream()
                         .map(EmployeeAssignmentResponse::getSowId)
-                        .filter(Objects::nonNull).collect(Collectors.toSet()))
-                .stream()
+                        .filter(Objects::nonNull).collect(Collectors.toSet()));
+        Map<Long, String> sowStatuses = employeeSows.stream()
+                .filter(sow -> sow.getStatus() != null)
+                .collect(Collectors.toMap(Sow::getId,
+                        sow -> sow.getStatus().getCode()));
+        Set<Long> eligibleSowIds = employeeSows.stream()
                 .filter(sow -> sow.getStatus() != null
-                        && ("ACTIVE".equalsIgnoreCase(sow.getStatus().getCode())
-                        || "DRAFT".equalsIgnoreCase(sow.getStatus().getCode())
-                        || "COMPLETED".equalsIgnoreCase(sow.getStatus().getCode())))
+                        && Set.of("DRAFT","ACTIVE", "COMPLETED", "HOLD", "ON_HOLD")
+                                .contains(sow.getStatus().getCode().trim().toUpperCase(Locale.ROOT)))
                 .map(Sow::getId).collect(Collectors.toSet());
         Map<Long, List<SowMilestonePositionAssignment>> detailsByParent =
                 milestonePositionAssignmentRepository
@@ -376,7 +378,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .filter(parent -> eligibleSowIds.contains(parent.getSowId()))
                         .map(parent -> employeeSowAssignment(
                                 parent, detailsByParent.getOrDefault(
-                                        parent.getAssignmentId(), List.of()), assignerNames))
+                                        parent.getAssignmentId(), List.of()), assignerNames,
+                                sowStatuses.get(parent.getSowId())))
                         .toList())
                 .build();
     }
@@ -384,7 +387,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     private EmployeeSowAssignmentResponse employeeSowAssignment(
             EmployeeAssignmentResponse parent,
             List<SowMilestonePositionAssignment> details,
-            Map<Long, String> assignerNames) {
+            Map<Long, String> assignerNames,
+            String sowStatus) {
         List<EmployeeMilestoneAssignmentResponse> milestoneAssignments = details.isEmpty()
                 ? List.of()
                 : details.stream().map(detail -> employeeMilestoneAssignment(
@@ -392,8 +396,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         return EmployeeSowAssignmentResponse.builder()
                 .employeeAssignmentId(parent.getAssignmentId())
                 .sowId(parent.getSowId())
-                
                 .sowName(parent.getSowName())
+                .sowStatus(sowStatus)
                 .isPrimaryAssignment(parent.getIsPrimaryAssignment())
                 .assignmentStartDate(parent.getAssignmentStartDate())
                 .assignmentEndDate(parent.getAssignmentEndDate())
@@ -850,9 +854,14 @@ public class EmployeeServiceImpl implements EmployeeService {
                 throw new InvalidOperationException("Username already exists: " + username);
             user.setUsername(username);
         }
-        user.setRole(role);
+                user.setRole(role);
+                user.setStatus(userStatusFor(employee));
         userRepository.save(user);
     }
+
+        private String userStatusFor(Employee employee) {
+                return "ACTIVE".equalsIgnoreCase(employee.getStatus()) ? "ACTIVE" : "INACTIVE";
+        }
 
     private LookupValue employeeRoleLookup() {
         return lookupValueRepository
@@ -971,10 +980,9 @@ public class EmployeeServiceImpl implements EmployeeService {
     private EmployeeAssignment replaceAssignmentWhenChanged(Long employeeId, EmployeeAssignment current,
             EmployeeUpdateRequest request, boolean reactivating) {
         ProjectAssignmentRequest nested = request.getProjectAssignment();
-        if (nested.isDesignationIdPresent() || nested.isPositionTypePresent() || nested.isMilestoneIdPresent()
-                || nested.getAllocationPercentage() != null) {
+        if (nested.isDesignationIdPresent() || nested.isPositionTypePresent() || nested.isMilestoneIdPresent()) {
             throw new InvalidOperationException(
-                    "Update milestone, designation, position type and allocation through the milestone position assignment");
+                    "Update milestone, designation and position type through the milestone position assignment");
         }
         if (nested.isDepartmentIdPresent()) {
             throw new InvalidOperationException("Department is derived from the SOW business unit");
@@ -1420,10 +1428,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private void saveCompensation(Employee employee, EmployeeCompensationRequest request) {
         if (request == null) return;
-        String payType = request.getPayType().trim().toUpperCase();
-        if (!Set.of("HOURLY", "SALARY").contains(payType)) {
-            throw new InvalidOperationException("payType must be HOURLY or SALARY");
-        }
+                String payType = normalizePayType(request.getPayType());
         String currency = request.getCurrency().trim().toUpperCase();
         String reason = trimToNull(request.getReason());
         EmployeeCompensation current = employeeCompensationRepository
@@ -1454,6 +1459,17 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .current(true)
                 .build());
     }
+
+        private String normalizePayType(String payType) {
+                String normalized = payType.trim().toUpperCase(Locale.ROOT)
+                                .replaceAll("\\s+", "_");
+                if (!Set.of("W2_SALARY", "W2_HOURLY", "1099", "C2C", "CONTRACT",
+                                "SALARY", "HOURLY").contains(normalized)) {
+                        throw new InvalidOperationException(
+                                        "payType must be W2 Salary, W2 Hourly, 1099, C2C, or Contract");
+                }
+                return normalized;
+        }
 
     private EmployeeCompensationResponse compensationResponse(Long employeeId) {
         return employeeCompensationRepository

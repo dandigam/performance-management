@@ -24,9 +24,7 @@ public class TimesheetSummaryResponse {
     private String endClient;
     private BigDecimal totalHours;
     private BigDecimal regularHours;
-    private BigDecimal overtimeHours;
-    private BigDecimal totalTimeOffHours;
-    private String file;
-    private String commentsNotes;
+    private BigDecimal holidayHours;
+    private BigDecimal leaveHours;
     private List<TimesheetAuditLogResponse> auditLog;
 }

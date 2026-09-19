@@ -55,5 +55,28 @@ not invent timestamps for legacy approval rows (null dates sort last).
 
 This is a timeline derived from the existing submission and approval records,
 not a separate immutable history of edits or resubmission cycles. Names reflect
-current employee names. Approve/reject endpoints remain to be implemented;
+current employee names. Approve/reject actions use PUT /api/timesheets/{timesheetId}/approvals/{approvalId};
 completed approval records appear here when those actions are persisted.
+
+
+## Update an approval
+
+`PUT /api/timesheets/{timesheetId}/approvals/{approvalId}`
+
+Requires authentication as the employee assigned to this approval. The final ID
+is the approval row ID returned by GET /api/timesheets/approvals, not the level.
+
+```json
+{"status":"APPROVED","comments":"Checked hours"}
+```
+
+Use APPROVED or REJECTED. Comments are optional, with a maximum of 2000 characters.
+Primary approval changes SUBMITTED to LEVEL1_APPROVED; secondary approval changes
+LEVEL1_APPROVED to APPROVED. Rejection at the current stage changes the timesheet
+to REJECTED. Secondary decisions require primary approval. Completed decisions
+cannot be overwritten. Rejected timesheet resubmission is not provided by this API.
+
+Returns 200 with timesheetId, approvalId, approvalLevel, approvalStatus,
+timesheetStatus, comments and actionAt. Invalid decisions return 400, missing
+records (including approvals belonging to another timesheet) return 404,
+missing authentication returns 401, and a different approver returns 403.

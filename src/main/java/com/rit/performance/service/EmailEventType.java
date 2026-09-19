@@ -6,5 +6,6 @@ public enum EmailEventType {
     ASSESSMENT_REOPENED,
     RESULT_PUBLISHED,
     REMINDER,
+    PASSWORD_CHANGED,
     MANUAL
 }

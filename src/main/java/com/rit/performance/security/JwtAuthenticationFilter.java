@@ -29,6 +29,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        if ("POST".equals(request.getMethod()) &&
+                ("/api/auth/forgot-password".equals(request.getServletPath())
+                 || "/api/auth/reset-password".equals(request.getServletPath()))) return true;
         String authorization = request.getHeader("Authorization");
         boolean hasBearerToken = StringUtils.hasText(authorization)
                 && authorization.startsWith("Bearer ");
@@ -55,6 +58,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
 
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            if (userDetails instanceof AuthenticatedUser account) {
+                Number version = claims.get("sessionVersion", Number.class);
+                long tokenVersion = version == null ? 0 : version.longValue();
+                if (tokenVersion != account.sessionVersion()) {
+                    reject(response, "Session has been revoked");
+                    return;
+                }
+            }
             if (!userDetails.isEnabled()) {
                 reject(response, "User account is inactive");
                 return;

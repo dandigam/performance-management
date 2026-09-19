@@ -200,14 +200,19 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
             throw new InvalidOperationException("Resource assignment must match employee, SOW and milestone");
         if (assignment.getMilestonePositionAssignment() != null && !Objects.equals(assignment.getMilestonePositionAssignment().getId(), linkId))
             throw new InvalidOperationException("Cannot change the resource assignment of an existing setup");
-        if (!"ASSIGNED".equalsIgnoreCase(resource.getStatus()))
+        boolean completedResource = "COMPLETED".equalsIgnoreCase(resource.getStatus());
+        if (!"ASSIGNED".equalsIgnoreCase(resource.getStatus()) && !completedResource)
             throw new InvalidOperationException("Timesheet setup requires an ASSIGNED resource");
         if (request.getAssignmentEndDate() != null || request.getStatus() == TimesheetEmployeeProjectStatus.COMPLETED)
             throw new InvalidOperationException("Complete project work through the resource unassign API");
-        if (request.getAssignmentStartDate() != null && !request.getAssignmentStartDate().equals(resource.getAssignmentStartDate()))
+        if (!completedResource && request.getAssignmentStartDate() != null
+            && !request.getAssignmentStartDate().equals(resource.getAssignmentStartDate()))
             throw new InvalidOperationException("assignmentStartDate must match the linked resource assignment");
         assignment.setMilestonePositionAssignment(resource);
-        assignment.setAssignmentStartDate(resource.getAssignmentStartDate());
+        assignment.setAssignmentStartDate(completedResource
+            ? request.getAssignmentStartDate() == null
+                ? request.getStartDate() : request.getAssignmentStartDate()
+            : resource.getAssignmentStartDate());
         assignment.setAssignmentEndDate(null);
         assignment.setSow(sow(request.getSowId()));
         var milestone = milestoneRepository.findByIdAndSow_Id(request.getMilestoneId(), request.getSowId())

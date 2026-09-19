@@ -298,9 +298,9 @@ public class SowServiceImpl implements SowService {
         Sow sow = findSow(assignment.getSowId());
         Employee employee = requireEmployee(assignment.getEmployeeId(), "Employee");
         if (request.getDesignationId() != null || request.getPositionType() != null
-                || request.getMilestoneId() != null || request.getAllocationPercentage() != null) {
+                || request.getMilestoneId() != null) {
             throw new InvalidOperationException(
-                    "Update milestone, designation, position type and allocation through the milestone position assignment");
+                    "Update milestone, designation and position type through the milestone position assignment");
         }
         validateSupervisor(request.getLeadId(), employee.getId(), "Team Lead");
         validateSupervisor(request.getManagerId(), employee.getId(), "Manager");

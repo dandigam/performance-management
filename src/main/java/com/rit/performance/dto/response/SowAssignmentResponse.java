@@ -26,7 +26,6 @@ public class SowAssignmentResponse {
     private String leadName;
     private Long managerId;
     private String managerName;
-    private Integer allocationPercentage;
     private Boolean isPrimaryAssignment;
     private LocalDate assignmentStartDate;
     private LocalDate assignmentEndDate;

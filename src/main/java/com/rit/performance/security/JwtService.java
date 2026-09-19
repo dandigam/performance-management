@@ -58,6 +58,7 @@ public class JwtService {
                 .claim("userId", user.getId())
                 .claim("role", authority)
                 .claim("tokenType", "access")
+                .claim("sessionVersion", user.getSessionVersion())
                 .signWith(signingKey())
                 .compact();
         return new AccessToken(token, expiresAt);

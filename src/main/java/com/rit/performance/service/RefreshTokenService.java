@@ -24,6 +24,7 @@ public class RefreshTokenService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final RefreshTokenRepository repository;
+    private final com.rit.performance.repository.UserRepository users;
 
     @Value("${jwt.refresh-expiration-ms:604800000}")
     private long refreshExpirationMs;
@@ -36,6 +37,7 @@ public class RefreshTokenService {
         repository.save(RefreshToken.builder()
                 .tokenHash(hash(rawToken))
                 .user(user)
+                .sessionVersion(user.getSessionVersion())
                 .expiresAt(expiresAt)
                 .build());
         return new IssuedRefreshToken(rawToken, user, expiresAt);
@@ -50,7 +52,10 @@ public class RefreshTokenService {
 
     public void revoke(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) return;
-        repository.findByTokenHash(hash(rawToken)).ifPresent(token -> {
+        String tokenHash = hash(rawToken);
+        var userId = repository.findUserIdByHash(tokenHash);
+        if (userId.isEmpty() || users.findForSecurityUpdate(userId.get()).isEmpty()) return;
+        repository.findByTokenHash(tokenHash).ifPresent(token -> {
             if (token.getRevokedAt() == null) {
                 token.setRevokedAt(Instant.now());
                 repository.save(token);
@@ -66,9 +71,15 @@ public class RefreshTokenService {
         if (rawToken == null || rawToken.isBlank()) {
             throw new AuthenticationException("Refresh token is required");
         }
-        RefreshToken token = repository.findByTokenHash(hash(rawToken))
+        String tokenHash = hash(rawToken);
+        Long userId = repository.findUserIdByHash(tokenHash)
                 .orElseThrow(() -> new AuthenticationException("Invalid refresh token"));
-        if (token.getRevokedAt() != null || !token.getExpiresAt().isAfter(Instant.now())) {
+        User user = users.findForSecurityUpdate(userId)
+                .orElseThrow(() -> new AuthenticationException("User account is not available"));
+        RefreshToken token = repository.findByTokenHash(tokenHash)
+                .orElseThrow(() -> new AuthenticationException("Invalid refresh token"));
+        if (token.getSessionVersion() != user.getSessionVersion()
+                || token.getRevokedAt() != null || !token.getExpiresAt().isAfter(Instant.now())) {
             throw new AuthenticationException("Refresh token is expired or revoked");
         }
         if (!"ACTIVE".equalsIgnoreCase(token.getUser().getStatus())) {

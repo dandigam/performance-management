@@ -28,6 +28,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     @Transactional
     public AuthenticationResult login(LoginRequest request) {
         String username = request.getUserId().trim();
+        // Serialize authentication/token issuance with password resets.
+        User user = userRepository.findForAuthentication(username)
+                .orElseThrow(() -> new AuthenticationException("Invalid user ID or password"));
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, request.getPwd()));
@@ -36,8 +39,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             throw new AuthenticationException("Invalid user ID or password");
         }
 
-        User user = userRepository.findByUsernameIgnoreCase(username)
-                .orElseThrow(() -> new AuthenticationException("Invalid user ID or password"));
+
         if (passwordEncoder.upgradeEncoding(user.getPassword())) {
             user.setPassword(passwordEncoder.encode(request.getPwd()));
             userRepository.save(user);

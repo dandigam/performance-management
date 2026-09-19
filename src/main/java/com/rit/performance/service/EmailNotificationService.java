@@ -26,6 +26,19 @@ public class EmailNotificationService {
     @Value("${app.mail.base-url:http://localhost:5173}")
     private String baseUrl;
 
+    public void queuePasswordChanged(User user) {
+        Employee employee = user.getEmployee();
+        if (employee == null) return;
+        queue(EmailNotification.builder().eventType(EmailEventType.PASSWORD_CHANGED)
+                .recipientEmail(employee.getEmail()).recipientName(employeeName(employee))
+                .subject("Your password has been changed")
+                .body(greeting(employee) + "\n\nYour RIT Performance Management password was changed successfully."
+                        + "\n\nIf you made this change, no further action is needed."
+                        + " If you did not make this change, contact your administrator immediately.")
+                .footer(defaultFooter).actionUrl(url("/login"))
+                .deduplicationKey("PASSWORD_CHANGED:" + user.getId() + ":" + UUID.randomUUID())
+                .build());
+    }
     public void queueCyclePublished(PerformanceCycles cycle, Employee employee, EmployeeReview review) {
         queue(EmailNotification.builder().eventType(EmailEventType.CYCLE_PUBLISHED)
                 .recipientEmail(employee.getEmail()).recipientName(employeeName(employee))

@@ -23,7 +23,6 @@ public class EmployeeAssignmentResponse {
     private String designationName;
     private String positionType;
     private Boolean isPrimaryAssignment;
-    private Integer allocationPercentage;
     private LocalDate assignmentStartDate;
     private LocalDate assignmentEndDate;
     private String assignmentStatus;

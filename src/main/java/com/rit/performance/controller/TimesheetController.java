@@ -34,4 +34,11 @@ public class TimesheetController {
         return ResponseEntity.ok(service.getWeek(employeeId, weekStart, timesheetId));
     }
 
+    @GetMapping("/approvals")
+    public ResponseEntity<?> getApprovals(
+            @RequestParam Long reviewerEmployeeId,
+            @RequestParam(defaultValue = "PENDING") String status) {
+        return ResponseEntity.ok(service.getApprovals(reviewerEmployeeId, status));
+    }
+
 }

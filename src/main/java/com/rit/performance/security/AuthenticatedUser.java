@@ -11,6 +11,7 @@ public record AuthenticatedUser(
         String username,
         String password,
         boolean enabled,
+        long sessionVersion,
         Collection<? extends GrantedAuthority> authorities) implements UserDetails {
 
     @Override

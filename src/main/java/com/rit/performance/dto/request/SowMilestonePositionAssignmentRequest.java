@@ -10,11 +10,6 @@ public class SowMilestonePositionAssignmentRequest {
     @Positive(message = "employeeAssignmentId must be positive")
     private Long employeeAssignmentId;
 
-    @NotNull(message = "allocationPercentage is required")
-    @Min(value = 1, message = "allocationPercentage must be at least 1")
-    @Max(value = 100, message = "allocationPercentage must not exceed 100")
-    private Integer allocationPercentage;
-
     @NotBlank(message = "positionType is required")
     private String positionType;
 

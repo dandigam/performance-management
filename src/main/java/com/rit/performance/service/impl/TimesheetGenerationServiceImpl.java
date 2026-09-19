@@ -1,6 +1,7 @@
 package com.rit.performance.service.impl;
 
 import com.rit.performance.dto.response.TimesheetSummaryResponse;
+import com.rit.performance.dto.response.TimesheetApprovalResponse;
 import com.rit.performance.dto.response.TimesheetAuditLogResponse;
 import com.rit.performance.entity.TimesheetApprovalStatus;
 import java.util.ArrayList;
@@ -20,6 +21,7 @@ import com.rit.performance.repository.EmployeeRepository;
 import com.rit.performance.repository.SowMilestonePositionAssignmentRepository;
 import com.rit.performance.repository.TimesheetEmployeeProjectRepository;
 import com.rit.performance.repository.TimesheetRepository;
+import com.rit.performance.repository.TimesheetApprovalRepository;
 import com.rit.performance.service.TimesheetGenerationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -42,6 +44,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TimesheetGenerationServiceImpl implements TimesheetGenerationService {
     private final TimesheetRepository timesheetRepository;
+        private final TimesheetApprovalRepository approvalRepository;
     private final Clock clock;
 
     @Override
@@ -98,6 +101,54 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
                                 timesheet.getEmployee().getId(), List.of())))
                 .toList();
     }
+
+        @Override
+        @Transactional(readOnly = true)
+        public List<TimesheetApprovalResponse> getApprovals(Long reviewerEmployeeId, String status) {
+                if (reviewerEmployeeId == null || !employeeRepository.existsById(reviewerEmployeeId)) {
+                        throw new ResourceNotFoundException("Reviewer employee not found: " + reviewerEmployeeId);
+                }
+                List<TimesheetApprovalStatus> statuses = approvalTabStatuses(status);
+                return approvalRepository.findForReviewer(reviewerEmployeeId, statuses).stream()
+                                .map(approval -> {
+                                        Timesheet timesheet = approval.getTimesheet();
+                                        Employee employee = timesheet.getEmployee();
+                                        TimesheetEmployeeProject project = timesheet.getTimesheetEmployeeProject();
+                                        return TimesheetApprovalResponse.builder()
+                                                        .approvalId(approval.getId())
+                                                        .timesheetId(timesheet.getId())
+                                                        .timesheetEmployeeProjectId(project == null ? null : project.getId())
+                                                        .employeeId(employee.getId())
+                                                        .employeeName(employeeName(employee))
+                                                        .weekStartDate(timesheet.getWeekStartDate())
+                                                        .weekEndDate(timesheet.getWeekEndDate())
+                                                        .timesheetStatus(timesheet.getStatus())
+                                                        .approvalLevel(approval.getApprovalLevel())
+                                                        .approvalStatus(approval.getStatus())
+                                                        .totalHours(zero(timesheet.getTotalHours()))
+                                                        .regularHours(zero(timesheet.getRegularHours()))
+                                                        .holidayHours(zero(timesheet.getHolidayHours()))
+                                                        .leaveHours(zero(timesheet.getLeaveHours()))
+                                                        .auditLog(auditLog(timesheet))
+                                                        .comments(approval.getComments())
+                                                        .submittedAt(timesheet.getSubmittedAt())
+                                                        .actionAt(approval.getActionAt())
+                                                        .build();
+                                }).toList();
+        }
+
+        private List<TimesheetApprovalStatus> approvalTabStatuses(String status) {
+                String value = status == null || status.isBlank()
+                                ? "PENDING" : status.trim().toUpperCase(java.util.Locale.ROOT);
+                return switch (value) {
+                        case "PENDING" -> List.of(TimesheetApprovalStatus.PENDING);
+                        case "APPROVED" -> List.of(TimesheetApprovalStatus.APPROVED);
+                        case "REJECTED" -> List.of(TimesheetApprovalStatus.REJECTED);
+                        case "ALL" -> List.of(TimesheetApprovalStatus.values());
+                        default -> throw new InvalidOperationException(
+                                        "Invalid approval status; use PENDING, APPROVED, REJECTED or ALL");
+                };
+        }
 
     @Override
     @Transactional(readOnly = true)
@@ -230,10 +281,6 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
                 .distinct()
                 .sorted()
                 .collect(Collectors.joining(", "));
-        String comments = timesheet.getApprovals().stream()
-                .map(approval -> approval.getComments())
-                .filter(comment -> comment != null && !comment.isBlank())
-                .collect(Collectors.joining("; "));
         BigDecimal regularHours = zero(timesheet.getRegularHours());
         BigDecimal holidayHours = zero(timesheet.getHolidayHours());
         BigDecimal leaveHours = zero(timesheet.getLeaveHours());
@@ -252,10 +299,8 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
                 .endClient(null)
                 .totalHours(zero(timesheet.getTotalHours()))
                 .regularHours(regularHours)
-                .overtimeHours(BigDecimal.ZERO)
-                .totalTimeOffHours(holidayHours.add(leaveHours))
-                .file(null)
-                .commentsNotes(comments.isBlank() ? null : comments)
+                .holidayHours(holidayHours)
+                .leaveHours(leaveHours)
                 .auditLog(auditLog(timesheet))
                 .build();
     }

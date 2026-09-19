@@ -38,6 +38,9 @@ public class RefreshToken extends BaseEntity {
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
+    @Column(name = "session_version", nullable = false, columnDefinition = "bigint default 0")
+    private long sessionVersion;
+
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "user_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_refresh_token_user"))

@@ -55,8 +55,6 @@ public class EmployeeBasicInfoResponse {
     @JsonIgnore
     private Boolean isPrimaryAssignment;
     @JsonIgnore
-    private Integer allocationPercentage;
-    @JsonIgnore
     private LocalDate assignmentStartDate;
     @JsonIgnore
     private LocalDate assignmentEndDate;
