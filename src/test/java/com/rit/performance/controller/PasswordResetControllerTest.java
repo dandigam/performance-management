@@ -25,7 +25,8 @@ class PasswordResetControllerTest {
             mvc.perform(post("/api/auth/forgot-password").servletPath("/api/auth/forgot-password")
                     .header("Authorization", "Bearer expired").contentType(MediaType.APPLICATION_JSON)
                     .content("{\"email\":\"" + email + "\"}"))
-                    .andExpect(status().isOk()).andExpect(jsonPath("$.message").value(PasswordResetController.ACK));
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.type").value("SUCCESS"))
+                    .andExpect(jsonPath("$.message").value(PasswordResetController.ACK));
         }
         verifyNoInteractions(jwt);
     }
@@ -46,10 +47,12 @@ class PasswordResetControllerTest {
                 .andExpect(status().isTooManyRequests()).andExpect(header().string("Retry-After", "3600"))
                 .andExpect(jsonPath("$.message").value("Too many password reset requests. Please try again later."));
     }
-    @Test void resetReturns204WithoutAuthentication() throws Exception {
+    @Test void resetReturnsSuccessWithoutAuthentication() throws Exception {
         mvc.perform(post("/api/auth/reset-password").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"token\":\"raw\",\"newPassword\":\"new-password\"}"))
-                .andExpect(status().isNoContent()).andExpect(content().string(""));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("SUCCESS"))
+                .andExpect(jsonPath("$.message").value("Password reset successfully."));
         verify(service).reset("raw", "new-password");
     }
 

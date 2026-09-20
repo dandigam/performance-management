@@ -50,6 +50,10 @@ public class EmployeeServiceImpl implements EmployeeService {
     private static final String DEFAULT_PASSWORD = "admin123";
     private static final String DEFAULT_ROLE = "EMPLOYEE";
     private static final String SYSTEM_ROLE_LOOKUP = "SYSTEM_ROLE";
+    private static final String WORK_MODE_LOOKUP = "WORK_MODE";
+    private static final String WORK_LOCATION_LOOKUP = "WORK_LOCATION";
+    private static final String EMPLOYEE_STATUS_LOOKUP = "EMPLOYEE_STATUS";
+    private static final String EMPLOYMENT_TYPE_LOOKUP = "EMPLOYMENT_TYPE";
     private static final Set<String> ALLOWED_GENDERS = Set.of(
             "MALE", "FEMALE", "NON_BINARY", "OTHER", "PREFER_NOT_TO_SAY");
 
@@ -93,13 +97,13 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setGender(normalizeGender(request.getGender()));
         employee.setDateOfBirth(request.getDateOfBirth());
         employee.setCsxRacfId(csxRacfId);
-        employee.setEmploymentType(normalizeRequiredValue(request.getEmploymentType(), "employmentType"));
+        employee.setEmploymentType(normalizeEmploymentType(request.getEmploymentType()));
         employee.setJoiningDate(request.getJoiningDate());
-        employee.setWorkMode(normalizeRequiredValue(request.getWorkMode(), "workMode"));
-        employee.setWorkLocation(request.getWorkLocation());
+        employee.setWorkMode(normalizeWorkMode(request.getWorkMode()));
+        employee.setWorkLocation(normalizeWorkLocation(request.getWorkLocation()));
         employee.setVendor(resolveVendor(request.getVendorId(), employee.getEmploymentType()));
         employee.setDesignationId(resolveProfileDesignationId(request));
-        employee.setStatus(request.getStatus() == null ? "ACTIVE" : request.getStatus().trim().toUpperCase());
+        employee.setStatus(normalizeEmployeeStatus(request.getStatus(), "ACTIVE"));
         employee.setCreatedBy(request.getCreatedBy());
         employee.setUpdatedBy(request.getCreatedBy());
         employee = employeeRepository.save(employee);
@@ -250,7 +254,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional
-    public com.rit.performance.dto.EmployeeAssignmentSuccessResponse assign(EmployeeAssignmentRequest request) {
+    public ApiMessageResponse assign(EmployeeAssignmentRequest request) {
         Employee employee = employeeRepository.findById(request.getEmployeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found: " + request.getEmployeeId()));
 
@@ -290,7 +294,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 "CREATED",
                 null, Map.of("assignment", assignment, "milestoneAssignments", milestoneAssignments),
                 request.getUpdatedBy());
-        return new EmployeeAssignmentSuccessResponse(200, "Assigned successfully");
+        return ApiMessageResponse.success("Assigned successfully.");
     }
 
     @Override
@@ -957,13 +961,13 @@ public class EmployeeServiceImpl implements EmployeeService {
             employee.setCsxRacfId(csxRacfId);
         }
         if (request.getEmploymentType() != null)
-            employee.setEmploymentType(normalizeRequiredValue(request.getEmploymentType(), "employmentType"));
+            employee.setEmploymentType(normalizeEmploymentType(request.getEmploymentType()));
         if (request.getJoiningDate() != null)
             employee.setJoiningDate(request.getJoiningDate());
         if (request.getWorkMode() != null)
-            employee.setWorkMode(normalizeRequiredValue(request.getWorkMode(), "workMode"));
+            employee.setWorkMode(normalizeWorkMode(request.getWorkMode()));
         if (request.getWorkLocation() != null)
-            employee.setWorkLocation(request.getWorkLocation());
+            employee.setWorkLocation(normalizeWorkLocation(request.getWorkLocation()));
         if (request.isVendorIdPresent() || request.getEmploymentType() != null) {
             Long vendorId = request.isVendorIdPresent() ? request.getVendorId()
                     : employee.getVendor() == null ? null : employee.getVendor().getId();
@@ -975,7 +979,9 @@ public class EmployeeServiceImpl implements EmployeeService {
             }
             employee.setDesignationId(requireLookup(request.getDesignationId(), "DESIGNATION").getId());
         }
-        if (request.getStatus() != null) employee.setStatus(request.getStatus().trim().toUpperCase());
+        if (request.getStatus() != null) {
+            employee.setStatus(normalizeEmployeeStatus(request.getStatus(), null));
+        }
         employee.setUpdatedBy(request.getUpdatedBy());
     }
 
@@ -1355,6 +1361,54 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (value == null || value.isBlank())
             throw new InvalidOperationException(fieldName + " cannot be blank");
         return value.trim().toUpperCase().replace(' ', '_');
+    }
+
+    private String normalizeWorkMode(String value) {
+        String normalized = normalizeRequiredValue(value, "workMode");
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        WORK_MODE_LOOKUP, normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "workMode must be an active WORK_MODE lookup value"));
+    }
+
+    private String normalizeEmploymentType(String value) {
+        String normalized = normalizeRequiredValue(value, "employmentType");
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        EMPLOYMENT_TYPE_LOOKUP, normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "employmentType must be an active EMPLOYMENT_TYPE lookup value"));
+    }
+
+    private String normalizeWorkLocation(String value) {
+        if (value == null) return null;
+        if (value.isBlank()) {
+            throw new InvalidOperationException("workLocation cannot be blank");
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        WORK_LOCATION_LOOKUP, normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "workLocation must be an active WORK_LOCATION lookup value"));
+    }
+
+    private String normalizeEmployeeStatus(String value, String defaultValue) {
+        if (value != null && value.isBlank()) {
+            throw new InvalidOperationException("status cannot be blank");
+        }
+        String normalized = value == null ? defaultValue : value.trim().toUpperCase(Locale.ROOT);
+        if (normalized == null) return null;
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        EMPLOYEE_STATUS_LOOKUP, normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "status must be an active EMPLOYEE_STATUS lookup value"));
     }
 
     private static String normalizeAssignmentStatus(String value) {

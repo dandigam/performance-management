@@ -74,7 +74,9 @@ Login attempts for `INACTIVE` or `LOCKED` accounts return `403 Forbidden` with:
 
 ```json
 {
-  "error": "This account is unavailable. Please contact your administrator."
+  "type": "WARNING",
+  "code": "ACCOUNT_UNAVAILABLE",
+  "message": "This account is unavailable. Please contact your administrator."
 }
 ```
 
@@ -82,7 +84,9 @@ Unknown users and incorrect passwords return `401 Unauthorized` with:
 
 ```json
 {
-  "error": "The email or password is incorrect."
+  "type": "WARNING",
+  "code": "AUTHENTICATION_FAILED",
+  "message": "The email or password is incorrect."
 }
 ```
 

@@ -2,7 +2,7 @@ package com.rit.performance.controller;
 
 import com.rit.performance.dto.ReportingManagerResponse;
 import com.rit.performance.dto.EmployeeAssignmentRequest;
-import com.rit.performance.dto.EmployeeAssignmentSuccessResponse;
+import com.rit.performance.dto.ApiMessageResponse;
 import com.rit.performance.service.EmployeeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +23,7 @@ public class EmployeeAssignmentController {
     private final EmployeeService employeeService;
 
     @PostMapping
-    public ResponseEntity<EmployeeAssignmentSuccessResponse> assign(
+    public ResponseEntity<ApiMessageResponse> assign(
             @Valid @RequestBody EmployeeAssignmentRequest request) {
         return ResponseEntity.ok(employeeService.assign(request));
     }

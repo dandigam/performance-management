@@ -1,7 +1,5 @@
 package com.rit.performance.dto;
 
-import com.rit.performance.entity.WorkLocation;
-
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Past;
@@ -40,7 +38,8 @@ public class EmployeeUpdateRequest {
     private String employmentType;
     @Size(max = 50)
     private String workMode;
-    private WorkLocation workLocation;
+    @Size(max = 20)
+    private String workLocation;
     @PastOrPresent
     private LocalDate joiningDate;
     @Positive

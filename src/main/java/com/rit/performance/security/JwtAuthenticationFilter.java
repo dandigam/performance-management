@@ -88,6 +88,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private void reject(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("{\"error\":\"" + message + "\"}");
+        response.getWriter().write("{\"type\":\"WARNING\",\"code\":\"INVALID_ACCESS_TOKEN\","
+                + "\"message\":\"" + message + "\"}");
     }
 }

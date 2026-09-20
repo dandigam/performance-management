@@ -39,7 +39,9 @@ class ChangePasswordControllerTest {
     void returns204AndUsesPrincipal() throws Exception {
         login();
         mvc.perform(put("/api/auth/change-password").contentType(MediaType.APPLICATION_JSON).content(BODY))
-                .andExpect(status().isNoContent()).andExpect(content().string(""));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.type").value("SUCCESS"))
+                .andExpect(jsonPath("$.message").value("Password changed successfully."));
         verify(service).change("alice", new ChangePasswordRequest("current-password", "new-password"));
     }
 
@@ -48,14 +50,18 @@ class ChangePasswordControllerTest {
         login();
         doThrow(new InvalidOperationException("Current password is incorrect.")).when(service).change(eq("alice"), any());
         mvc.perform(put("/api/auth/change-password").contentType(MediaType.APPLICATION_JSON).content(BODY))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Current password is incorrect."));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.type").value("WARNING"))
+                .andExpect(jsonPath("$.code").value("INVALID_OPERATION"))
+                .andExpect(jsonPath("$.message").value("Current password is incorrect."));
     }
 
     @Test
     void malformedBodyUsesMessageField() throws Exception {
         login();
         mvc.perform(put("/api/auth/change-password").contentType(MediaType.APPLICATION_JSON).content("{"))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value("Invalid request body."));
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.type").value("WARNING"))
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("Invalid request body."));
     }
 
     @Test

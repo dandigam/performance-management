@@ -18,6 +18,7 @@ import com.rit.performance.dto.request.SowMilestonePositionUnassignRequest;
 import com.rit.performance.dto.request.SowSignatureUpdateRequest;
 import com.rit.performance.dto.request.SowStatusUpdateRequest;
 import com.rit.performance.dto.response.SowMilestonePositionAssignmentResponse;
+import com.rit.performance.dto.ApiMessageResponse;
 import com.rit.performance.service.SowService;
 import com.rit.performance.service.SowMilestonePositionAssignmentService;
 import jakarta.validation.Valid;
@@ -125,12 +126,12 @@ public class SowController {
     }
 
     @DeleteMapping("/{sowId}/milestones/{milestoneId}/positions/{positionId}")
-    public ResponseEntity<Void> deletePosition(
+    public ResponseEntity<ApiMessageResponse> deletePosition(
             @PathVariable Long sowId,
             @PathVariable Long milestoneId,
             @PathVariable Long positionId) {
         sowService.deletePosition(sowId, milestoneId, positionId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiMessageResponse.success("Position removed successfully."));
     }
 
     @PostMapping("/{sowId}/milestones/{milestoneId}/positions/"

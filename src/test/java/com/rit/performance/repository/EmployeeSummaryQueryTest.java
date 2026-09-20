@@ -38,13 +38,13 @@ class EmployeeSummaryQueryTest {
     @Test void filtersBeforeCountingAndPaging() {
         for (int i = 0; i < 53; i++) employee(String.format("Employee%02d", i), "ACTIVE");
         employee("Inactive", "INACTIVE");
-        var page = repository.findSummaries(null, null, null, null, null, "ACTIVE", today,
+        var page = repository.findSummaries(null, null, null, null, null, null, "ACTIVE", today,
                 PageRequest.of(0, 20, Sort.by("firstName")));
         assertThat(page.getTotalElements()).isEqualTo(53);
         assertThat(page.getTotalPages()).isEqualTo(3);
         assertThat(page.getContent()).hasSize(20);
         assertThat(page.getContent().get(0).getFirstName()).isEqualTo("Employee00");
-        var last = repository.findSummaries(null, null, null, null, null, "ACTIVE", today,
+        var last = repository.findSummaries(null, null, null, null, null, null, "ACTIVE", today,
                 PageRequest.of(2, 20, Sort.by("firstName")));
         assertThat(last.getContent()).hasSize(13);
         assertThat(last.getTotalElements()).isEqualTo(53);
@@ -57,7 +57,7 @@ class EmployeeSummaryQueryTest {
         var sow = Sow.builder().sowName("CBMS Support").sowType("TEST").engagementType("TEST")
                 .status(department).businessUnit(department).build(); em.persist(sow);
         var charan = employee("Charan", "ACTIVE"); charan.setDesignationId(designation.getId());
-        charan.setRitId("RIT03"); charan.setWorkMode("ONSITE");
+        charan.setRitId("RIT03"); charan.setWorkMode("ONSITE"); charan.setWorkLocation("HYBRID");
         assignment(charan, sow, "ASSIGNED", today.minusDays(10), null);
         assignment(charan, sow, "ASSIGNED", today.minusDays(5), null);
         var ended = employee("Ended", "ACTIVE");
@@ -68,14 +68,18 @@ class EmployeeSummaryQueryTest {
         assignment(expired, sow, "ASSIGNED", today.minusDays(30), today.minusDays(1));
         var pageable = PageRequest.of(0, 1, Sort.by("firstName"));
         for (String search : new String[]{"%charan%", "%rit03%", "%charan@example.com%", "%technical%", "%engineering%", "%cbms%"}) {
-            var result = repository.findSummaries(search, department.getId(), sow.getId(), "ASSIGNED", "ONSITE", "ACTIVE", today, pageable);
+            var result = repository.findSummaries(search, department.getId(), sow.getId(), "ASSIGNED",
+                    "ONSITE", "HYBRID", "ACTIVE", today, pageable);
             assertThat(result.getTotalElements()).isEqualTo(1);
             assertThat(result.getContent()).containsExactly(charan);
         }
-        var unassigned = repository.findSummaries(null, null, null, "UNASSIGNED", null, null, today, PageRequest.of(0, 20));
+        var unassigned = repository.findSummaries(null, null, null, "UNASSIGNED", null, null, null,
+                today, PageRequest.of(0, 20));
         assertThat(unassigned.getContent()).containsExactlyInAnyOrder(ended, future, expired);
-        assertThat(repository.findSummaries(null, department.getId(), null, "UNASSIGNED", null, null, today, pageable).getTotalElements()).isZero();
-        assertThat(repository.findSummaries("%missing%", null, null, null, null, null, today, pageable).getTotalElements()).isZero();
+        assertThat(repository.findSummaries(null, department.getId(), null, "UNASSIGNED", null, null,
+                null, today, pageable).getTotalElements()).isZero();
+        assertThat(repository.findSummaries("%missing%", null, null, null, null, null, null,
+                today, pageable).getTotalElements()).isZero();
     }
 
     private Employee employee(String name, String status) {

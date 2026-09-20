@@ -15,6 +15,7 @@ public class ApiAccessDeniedHandler implements AccessDeniedHandler {
                        AccessDeniedException exception) throws IOException {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("{\"error\":\"Access is denied\"}");
+        response.getWriter().write("{\"type\":\"WARNING\",\"code\":\"ACCESS_DENIED\","
+                + "\"message\":\"Access is denied.\"}");
     }
 }

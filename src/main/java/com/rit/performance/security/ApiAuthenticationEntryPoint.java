@@ -15,6 +15,7 @@ public class ApiAuthenticationEntryPoint implements AuthenticationEntryPoint {
                          AuthenticationException exception) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("{\"error\":\"Authentication is required\"}");
+        response.getWriter().write("{\"type\":\"WARNING\",\"code\":\"AUTHENTICATION_REQUIRED\","
+                + "\"message\":\"Authentication is required.\"}");
     }
 }

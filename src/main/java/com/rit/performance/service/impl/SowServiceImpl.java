@@ -412,8 +412,8 @@ public class SowServiceImpl implements SowService {
                         "Milestone position " + positionId + " not found for milestone "
                                 + milestoneId + " and SOW " + sowId));
         if (positionAssignmentRepository.existsByMilestonePosition_Id(positionId)) {
-            throw new InvalidOperationException("Milestone position " + positionId
-                    + " has assignment history and cannot be removed; unassign it instead");
+            throw new InvalidOperationException("POSITION_HAS_RESOURCE",
+                    "Position can't be removed. Unassign the resource first.");
         }
 
         milestone.getPositions().remove(position);
@@ -805,8 +805,8 @@ public class SowServiceImpl implements SowService {
                 .filter(position -> !retained.contains(position)).toList();
         for (SowMilestonePosition position : removed) {
             if (positionAssignmentRepository.existsByMilestonePosition_Id(position.getId())) {
-                throw new InvalidOperationException("Milestone position " + position.getId()
-                        + " has assignment history and cannot be removed; unassign it instead");
+                throw new InvalidOperationException("POSITION_HAS_RESOURCE",
+                        "Position can't be removed. Unassign the resource first.");
             }
             milestone.getPositions().remove(position);
         }

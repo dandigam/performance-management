@@ -1,6 +1,5 @@
 package com.rit.performance.dto;
 
-import com.rit.performance.entity.WorkLocation;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,7 +26,7 @@ public class EmployeeInformationResponse {
     private String employmentType;
     private java.time.LocalDate joiningDate;
     private String workMode;
-    private WorkLocation workLocation;
+    private String workLocation;
     private Long vendorId;
     private String vendorCompanyName;
     private Long designationId;

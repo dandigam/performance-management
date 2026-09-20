@@ -41,10 +41,11 @@ class PasswordResetSecurityTest {
     @Test void publicEndpointsPassActualSecurityChainWithoutToken() throws Exception {
         mvc.perform(post("/api/auth/forgot-password").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"alice@example.com\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.message").value(PasswordResetController.ACK));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.type").value("SUCCESS"))
+                .andExpect(jsonPath("$.message").value(PasswordResetController.ACK));
         mvc.perform(post("/api/auth/reset-password").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"token\":\"raw\",\"newPassword\":\"new-password\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk()).andExpect(jsonPath("$.type").value("SUCCESS"));
         mvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
     }
 

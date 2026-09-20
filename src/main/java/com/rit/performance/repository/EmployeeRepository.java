@@ -21,6 +21,7 @@ public interface EmployeeRepository
             select e from Employee e
             where (:status is null or upper(e.status) = :status)
               and (:workMode is null or upper(e.workMode) = :workMode)
+              and (:workLocation is null or upper(e.workLocation) = :workLocation)
               and (:assignmentStatus is null
                 or (:assignmentStatus = 'ASSIGNED' and exists (
                     select a.id from EmployeeAssignment a where a.employeeId = e.id
@@ -57,6 +58,7 @@ public interface EmployeeRepository
             @org.springframework.data.repository.query.Param("sowId") Long sowId,
             @org.springframework.data.repository.query.Param("assignmentStatus") String assignmentStatus,
             @org.springframework.data.repository.query.Param("workMode") String workMode,
+            @org.springframework.data.repository.query.Param("workLocation") String workLocation,
             @org.springframework.data.repository.query.Param("status") String status,
             @org.springframework.data.repository.query.Param("today") java.time.LocalDate today,
             org.springframework.data.domain.Pageable pageable);

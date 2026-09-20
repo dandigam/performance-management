@@ -25,19 +25,21 @@ public class EmployeeSummaryService {
 
     @Transactional(readOnly = true)
     public EmployeeSummaryPageResponse getSummaries(int page, int size) {
-        return getSummaries(page, size, null, null, null, null, null, null, "employeeName,asc");
+        return getSummaries(page, size, null, null, null, null, null, null, null,
+                "employeeName,asc");
     }
 
     @Transactional(readOnly = true)
     public EmployeeSummaryPageResponse getSummaries(int page, int size, String search,
             Long departmentId, Long sowId, String assignmentStatus, String workMode,
-            String status, String sort) {
+            String workLocation, String status, String sort) {
         if (page < 0 || size < 1 || size > 100) {
             throw new InvalidOperationException("page must be at least 0 and size must be between 1 and 100");
         }
         assignmentStatus = normalizeFilter(assignmentStatus, Set.of("ASSIGNED", "UNASSIGNED"), "assignmentStatus");
-        workMode = normalizeFilter(workMode, Set.of("ONSITE", "OFFSHORE"), "workMode");
-        status = normalizeFilter(status, Set.of("ACTIVE", "INACTIVE"), "status");
+        workMode = normalizeWorkModeFilter(workMode);
+        String normalizedWorkLocation = normalizeWorkLocationFilter(workLocation);
+        status = normalizeEmployeeStatusFilter(status);
         if ((departmentId != null && departmentId < 1) || (sowId != null && sowId < 1)) {
             throw new InvalidOperationException("departmentId and sowId must be positive");
         }
@@ -45,7 +47,8 @@ public class EmployeeSummaryService {
                 .toLowerCase(Locale.ROOT).replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
         LocalDate today = LocalDate.now();
         var employees = employeeRepository.findSummaries(pattern, departmentId, sowId,
-                assignmentStatus, workMode, status, today, PageRequest.of(page, size, summarySort(sort)));
+                assignmentStatus, workMode, normalizedWorkLocation, status, today,
+                PageRequest.of(page, size, summarySort(sort)));
         if (employees.isEmpty()) {
             return new EmployeeSummaryPageResponse(List.of(), page, size, employees.getTotalElements(),
                     employees.getTotalPages(), employees.isFirst(), employees.isLast());
@@ -90,6 +93,39 @@ public class EmployeeSummaryService {
         String normalized = value.trim().toUpperCase(Locale.ROOT);
         if (!allowed.contains(normalized)) throw new InvalidOperationException("Invalid " + field);
         return normalized;
+    }
+
+    private String normalizeWorkModeFilter(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        "WORK_MODE", normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "workMode must be an active WORK_MODE lookup value"));
+    }
+
+    private String normalizeWorkLocationFilter(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        "WORK_LOCATION", normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "workLocation must be an active WORK_LOCATION lookup value"));
+    }
+
+    private String normalizeEmployeeStatusFilter(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        "EMPLOYEE_STATUS", normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "status must be an active EMPLOYEE_STATUS lookup value"));
     }
 
     private static Sort summarySort(String value) {

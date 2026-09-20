@@ -32,7 +32,7 @@ public interface EmployeeService {
 
     EmployeeBasicInfoResponse update(Long employeeId, EmployeeUpdateRequest request);
 
-    com.rit.performance.dto.EmployeeAssignmentSuccessResponse assign(EmployeeAssignmentRequest request);
+    com.rit.performance.dto.ApiMessageResponse assign(EmployeeAssignmentRequest request);
 
     List<ReportingManagerResponse> getReportingManagers(
             Long sowId, Long departmentId, Long designationId, Long excludeEmployeeId);

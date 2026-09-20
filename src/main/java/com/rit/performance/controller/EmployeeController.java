@@ -44,10 +44,11 @@ public class EmployeeController {
             @RequestParam(required = false) Long sowId,
             @RequestParam(required = false) String assignmentStatus,
             @RequestParam(required = false) String workMode,
+            @RequestParam(required = false) String workLocation,
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "employeeName,asc") String sort) {
         return ResponseEntity.ok(employeeSummaryService.getSummaries(page, size, search,
-                departmentId, sowId, assignmentStatus, workMode, status, sort));
+                departmentId, sowId, assignmentStatus, workMode, workLocation, status, sort));
     }
 
     @PostMapping
