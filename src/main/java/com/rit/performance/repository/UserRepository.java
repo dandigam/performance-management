@@ -3,12 +3,16 @@ package com.rit.performance.repository;
 import com.rit.performance.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.Optional;
 import java.util.List;
 
 public interface UserRepository extends JpaRepository<User, Long> {
+    @EntityGraph(attributePaths = {"role", "employee"})
+    List<User> findAllByOrderByIdAsc();
+
     @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u where u.id = :id")
     Optional<User> findForSecurityUpdate(@org.springframework.data.repository.query.Param("id") Long id);

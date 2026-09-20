@@ -4,6 +4,7 @@ import com.rit.performance.dto.LoginRequest;
 import com.rit.performance.dto.LoginResponse;
 import com.rit.performance.entity.Employee;
 import com.rit.performance.entity.User;
+import com.rit.performance.exception.AccountUnavailableException;
 import com.rit.performance.exception.AuthenticationException;
 import com.rit.performance.repository.UserRepository;
 import com.rit.performance.security.JwtService;
@@ -14,6 +15,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -30,20 +33,28 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         String username = request.getUserId().trim();
         // Serialize authentication/token issuance with password resets.
         User user = userRepository.findForAuthentication(username)
-                .orElseThrow(() -> new AuthenticationException("Invalid user ID or password"));
+                .orElseThrow(() -> new AuthenticationException("The email or password is incorrect."));
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new AccountUnavailableException(
+                    "This account is unavailable. Please contact your administrator.");
+        }
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, request.getPwd()));
             username = authentication.getName();
+        } catch (org.springframework.security.authentication.AccountStatusException exception) {
+            throw new AccountUnavailableException(
+                    "This account is unavailable. Please contact your administrator.");
         } catch (org.springframework.security.core.AuthenticationException exception) {
-            throw new AuthenticationException("Invalid user ID or password");
+            throw new AuthenticationException("The email or password is incorrect.");
         }
 
 
         if (passwordEncoder.upgradeEncoding(user.getPassword())) {
             user.setPassword(passwordEncoder.encode(request.getPwd()));
-            userRepository.save(user);
         }
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
         RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user);
         return new AuthenticationResult(toResponse(user), refreshToken.value());
     }

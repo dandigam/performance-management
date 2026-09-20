@@ -77,7 +77,9 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                                 .permitAll();
                     if (authenticationRequired) {
-                        auth.requestMatchers("/api/v1/bank-accounts/**", "/api/v1/vendors/**")
+                        auth.requestMatchers("/api/v1/user-management/**")
+                                .hasRole("ADMIN")
+                                .requestMatchers("/api/v1/bank-accounts/**", "/api/v1/vendors/**")
                                 .hasAnyRole("ADMIN", "FINANCE")
                                 .requestMatchers("/api/**").authenticated();
                     } else {

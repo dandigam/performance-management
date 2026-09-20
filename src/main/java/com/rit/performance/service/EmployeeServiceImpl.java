@@ -1603,6 +1603,24 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private void saveBankDetails(Employee employee, EmployeeBankDetailsRequest request) {
         if (request == null) return;
+        String bankCountry = request.getBankCountry().trim().toUpperCase(Locale.ROOT);
+        boolean usaBank = Set.of("US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA")
+                .contains(bankCountry);
+        boolean indiaBank = Set.of("IN", "INDIA").contains(bankCountry);
+        if (!usaBank && !indiaBank) {
+            throw new InvalidOperationException("bankDetails.bankCountry must be USA or INDIA");
+        }
+
+        String routingNumber = trimToNull(request.getRoutingNumber());
+        String ifscCode = trimToNull(request.getIfscCode());
+        if (usaBank && (routingNumber == null || !routingNumber.matches("\\d{9}"))) {
+            throw new InvalidOperationException(
+                    "bankDetails.routingNumber must contain exactly 9 digits for USA banks");
+        }
+        if (indiaBank && ifscCode == null) {
+            throw new InvalidOperationException("bankDetails.ifscCode is required for INDIA banks");
+        }
+
         BankAccount account = bankAccountRepository
                 .findFirstByOwnerTypeAndOwnerIdAndIsPrimaryTrueAndActiveTrue(
                         BankAccountOwnerType.EMPLOYEE, employee.getId())
@@ -1612,11 +1630,12 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .isPrimary(true)
                         .active(true)
                         .build());
-        account.setBankCountry(request.getBankCountry().trim());
+        account.setBankCountry(usaBank ? "USA" : "INDIA");
         account.setCurrency(request.getCurrency().trim().toUpperCase());
         account.setAccountHolderName(request.getAccountHolderName().trim());
         account.setBankName(request.getBankName().trim());
-        account.setIfscCode(request.getIfscCode().trim().toUpperCase());
+        account.setRoutingNumberEncrypted(usaBank ? routingNumber : null);
+        account.setIfscCode(indiaBank ? ifscCode.toUpperCase(Locale.ROOT) : null);
         account.setPaymentMethod("BANK_TRANSFER");
         String accountNumber = trimToNull(request.getAccountNumber());
         if (account.getId() == null && accountNumber == null) {
@@ -1639,8 +1658,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .currency(account.getCurrency())
                         .accountHolderName(account.getAccountHolderName())
                         .bankName(account.getBankName())
+                        .accountNumber(account.getAccountNumberEncrypted())
                         .accountNumberLast4(account.getAccountNumberLast4())
                         .ifscCode(account.getIfscCode())
+                        .routingNumber(account.getRoutingNumberEncrypted())
                         .build())
                 .orElse(null);
     }
