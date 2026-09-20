@@ -24,6 +24,14 @@ public class EmployeeLeavePolicy extends BaseEntity {
     @JoinColumn(name = "leave_policy_id", nullable = false, foreignKey = @ForeignKey(name = "fk_employee_leave_policy_policy"))
     private LeavePolicy leavePolicy;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "level1_approver_id", foreignKey = @ForeignKey(name = "fk_employee_leave_policy_l1"))
+    private Employee level1Approver;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "level2_approver_id", foreignKey = @ForeignKey(name = "fk_employee_leave_policy_l2"))
+    private Employee level2Approver;
+
     @Column(name = "effective_from", nullable = false)
     private LocalDate effectiveFrom;
 

@@ -16,6 +16,8 @@ public class TimesheetApprovalResponse {
     private Long approvalId;
     private Long timesheetId;
     private Long timesheetEmployeeProjectId;
+    private Long clientId;
+    private String clientName;
     private Long employeeId;
     private String employeeName;
     private LocalDate weekStartDate;

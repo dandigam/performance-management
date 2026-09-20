@@ -10,7 +10,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface TimesheetApprovalRepository extends JpaRepository<TimesheetApproval, Long> {
-    @EntityGraph(attributePaths = {"timesheet", "timesheet.employee", "timesheet.timesheetEmployeeProject"})
+    @EntityGraph(attributePaths = {"timesheet", "timesheet.employee", "timesheet.timesheetEmployeeProject",
+            "timesheet.timesheetEmployeeProject.sow", "timesheet.timesheetEmployeeProject.sow.client"})
     @Query("""
             select a from TimesheetApproval a
             where a.approverEmployee.id = :reviewerEmployeeId

@@ -18,15 +18,18 @@ Base path: `/api/v1/employees/{employeeId}/leave-policies`. Requests and respons
 {
   "leavePolicyId": 10,
   "effectiveFrom": "2026-01-01",
-  "effectiveTo": "2026-06-30"
+  "effectiveTo": "2026-06-30",
+  "level1ApproverId": 40,
+  "level2ApproverId": 55,
+  "status": "ACTIVE"
 }
 ```
 
-`leavePolicyId` and `effectiveFrom` are required. `effectiveTo` is optional; `null` means no end date. An end date must be on or after the start date. The entire assignment period must fit within the selected policy's effective period. If the policy has an end date, the assignment must also have an end date no later than it.
+`leavePolicyId`, `effectiveFrom`, and `level1ApproverId` are required. `level2ApproverId`, `effectiveTo`, and `status` are optional. Omit `status` to create an `ACTIVE` assignment or to retain the current status on update. Approvers must be active employees. The employee cannot approve their own leave, and Level 1 and Level 2 must differ. `effectiveTo: null` means no end date. An end date must be on or after the start date. The entire assignment period must fit within the selected policy's effective period. If the policy has an end date, the assignment must also have an end date no later than it.
 
 A new assignment requires an `ACTIVE` leave policy. Changing an assignment to a different policy also requires that policy to be `ACTIVE`. Existing assignments retain their status when updated.
 
-`POST` creates an `ACTIVE` assignment. It returns `201 Created` and a `Location` header such as `/api/v1/employees/5/leave-policies/42`.
+`POST` defaults to an `ACTIVE` assignment. It returns `201 Created` and a `Location` header such as `/api/v1/employees/5/leave-policies/42`.
 
 ## Response
 
@@ -41,6 +44,10 @@ The single assignment endpoints return this shape. The list endpoint returns an 
   "effectiveFrom": "2026-01-01",
   "effectiveTo": "2026-06-30",
   "status": "ACTIVE",
+  "level1ApproverId": 40,
+  "level1ApproverName": "Charan Patel",
+  "level2ApproverId": 55,
+  "level2ApproverName": "Robert Singh",
   "createdAt": "2026-01-01T09:00:00",
   "createdBy": 7,
   "updatedAt": "2026-01-01T09:00:00",
@@ -49,6 +56,8 @@ The single assignment endpoints return this shape. The list endpoint returns an 
 ```
 
 Audit fields are read-only and may be `null` if no auditor is available. `GET /current` uses today's date and returns an assignment whose status is `ACTIVE` and whose date range includes today.
+
+Submitted leave requests capture these two approvers from the active assignment. Editing the assignment later changes approvers for future submissions only. Timesheet approvers are independent. Existing assignments need their Level 1 approver populated before they can be used for new leave submissions; see `database/migrations/2026-09-19-leave-policy-approvers.sql`.
 
 ## Change status
 

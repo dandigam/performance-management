@@ -28,7 +28,9 @@ public class EmployeeLeavePolicyService {
         LeavePolicy policy = findPolicy(request.leavePolicyId());
         requireActivePolicy(policy);
         validatePeriod(request, policy);
-        checkOverlap(employeeId, -1L, request.effectiveFrom(), request.effectiveTo());
+        validateApprovers(employeeId, request);
+        if (requestedStatus(request, LeavePolicyStatus.ACTIVE) == LeavePolicyStatus.ACTIVE)
+            checkOverlap(employeeId, -1L, request.effectiveFrom(), request.effectiveTo());
 
         EmployeeLeavePolicy assignment = new EmployeeLeavePolicy();
         assignment.setEmployee(employee);
@@ -43,8 +45,12 @@ public class EmployeeLeavePolicyService {
         LeavePolicy policy = findPolicy(request.leavePolicyId());
         if (!policy.getId().equals(assignment.getLeavePolicy().getId())) requireActivePolicy(policy);
         validatePeriod(request, policy);
-        if (assignment.getStatus() == LeavePolicyStatus.ACTIVE)
+        validateApprovers(employeeId, request);
+        LeavePolicyStatus status = requestedStatus(request, assignment.getStatus());
+        if (status == LeavePolicyStatus.ACTIVE) {
+            requireActivePolicy(policy);
             checkOverlap(employeeId, assignmentId, request.effectiveFrom(), request.effectiveTo());
+        }
         apply(assignment, policy, request);
         return response(assignments.saveAndFlush(assignment));
     }
@@ -68,6 +74,8 @@ public class EmployeeLeavePolicyService {
         EmployeeLeavePolicy assignment = findAssignment(employeeId, assignmentId);
         if (status == LeavePolicyStatus.ACTIVE) {
             requireActivePolicy(assignment.getLeavePolicy());
+            if (assignment.getLevel1Approver() == null)
+                throw new InvalidOperationException("Configure a Level 1 leave approver before activation.");
             checkOverlap(employeeId, assignmentId, assignment.getEffectiveFrom(), assignment.getEffectiveTo());
         }
         assignment.setStatus(status);
@@ -119,12 +127,47 @@ public class EmployeeLeavePolicyService {
         assignment.setLeavePolicy(policy);
         assignment.setEffectiveFrom(request.effectiveFrom());
         assignment.setEffectiveTo(request.effectiveTo());
+        assignment.setLevel1Approver(findActiveApprover(request.level1ApproverId()));
+        assignment.setLevel2Approver(request.level2ApproverId() == null
+                ? null : findActiveApprover(request.level2ApproverId()));
+        if (request.status() != null) assignment.setStatus(request.status());
+    }
+
+    private LeavePolicyStatus requestedStatus(EmployeeLeavePolicyRequest request, LeavePolicyStatus current) {
+        return request.status() == null ? current : request.status();
+    }
+
+    private void validateApprovers(Long employeeId, EmployeeLeavePolicyRequest request) {
+        Long level1 = request.level1ApproverId();
+        Long level2 = request.level2ApproverId();
+        if (level1 == null) throw new InvalidOperationException("Level 1 leave approver is required.");
+        if (employeeId.equals(level1) || employeeId.equals(level2))
+            throw new InvalidOperationException("An employee cannot approve their own leave.");
+        if (level1.equals(level2))
+            throw new InvalidOperationException("Level 1 and Level 2 leave approvers must differ.");
+    }
+
+    private Employee findActiveApprover(Long id) {
+        Employee approver = employees.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Leave approver not found: " + id));
+        if (!"ACTIVE".equalsIgnoreCase(approver.getStatus()))
+            throw new InvalidOperationException("Leave approver must be an active employee: " + id);
+        return approver;
     }
 
     private EmployeeLeavePolicyResponse response(EmployeeLeavePolicy assignment) {
         return new EmployeeLeavePolicyResponse(assignment.getId(), assignment.getEmployee().getId(),
                 assignment.getLeavePolicy().getId(), assignment.getLeavePolicy().getPolicyName(),
                 assignment.getEffectiveFrom(), assignment.getEffectiveTo(), assignment.getStatus(),
+                assignment.getLevel1Approver() == null ? null : assignment.getLevel1Approver().getId(),
+                approverName(assignment.getLevel1Approver()),
+                assignment.getLevel2Approver() == null ? null : assignment.getLevel2Approver().getId(),
+                approverName(assignment.getLevel2Approver()),
                 assignment.getCreatedOn(), assignment.getCreatedBy(), assignment.getUpdatedOn(), assignment.getUpdatedBy());
+    }
+
+    private String approverName(Employee approver) {
+        return approver == null ? null
+                : (approver.getFirstName() + " " + (approver.getLastName() == null ? "" : approver.getLastName())).trim();
     }
 }

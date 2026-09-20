@@ -39,7 +39,7 @@ public class EmployeeLeaveBalance extends BaseEntity {
     @Column(precision = 10, scale = 2)
     private BigDecimal entitled;
 
-    @Column(name = "used", nullable = false, precision = 10, scale = 2)
+    @Column(name = "used", nullable = false, precision = 12, scale = 6)
     private BigDecimal used = BigDecimal.ZERO;
 
     @Enumerated(EnumType.STRING)

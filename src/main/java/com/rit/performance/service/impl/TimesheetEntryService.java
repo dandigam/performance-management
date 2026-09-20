@@ -20,6 +20,7 @@ import java.util.*;
 public class TimesheetEntryService {
     private final TimesheetRepository timesheets;
     private final HolidayRepository holidays;
+    private final LeaveRequestRepository leaveRequests;
     private final Clock clock;
 
     private record Key(LocalDate date, TimesheetEntryType type) {}
@@ -69,8 +70,19 @@ public class TimesheetEntryService {
                     .findFirst().orElseThrow(() -> new InvalidOperationException("workDate must have an active schedule"));
             if (!day.isActive() || day.getStatus() == TimesheetScheduleStatus.CANCELLED || day.isLocked())
                 throw new InvalidOperationException("Cancelled, inactive or locked schedule days cannot be edited");
-            if (input.leaveId() != null)
-                throw new InvalidOperationException("leaveId is not supported until approved leave requests are available");
+            if (input.leaveId() != null) {
+                if (input.entryType() != TimesheetEntryType.LEAVE)
+                    throw new InvalidOperationException("leaveId is allowed only for LEAVE entries");
+                LeaveRequest leave = leaveRequests.findByIdAndEmployeeId(input.leaveId(), sheet.getEmployee().getId())
+                        .orElseThrow(() -> new ResourceNotFoundException("Leave request not found: " + input.leaveId()));
+                if (leave.getStatus() != LeaveRequestStatus.APPROVED)
+                    throw new InvalidOperationException("Leave request must be finally approved before it can be used in a timesheet");
+                LeaveRequestDay leaveDay = leave.getDays().stream()
+                        .filter(item -> date.equals(item.getLeaveDate())).findFirst()
+                        .orElseThrow(() -> new InvalidOperationException("Leave request does not include work date " + date));
+                if (input.hours().signum() <= 0 || input.hours().compareTo(leaveDay.getRequestedHours()) > 0)
+                    throw new InvalidOperationException("Timesheet leave hours must be positive and cannot exceed approved hours for " + date);
+            }
             if (input.entryType() == TimesheetEntryType.HOLIDAY) {
                 if (input.holidayId() == null) throw new InvalidOperationException("holidayId is required for HOLIDAY");
                 var holiday = holidays.findById(input.holidayId())
@@ -98,7 +110,7 @@ public class TimesheetEntryService {
             }
             entry.setHours(input.hours());
             entry.setHoliday(resolvedHolidays.get(key));
-            entry.setLeaveId(null);
+            entry.setLeaveId(input.leaveId());
             entry.setSow(setup.getSow());
         }
         sheet.recalculateHours();

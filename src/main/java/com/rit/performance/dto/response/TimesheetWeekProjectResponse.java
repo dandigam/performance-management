@@ -12,6 +12,8 @@ public class TimesheetWeekProjectResponse {
     private Long timesheetEmployeeProjectId;
     private Long sowId;
     private String sowName;
+    private Long clientId;
+    private String clientName;
     private Long milestoneId;
     private String milestoneName;
     private List<TimesheetDailyOverrideResponse> scheduleDates;

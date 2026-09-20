@@ -107,6 +107,11 @@ public class MyLeaveService {
         request.getDays().clear();
         requests.flush();
         apply(request, input, prepared);
+        EmployeeLeavePolicy assignment = prepared.assignment();
+        if (assignment.getLevel1Approver() == null)
+            throw new InvalidOperationException("Level 1 leave approver is not configured on the policy assignment.");
+        request.setLevel1Approver(assignment.getLevel1Approver());
+        request.setLevel2Approver(assignment.getLevel2Approver());
         request.setStatus(LeaveRequestStatus.SUBMITTED);
         request.setSubmittedAt(LocalDateTime.now());
         return response(requests.saveAndFlush(request));
@@ -115,7 +120,9 @@ public class MyLeaveService {
     @Transactional
     public LeaveRequestResponse cancel(Long id) {
         Long employeeId = currentEmployee.currentEmployee().getId();
-        LeaveRequest request = findMine(employeeId, id);
+        LeaveRequest request = requests.findByIdForApproval(id)
+                .filter(item -> item.getEmployee().getId().equals(employeeId))
+                .orElseThrow(() -> new ResourceNotFoundException("Leave request not found: " + id));
         if (request.getStatus() != LeaveRequestStatus.SUBMITTED)
             throw new InvalidOperationException("Only a submitted leave request can be cancelled.");
         request.setStatus(LeaveRequestStatus.CANCELLED);

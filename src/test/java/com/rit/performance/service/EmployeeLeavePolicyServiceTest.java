@@ -27,12 +27,15 @@ class EmployeeLeavePolicyServiceTest {
     }
 
     private EmployeeLeavePolicyRequest request(LocalDate from, LocalDate to) {
-        return new EmployeeLeavePolicyRequest(2L, from, to);
+        return new EmployeeLeavePolicyRequest(2L, from, to, 40L, null, null);
     }
 
     private void stubEmployeeAndPolicy(LeavePolicy policy) {
         Employee employee = new Employee(); employee.setId(1L);
         when(employees.findByIdForLeavePolicyUpdate(1L)).thenReturn(Optional.of(employee));
+        Employee approver = new Employee(); approver.setId(40L); approver.setFirstName("Lead");
+        approver.setStatus("ACTIVE");
+        when(employees.findById(40L)).thenReturn(Optional.of(approver));
         when(policies.findById(2L)).thenReturn(Optional.of(policy));
         when(assignments.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
@@ -42,8 +45,21 @@ class EmployeeLeavePolicyServiceTest {
         var result = service.assign(1L, request(start, LocalDate.of(2026, 6, 30)));
         assertEquals(1L, result.employeeId());
         assertEquals(LeavePolicyStatus.ACTIVE, result.status());
+        assertEquals(40L, result.level1ApproverId());
         verify(assignments).countOverlaps(1L, LeavePolicyStatus.ACTIVE, -1L, start, LocalDate.of(2026, 6, 30));
         service.assign(1L, request(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 12, 31)));
+    }
+
+    @Test void rejectsSelfInactiveAndDuplicateApprovers() {
+        stubEmployeeAndPolicy(policy(null));
+        assertThrows(InvalidOperationException.class, () -> service.assign(1L,
+                new EmployeeLeavePolicyRequest(2L, start, null, 1L, null, null)));
+        assertThrows(InvalidOperationException.class, () -> service.assign(1L,
+                new EmployeeLeavePolicyRequest(2L, start, null, 40L, 40L, null)));
+        Employee inactive = new Employee(); inactive.setId(50L); inactive.setStatus("INACTIVE");
+        when(employees.findById(50L)).thenReturn(Optional.of(inactive));
+        assertThrows(InvalidOperationException.class, () -> service.assign(1L,
+                new EmployeeLeavePolicyRequest(2L, start, null, 50L, null, null)));
     }
 
     @Test void rejectsInvalidPeriodInactivePolicyAndOverlaps() {

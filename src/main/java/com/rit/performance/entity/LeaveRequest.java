@@ -33,6 +33,14 @@ public class LeaveRequest extends BaseEntity {
     @JoinColumn(name = "leave_type_id", nullable = false, foreignKey = @ForeignKey(name = "fk_leave_request_type"))
     private LeaveType leaveType;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "level1_approver_id", foreignKey = @ForeignKey(name = "fk_leave_request_level1_approver"))
+    private Employee level1Approver;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "level2_approver_id", foreignKey = @ForeignKey(name = "fk_leave_request_level2_approver"))
+    private Employee level2Approver;
+
     @Column(name = "from_date", nullable = false)
     private LocalDate fromDate;
 

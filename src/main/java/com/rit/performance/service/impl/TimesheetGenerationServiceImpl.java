@@ -118,6 +118,12 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
                                                         .approvalId(approval.getId())
                                                         .timesheetId(timesheet.getId())
                                                         .timesheetEmployeeProjectId(project == null ? null : project.getId())
+                                                        .clientId(project == null || project.getSow() == null
+                                                                        || project.getSow().getClient() == null ? null
+                                                                        : project.getSow().getClient().getId())
+                                                        .clientName(project == null || project.getSow() == null
+                                                                        || project.getSow().getClient() == null ? null
+                                                                        : project.getSow().getClient().getClientName())
                                                         .employeeId(employee.getId())
                                                         .employeeName(employeeName(employee))
                                                         .weekStartDate(timesheet.getWeekStartDate())
@@ -190,6 +196,10 @@ public class TimesheetGenerationServiceImpl implements TimesheetGenerationServic
                         .sowId(project.getSow() == null ? null : project.getSow().getId())
                         
                         .sowName(project.getSow() == null ? null : project.getSow().getSowName())
+                        .clientId(project.getSow() == null || project.getSow().getClient() == null
+                                ? null : project.getSow().getClient().getId())
+                        .clientName(project.getSow() == null || project.getSow().getClient() == null
+                                ? null : project.getSow().getClient().getClientName())
                         .milestoneId(project.getMilestone() == null ? null : project.getMilestone().getId())
                         .milestoneName(project.getMilestone() == null ? null : project.getMilestone().getMilestoneName())
                         .scheduleDates(project.getDailySchedules().stream()

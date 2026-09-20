@@ -39,6 +39,8 @@ class MyLeaveServiceTest {
         LeavePolicy policy = new LeavePolicy(); policy.setId(2L);
         EmployeeLeavePolicy assignment = new EmployeeLeavePolicy(); assignment.setId(3L);
         assignment.setEmployee(employee); assignment.setLeavePolicy(policy);
+        Employee approver = new Employee(); approver.setId(40L);
+        assignment.setLevel1Approver(approver);
         when(assignments.findCovering(1L, date, date, LeavePolicyStatus.ACTIVE)).thenReturn(List.of(assignment));
         LeaveType type = new LeaveType(); type.setId(4L); type.setCode("PTO");
         type.setName("Paid time off"); type.setUnit(unit);
@@ -62,10 +64,15 @@ class MyLeaveServiceTest {
         assertEquals(new BigDecimal("4.00"), service.createDraft(input(new BigDecimal("4.00"))).totalHours());
         LeaveRequest persisted = invocationRequest();
         persisted.setId(6L);
+        assertNull(persisted.getLevel1Approver());
+        Employee newApprover = new Employee(); newApprover.setId(41L);
+        persisted.getEmployeeLeavePolicy().setLevel1Approver(newApprover);
         when(requests.findByIdAndEmployeeId(6L, 1L)).thenReturn(Optional.of(persisted));
+        when(requests.findByIdForApproval(6L)).thenReturn(Optional.of(persisted));
         when(employees.findByIdForLeavePolicyUpdate(1L)).thenReturn(Optional.of(persisted.getEmployee()));
         var submitted = service.submit(6L);
         assertEquals(LeaveRequestStatus.SUBMITTED, submitted.status());
+        assertEquals(41L, persisted.getLevel1Approver().getId());
         assertNotNull(submitted.submittedAt());
         assertEquals(new BigDecimal("4.00"), submitted.totalHours());
         verify(balances, never()).save(any());
