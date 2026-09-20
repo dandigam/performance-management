@@ -31,8 +31,11 @@ public class EmployeeCompensation extends BaseEntity {
     @Column(name = "pay_type", nullable = false, length = 30)
     private String payType;
 
-    @Column(name = "hourly_rate", nullable = false, precision = 12, scale = 2)
+    @Column(name = "hourly_rate", precision = 12, scale = 2)
     private BigDecimal hourlyRate;
+
+    @Column(name = "annual_salary", precision = 14, scale = 2)
+    private BigDecimal annualSalary;
 
     @Column(nullable = false, length = 3)
     private String currency;

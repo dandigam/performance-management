@@ -482,9 +482,11 @@ public class EmployeeServiceImpl implements EmployeeService {
                             : history.get(index - 1).getEffectiveDate().minusDays(1);
                     return EmployeeFinanceHistoryResponse.builder()
                         .id(compensation.getId())
-                        .payType(compensation.getPayType())
+                        .payType(canonicalPayType(compensation.getPayType()))
                         .hourlyRate(compensation.getHourlyRate())
-                        .amount(compensation.getHourlyRate())
+                        .annualSalary(compensation.getAnnualSalary())
+                        .amount(compensation.getAnnualSalary() == null
+                                ? compensation.getHourlyRate() : compensation.getAnnualSalary())
                         .currency(compensation.getCurrency())
                         .effectiveDate(compensation.getEffectiveDate())
                         .endDate(endDate)
@@ -1428,18 +1430,40 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private void saveCompensation(Employee employee, EmployeeCompensationRequest request) {
         if (request == null) return;
-                String payType = normalizePayType(request.getPayType());
+        boolean hasPayType = request.getPayType() != null && !request.getPayType().isBlank();
+        boolean hasCurrency = request.getCurrency() != null && !request.getCurrency().isBlank();
+        if (!hasPayType && !hasCurrency && request.getHourlyRate() == null
+                && request.getAnnualSalary() == null
+                && request.getEffectiveDate() == null
+                && (request.getReason() == null || request.getReason().isBlank())) return;
+        if (!hasPayType || !hasCurrency || request.getEffectiveDate() == null) {
+            throw new InvalidOperationException(
+                    "compensationDetails requires payType, currency, and effectiveDate");
+        }
+        if (!request.getCurrency().trim().matches("[A-Za-z]{3}")) {
+            throw new InvalidOperationException("currency must be a 3-letter ISO code");
+        }
+        String payType = normalizePayType(request.getPayType());
+        boolean salary = "W2_SALARY".equals(payType) || "SALARY".equals(payType);
+        if (salary && (request.getAnnualSalary() == null || request.getHourlyRate() != null)) {
+            throw new InvalidOperationException("Salary pay requires annualSalary and no hourlyRate");
+        }
+        if (!salary && (request.getHourlyRate() == null || request.getAnnualSalary() != null)) {
+            throw new InvalidOperationException("Hourly pay requires hourlyRate and no annualSalary");
+        }
         String currency = request.getCurrency().trim().toUpperCase();
         String reason = trimToNull(request.getReason());
         EmployeeCompensation current = employeeCompensationRepository
                 .findFirstByEmployeeIdAndCurrentTrueOrderByEffectiveDateDescIdDesc(employee.getId())
                 .orElse(null);
         if (current != null
-                && payType.equals(current.getPayType())
-                && request.getHourlyRate().compareTo(current.getHourlyRate()) == 0
+                && payType.equals(canonicalPayType(current.getPayType()))
+                && sameAmount(request.getHourlyRate(), current.getHourlyRate())
+                && sameAmount(request.getAnnualSalary(), current.getAnnualSalary())
                 && currency.equals(current.getCurrency())
                 && request.getEffectiveDate().equals(current.getEffectiveDate())) {
-            if (!Objects.equals(current.getReason(), reason)) {
+            if (!payType.equals(current.getPayType()) || !Objects.equals(current.getReason(), reason)) {
+                current.setPayType(payType);
                 current.setReason(reason);
                 employeeCompensationRepository.save(current);
             }
@@ -1453,6 +1477,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .employee(employee)
                 .payType(payType)
                 .hourlyRate(request.getHourlyRate())
+                .annualSalary(request.getAnnualSalary())
                 .currency(currency)
                 .effectiveDate(request.getEffectiveDate())
                 .reason(reason)
@@ -1460,24 +1485,38 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .build());
     }
 
-        private String normalizePayType(String payType) {
-                String normalized = payType.trim().toUpperCase(Locale.ROOT)
-                                .replaceAll("\\s+", "_");
-                if (!Set.of("W2_SALARY", "W2_HOURLY", "1099", "C2C", "CONTRACT",
-                                "SALARY", "HOURLY").contains(normalized)) {
-                        throw new InvalidOperationException(
-                                        "payType must be W2 Salary, W2 Hourly, 1099, C2C, or Contract");
-                }
-                return normalized;
+    private static boolean sameAmount(BigDecimal left, BigDecimal right) {
+        return left == null ? right == null : right != null && left.compareTo(right) == 0;
+    }
+
+    private String normalizePayType(String payType) {
+        String normalized = canonicalPayType(payType);
+        if (!Set.of("W2_SALARY", "W2_HOURLY", "1099", "C2C", "CONTRACT")
+                .contains(normalized)) {
+            throw new InvalidOperationException(
+                    "payType must be W2 Salary, W2 Hourly, 1099, C2C, or Contract");
         }
+        return normalized;
+    }
+
+    private static String canonicalPayType(String payType) {
+        if (payType == null) return null;
+        String normalized = payType.trim().toUpperCase(Locale.ROOT).replaceAll("\\s+", "_");
+        return switch (normalized) {
+            case "SALARY" -> "W2_SALARY";
+            case "HOURLY" -> "W2_HOURLY";
+            default -> normalized;
+        };
+    }
 
     private EmployeeCompensationResponse compensationResponse(Long employeeId) {
         return employeeCompensationRepository
                 .findFirstByEmployeeIdAndCurrentTrueOrderByEffectiveDateDescIdDesc(employeeId)
                 .map(compensation -> EmployeeCompensationResponse.builder()
                         .id(compensation.getId())
-                        .payType(compensation.getPayType())
+                        .payType(canonicalPayType(compensation.getPayType()))
                         .hourlyRate(compensation.getHourlyRate())
+                        .annualSalary(compensation.getAnnualSalary())
                         .currency(compensation.getCurrency())
                         .effectiveDate(compensation.getEffectiveDate())
                         .build())
