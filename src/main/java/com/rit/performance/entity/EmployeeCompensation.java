@@ -28,24 +28,24 @@ public class EmployeeCompensation extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_employee_compensations_employee"))
     private Employee employee;
 
-    @Column(name = "pay_type", nullable = false, length = 30)
+    @Column(name = "pay_type")
     private String payType;
 
-    @Column(name = "hourly_rate", precision = 12, scale = 2)
+    @Column(name = "hourly_rate")
     private BigDecimal hourlyRate;
 
-    @Column(name = "annual_salary", precision = 14, scale = 2)
+    @Column(name = "annual_salary")
     private BigDecimal annualSalary;
 
-    @Column(nullable = false, length = 3)
+    @Column
     private String currency;
 
-    @Column(name = "effective_date", nullable = false)
+    @Column(name = "effective_date")
     private LocalDate effectiveDate;
 
-    @Column(length = 500)
+    @Column
     private String reason;
 
-    @Column(name = "is_current", nullable = false)
+    @Column(name = "is_current")
     private boolean current;
 }

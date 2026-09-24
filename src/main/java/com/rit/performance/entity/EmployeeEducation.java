@@ -35,13 +35,13 @@ public class EmployeeEducation extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_employee_educations_employee"))
     private Employee employee;
 
-    @Column(name = "education_type", nullable = false, length = 100)
+    @Column(name = "education_type")
     private String educationType;
 
-    @Column(name = "college_university", nullable = false, length = 250)
+    @Column(name = "college_university")
     private String collegeUniversity;
 
-    @Column(name = "passing_year", nullable = false)
+    @Column(name = "passing_year")
     private Integer passingYear;
 
     @Column(nullable = false, precision = 5, scale = 2)

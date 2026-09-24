@@ -34,7 +34,7 @@ public class EmployeeDocument extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_employee_documents_document_type"))
     private LookupValue documentType;
 
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false)
     @Builder.Default
     private String status = "ACTIVE";
 }

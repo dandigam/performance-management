@@ -16,53 +16,30 @@ import java.util.List;
 @Getter
 @Setter
 public class EmployeeCreateRequest {
-    @NotBlank @Size(max = 50)
     private String firstName;
-    @Size(max = 50)
     private String lastName;
-    @NotBlank @Email @Size(max = 100)
     private String email;
-    @Size(max = 20)
     private String phoneNumber;
-    @Size(max = 30)
     private String gender;
-    @Past
     private LocalDate dateOfBirth;
     @JsonAlias("ritEmployeeId")
-    @Size(max = 50)
-    private String ritId;
-    @Size(max = 50)
+    private String ritEmployeeId;
     private String csxRacfId;
-    @NotBlank @Size(max = 50)
     private String employmentType;
-    @NotBlank @Size(max = 50)
     private String workMode;
-    @Size(max = 20)
     private String workLocation;
-    @PastOrPresent
     private LocalDate joiningDate;
-    @Positive
     private Long vendorId;
-    @Size(max = 20)
     private String status;
-    @Positive
     private Long roleId;
-    @Positive
     private Long designationId;
-    @jakarta.validation.Valid
     private ProjectAssignmentRequest projectAssignment;
-    @jakarta.validation.Valid
     private EmployeeAddressRequest addressDetails;
-    @jakarta.validation.Valid
     private EmployeeCompensationRequest compensationDetails;
-    @jakarta.validation.Valid
     private EmployeeProfessionalDetailsRequest professionalDetails;
-    private List<@jakarta.validation.constraints.NotNull @jakarta.validation.Valid
-            EmployeeEducationRequest> educationDetails;
-    private List<@jakarta.validation.constraints.NotNull @jakarta.validation.Valid
-            EmployeeExperienceRequest> experienceDetails;
-    @jakarta.validation.Valid
+    private  List<EmployeeEducationRequest> educationDetails;
+    private List<EmployeeExperienceRequest> experienceDetails;
     private EmployeeBankDetailsRequest bankDetails;
-    private List<@jakarta.validation.constraints.NotNull @jakarta.validation.Valid EmployeeDocumentRequest> documentList;
+    private List<EmployeeDocumentRequest> documentList;
     private Long createdBy;
 }

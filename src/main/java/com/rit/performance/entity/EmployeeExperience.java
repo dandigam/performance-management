@@ -35,16 +35,14 @@ public class EmployeeExperience extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_employee_experiences_employee"))
     private Employee employee;
 
-    @Column(name = "company_name", nullable = false, length = 200)
+    @Column(name = "company_name")
     private String companyName;
 
-    @Column(nullable = false, length = 150)
     private String position;
 
-    @Column(nullable = false, length = 150)
     private String location;
 
-    @Column(name = "from_date", nullable = false)
+    @Column(name = "from_date")
     private LocalDate fromDate;
 
     @Column(name = "end_date")

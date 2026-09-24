@@ -23,40 +23,40 @@ public class Employee extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "first_name", nullable = false, length = 50)
+    @Column(name = "first_name")
     private String firstName;
 
-    @Column(name = "last_name", length = 50)
+    @Column(name = "last_name")
     private String lastName;
 
-    @Column(name = "email", nullable = false, unique = true, length = 100)
+    @Column(name = "email")
     private String email;
 
-    @Column(name = "phone_number", length = 20)
+    @Column(name = "phone_number")
     private String phoneNumber;
 
-    @Column(length = 30)
+    @Column
     private String gender;
 
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
-    @Column(name = "rit_id", unique = true, length = 50)
+    @Column(name = "rit_id")
     private String ritId;
 
-    @Column(name = "csx_racf_id", unique = true, length = 50)
+    @Column(name = "csx_racf_id")
     private String csxRacfId;
 
-    @Column(name = "employment_type", length = 50)
+    @Column(name = "employment_type")
     private String employmentType;
 
-    @Column(name = "joining_date", nullable = false)
+    @Column(name = "joining_date")
     private LocalDate joiningDate;
 
-    @Column(name = "work_mode", length = 50)
+    @Column(name = "work_mode")
     private String workMode;
 
-    @Column(name = "work_location", length = 20, columnDefinition = "VARCHAR(20)")
+    @Column(name = "work_location",columnDefinition = "VARCHAR(20)")
     private String workLocation;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -66,7 +66,7 @@ public class Employee extends BaseEntity {
     @Column(name = "designation_id")
     private Long designationId;
 
-    @Column(name = "status", length = 20)
+    @Column(name = "status")
     private String status;
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<EmployeeDocument> employeeDocuments = new LinkedHashSet<>();
