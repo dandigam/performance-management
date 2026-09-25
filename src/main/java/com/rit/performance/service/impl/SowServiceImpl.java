@@ -54,6 +54,9 @@ public class SowServiceImpl implements SowService {
     private final SowMilestonePositionRepository positionRepository;
     private final EmployeeAssignmentRepository assignmentRepository;
     private final SowMilestoneRepository milestoneRepository;
+    private final SowInvoiceRepository invoiceRepository;
+    private final TimesheetEmployeeProjectRepository timesheetProjectRepository;
+    private final TimesheetEmployeeProjectDayRepository timesheetDayRepository;
     private final SowInvoiceService sowInvoiceService;
     private final SowFeatureRepository featureRepository;
     private final LookupValueRepository lookupValueRepository;
@@ -67,11 +70,51 @@ public class SowServiceImpl implements SowService {
     private final SowResourceRequirementService resourceRequirementService;
 
     @Override
+    public void deleteMilestone(Long sowId, Long milestoneId) {
+        SowMilestone milestone = milestoneRepository.findByIdAndSow_Id(milestoneId, sowId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Milestone " + milestoneId + " not found for SOW " + sowId));
+        if (!positionAssignmentRepository
+                .findByMilestonePosition_Milestone_IdAndStatusIgnoreCase(milestoneId, "ASSIGNED").isEmpty()
+                || milestone.getPositions().stream()
+                        .anyMatch(position -> "ASSIGNED".equalsIgnoreCase(position.getStatus()))) {
+            throw new InvalidOperationException("MILESTONE_HAS_ASSIGNED_POSITIONS",
+                    "Milestone cannot be deleted. Please unassign all assigned positions first.");
+        }
+        if (featureRepository.existsByMilestone_Id(milestoneId)) {
+            throw new InvalidOperationException("MILESTONE_HAS_FEATURES",
+                    "Milestone cannot be deleted while it has linked features.");
+        }
+        if (invoiceRepository.existsByMilestone_Id(milestoneId)) {
+            throw new InvalidOperationException("MILESTONE_HAS_INVOICE",
+                    "Milestone cannot be deleted while it has a linked invoice.");
+        }
+        if (timesheetProjectRepository
+                .existsByMilestone_IdOrMilestonePositionAssignment_MilestonePosition_Milestone_Id(
+                        milestoneId, milestoneId)
+                || timesheetDayRepository.existsByMilestone_Id(milestoneId)) {
+            throw new InvalidOperationException("MILESTONE_HAS_TIMESHEETS",
+                    "Milestone cannot be deleted while it has linked timesheet records.");
+        }
+
+        // Remove inactive assignment rows before cascading deletion to their positions.
+        positionAssignmentRepository.deleteByMilestonePosition_Milestone_Id(milestoneId);
+        positionAssignmentRepository.flush();
+        Sow sow = milestone.getSow();
+        sow.removeMilestone(milestone);
+        sowRepository.saveAndFlush(sow);
+        resourceRequirementService.onPositionRemoved(sowId);
+    }
+
+    @Override
     public SowMilestoneResponse updateMilestone(Long sowId, Long milestoneId, SowMilestoneUpdateRequest request) {
         SowMilestone milestone = milestoneRepository.findByIdAndSow_Id(milestoneId, sowId)
                 .orElseThrow(() -> new ResourceNotFoundException("Milestone not found for SOW: " + milestoneId));
         validateDateRange(request.getStartDate(), request.getEndDate(), "Milestone");
         milestone.setMilestoneName(request.getMilestoneName().trim());
+        if (request.getDisplayOrder() != null) {
+            milestone.setDisplayOrder(request.getDisplayOrder());
+        }
         milestone.setDescription(normalizeDescription(request.getDescription()));
         milestone.setDeliverables(normalizeDescription(request.getDeliverables()));
         milestone.setStartDate(request.getStartDate());
@@ -159,7 +202,8 @@ public class SowServiceImpl implements SowService {
                 }
             }
             content.add(new SowMilestoneSummaryResponse(milestone.getId(), milestone.getMilestoneName(),
-                    milestone.getStartDate(), milestone.getEndDate(), milestone.getPositions().size(), openCount));
+                    milestone.getStartDate(), milestone.getEndDate(), milestone.getPositions().size(), openCount,
+                    milestone.getDisplayOrder()));
         }
         return new SowMilestoneSummaryPageResponse(content, milestones.getNumber(), milestones.getSize(),
                 milestones.getTotalElements(), milestones.getTotalPages(), milestones.isFirst(), milestones.isLast());
@@ -730,6 +774,9 @@ public class SowServiceImpl implements SowService {
 
     private void applyMilestoneFields(SowMilestone milestone, SowMilestoneRequest request) {
         milestone.setMilestoneName(request.getMilestoneName().trim());
+        if (request.getDisplayOrder() != null) {
+            milestone.setDisplayOrder(request.getDisplayOrder());
+        }
         milestone.setDescription(normalizeDescription(request.getDescription()));
         milestone.setDeliverables(normalizeDescription(request.getDeliverables()));
         milestone.setEstimatedHours(request.getEstimatedHours());

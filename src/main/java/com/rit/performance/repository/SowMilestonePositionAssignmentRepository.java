@@ -20,6 +20,8 @@ public interface SowMilestonePositionAssignmentRepository
 
     boolean existsByMilestonePosition_Id(Long milestonePositionId);
 
+    void deleteByMilestonePosition_Milestone_Id(Long milestoneId);
+
     boolean existsByMilestonePosition_IdAndStatusIgnoreCase(
             Long milestonePositionId, String status);
 

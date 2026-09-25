@@ -10,6 +10,7 @@ public class SowMilestoneUpdateRequest {
     @NotBlank
     @Size(max = 200)
     private String milestoneName;
+    private Integer displayOrder;
     @Size(max = 2000)
     private String description;
     @Size(max = 2000)

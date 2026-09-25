@@ -16,6 +16,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public class SowMilestoneResponse {
     private Long id;
     private String milestoneName;
+    private Integer displayOrder;
     private String description;
     private String deliverables;
     private Integer estimatedHours;

@@ -25,7 +25,7 @@ public class JwtService {
     @Value("${jwt.audience:performance-management-ui}")
     private String audience;
 
-    @Value("${jwt.access-expiration-ms:900000}")
+    @Value("${jwt.access-expiration-ms:3600000}")
     private long accessExpirationMs;
 
     private final AppUserDetailsService userDetailsService;

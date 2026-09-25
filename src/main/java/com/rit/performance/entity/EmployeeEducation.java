@@ -44,6 +44,6 @@ public class EmployeeEducation extends BaseEntity {
     @Column(name = "passing_year")
     private Integer passingYear;
 
-    @Column(nullable = false, precision = 5, scale = 2)
+    @Column(precision = 5, scale = 2)
     private BigDecimal percentage;
 }

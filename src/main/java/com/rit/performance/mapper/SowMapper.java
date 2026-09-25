@@ -97,6 +97,7 @@ public final class SowMapper {
         return SowMilestoneResponse.builder()
                 .id(milestone.getId())
                 .milestoneName(milestone.getMilestoneName())
+                .displayOrder(milestone.getDisplayOrder())
                 .description(milestone.getDescription())
                 .deliverables(milestone.getDeliverables())
                 .estimatedHours(milestone.getEstimatedHours())

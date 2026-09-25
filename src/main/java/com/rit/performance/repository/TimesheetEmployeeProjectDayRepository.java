@@ -14,6 +14,8 @@ import java.util.List;
 
 public interface TimesheetEmployeeProjectDayRepository
         extends JpaRepository<TimesheetEmployeeProjectDay, Long> {
+    boolean existsByMilestone_Id(Long milestoneId);
+
     @Query("""
             select day from TimesheetEmployeeProjectDay day
             join day.timesheetEmployeeProject project

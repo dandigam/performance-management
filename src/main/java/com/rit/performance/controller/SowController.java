@@ -36,6 +36,13 @@ public class SowController {
     private final SowService sowService;
     private final SowMilestonePositionAssignmentService positionAssignmentService;
 
+    @DeleteMapping("/{sowId}/milestones/{milestoneId}")
+    public ResponseEntity<ApiMessageResponse> deleteMilestone(
+            @PathVariable Long sowId, @PathVariable Long milestoneId) {
+        sowService.deleteMilestone(sowId, milestoneId);
+        return ResponseEntity.ok(ApiMessageResponse.success("Milestone deleted successfully."));
+    }
+
     @PutMapping("/{sowId}/milestones/{milestoneId}")
     public ResponseEntity<SowMilestoneResponse> updateMilestone(
             @PathVariable Long sowId, @PathVariable Long milestoneId,

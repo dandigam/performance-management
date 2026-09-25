@@ -19,6 +19,8 @@ import com.rit.performance.dto.request.SowStatusUpdateRequest;
 import java.util.List;
 
 public interface SowService {
+    void deleteMilestone(Long sowId, Long milestoneId);
+
     SowMilestoneResponse updateMilestone(Long sowId, Long milestoneId, SowMilestoneUpdateRequest request);
 
     SowPositionSummaryPageResponse getPositionSummaries(Long sowId, Long milestoneId, int page, int size);

@@ -250,6 +250,7 @@ public class SowResourceRequirementServiceImpl implements SowResourceRequirement
                 .map(milestone -> SowPositionMilestoneResponse.builder()
                         .milestoneId(milestone.getId())
                         .milestoneName(milestone.getMilestoneName())
+                        .displayOrder(milestone.getDisplayOrder())
                         .startDate(milestone.getStartDate())
                         .endDate(milestone.getEndDate())
                         .status(milestone.getStatus())

@@ -10,6 +10,9 @@ import java.util.Optional;
 public interface TimesheetEmployeeProjectRepository
         extends JpaRepository<TimesheetEmployeeProject, Long> {
 
+    boolean existsByMilestone_IdOrMilestonePositionAssignment_MilestonePosition_Milestone_Id(
+            Long milestoneId, Long assignmentMilestoneId);
+
     Optional<TimesheetEmployeeProject> findByMilestonePositionAssignment_Id(Long assignmentId);
 
     List<TimesheetEmployeeProject> findAllByEmployeeIdAndSowIdAndMilestoneId(Long employeeId, Long sowId, Long milestoneId);

@@ -26,6 +26,8 @@ public class SowMilestoneRequest {
     @Size(max = 200, message = "milestoneName must not exceed 200 characters")
     private String milestoneName;
 
+    private Integer displayOrder;
+
     @Size(max = 2000, message = "milestone description must not exceed 2000 characters")
     private String description;
 
