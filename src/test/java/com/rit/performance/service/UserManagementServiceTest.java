@@ -1,6 +1,7 @@
 package com.rit.performance.service;
 
 import com.rit.performance.dto.UserManagementUserResponse;
+import com.rit.performance.dto.UserCreateRequest;
 import com.rit.performance.entity.Employee;
 import com.rit.performance.entity.EmployeeAssignment;
 import com.rit.performance.entity.LookupValue;
@@ -12,6 +13,8 @@ import com.rit.performance.repository.EmployeeRoleRepository;
 import com.rit.performance.repository.LookupValueRepository;
 import com.rit.performance.repository.SowRepository;
 import com.rit.performance.repository.UserRepository;
+import com.rit.performance.repository.EmployeeRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -29,13 +32,41 @@ import static org.mockito.Mockito.verify;
 class UserManagementServiceTest {
 
     @Test
+    void createsUnlinkedInvitedUserAndSendsInvitation() {
+        UserRepository userRepository = mock(UserRepository.class);
+        LookupValueRepository lookupRepository = mock(LookupValueRepository.class);
+        PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+        UserInvitationService invitationService = mock(UserInvitationService.class);
+        UserManagementService service = new UserManagementServiceImpl(userRepository,
+                mock(EmployeeAssignmentRepository.class), mock(SowRepository.class), lookupRepository,
+                mock(EmployeeRoleRepository.class), mock(EmployeeRepository.class), passwordEncoder,
+                invitationService);
+        LookupValue finance = systemRole(3L, "FINANCE", "Finance");
+        when(lookupRepository.findById(3L)).thenReturn(java.util.Optional.of(finance));
+        when(passwordEncoder.encode(any())).thenReturn("encoded-secret");
+        when(userRepository.saveAndFlush(any(User.class))).thenAnswer(invocation -> {
+            User saved = invocation.getArgument(0);
+            saved.setId(12L);
+            return saved;
+        });
+
+        UserManagementUserResponse result = service.createUser(new UserCreateRequest(
+                "finance@rit.com", "finance@rit.com", 3L, null, true));
+
+        assertThat(result.getUserId()).isEqualTo(12L);
+        assertThat(result.getStatus()).isEqualTo("INVITED");
+        verify(invitationService).send(any(User.class), eq("finance@rit.com"));
+    }
+
+    @Test
     void returnsLoginAccountsIncludingUsersWithoutEmployees() {
         UserRepository userRepository = mock(UserRepository.class);
         EmployeeAssignmentRepository assignmentRepository = mock(EmployeeAssignmentRepository.class);
         SowRepository sowRepository = mock(SowRepository.class);
         UserManagementService service = new UserManagementServiceImpl(
                 userRepository, assignmentRepository, sowRepository,
-                mock(LookupValueRepository.class), mock(EmployeeRoleRepository.class));
+                mock(LookupValueRepository.class), mock(EmployeeRoleRepository.class),
+                mock(EmployeeRepository.class), mock(PasswordEncoder.class), mock(UserInvitationService.class));
 
         LookupValue managerRole = lookup(31L, "MANAGER", "Manager");
         Employee employee = new Employee();
@@ -67,7 +98,6 @@ class UserManagementServiceTest {
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getEmployeeId()).isEqualTo(2L);
         assertThat(result.get(0).getEmployeeCode()).isEqualTo("RIT03");
-        assertThat(result.get(0).getDepartmentName()).isEqualTo("Engineering");
         assertThat(result.get(0).getLastLoginAt())
                 .isEqualTo(LocalDateTime.of(2026, 9, 20, 9, 30));
         assertThat(result.get(1).getUsername()).isEqualTo("admin");
@@ -83,7 +113,8 @@ class UserManagementServiceTest {
         SowRepository sowRepository = mock(SowRepository.class);
         UserManagementService service = new UserManagementServiceImpl(
                 userRepository, assignmentRepository, sowRepository,
-                mock(LookupValueRepository.class), mock(EmployeeRoleRepository.class));
+                mock(LookupValueRepository.class), mock(EmployeeRoleRepository.class),
+                mock(EmployeeRepository.class), mock(PasswordEncoder.class), mock(UserInvitationService.class));
         User locked = user(14L, "locked@example.com", lookup(1L, "ADMIN", "Administrator"), null);
         locked.setStatus("LOCKED");
         locked.setSessionVersion(4L);
@@ -102,7 +133,8 @@ class UserManagementServiceTest {
         UserRepository userRepository = mock(UserRepository.class);
         UserManagementService service = new UserManagementServiceImpl(
                 userRepository, mock(EmployeeAssignmentRepository.class), mock(SowRepository.class),
-                mock(LookupValueRepository.class), mock(EmployeeRoleRepository.class));
+                mock(LookupValueRepository.class), mock(EmployeeRoleRepository.class),
+                mock(EmployeeRepository.class), mock(PasswordEncoder.class), mock(UserInvitationService.class));
         User active = user(12L, "active@example.com", lookup(1L, "ADMIN", "Administrator"), null);
         when(userRepository.findForSecurityUpdate(12L)).thenReturn(java.util.Optional.of(active));
 
@@ -117,7 +149,8 @@ class UserManagementServiceTest {
         LookupValueRepository lookupRepository = mock(LookupValueRepository.class);
         EmployeeRoleRepository employeeRoleRepository = mock(EmployeeRoleRepository.class);
         UserManagementService service = new UserManagementServiceImpl(userRepository,
-                assignmentRepository, mock(SowRepository.class), lookupRepository, employeeRoleRepository);
+                assignmentRepository, mock(SowRepository.class), lookupRepository, employeeRoleRepository,
+                mock(EmployeeRepository.class), mock(PasswordEncoder.class), mock(UserInvitationService.class));
 
         Employee employee = new Employee();
         employee.setId(2L);

@@ -17,7 +17,8 @@ class EmployeeLeavePolicyServiceTest {
     private final EmployeeLeavePolicyRepository assignments = mock(EmployeeLeavePolicyRepository.class);
     private final EmployeeRepository employees = mock(EmployeeRepository.class);
     private final LeavePolicyRepository policies = mock(LeavePolicyRepository.class);
-    private final EmployeeLeavePolicyService service = new EmployeeLeavePolicyService(assignments, employees, policies);
+    private final EmployeeLeavePolicyService service = new EmployeeLeavePolicyService(assignments, employees, policies,
+            mock(org.springframework.context.ApplicationEventPublisher.class), mock(ApplicationEmailFactory.class));
     private final LocalDate start = LocalDate.of(2026, 1, 1);
 
     private LeavePolicy policy(LocalDate end) {

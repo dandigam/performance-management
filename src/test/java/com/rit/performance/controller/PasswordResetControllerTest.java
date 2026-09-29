@@ -18,7 +18,7 @@ class PasswordResetControllerTest {
     private final PasswordResetRateLimiter limiter = new PasswordResetRateLimiter(Clock.systemUTC());
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new PasswordResetController(service, limiter))
             .setControllerAdvice(new GlobalExceptionHandler())
-            .addFilters(new JwtAuthenticationFilter(jwt, mock(AppUserDetailsService.class))).build();
+            .addFilters(new JwtAuthenticationFilter(jwt, mock(AppUserDetailsService.class), mock(com.rit.performance.repository.UserRepository.class))).build();
 
     @Test void publicForgotSucceedsEvenWithStaleBearer() throws Exception {
         for (String email : new String[]{"known@example.com"}) {
@@ -32,7 +32,8 @@ class PasswordResetControllerTest {
     }
 
     @Test void unknownEmailReturnsClear400Message() throws Exception {
-        doThrow(new InvalidOperationException(PasswordResetService.EMAIL_NOT_FOUND))
+        doThrow(new ApplicationException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                "EMAIL_NOT_FOUND", PasswordResetService.EMAIL_NOT_FOUND))
                 .when(service).forgot(eq("unknown@example.com"), anyString());
         mvc.perform(post("/api/auth/forgot-password").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"unknown@example.com\"}"))
@@ -41,7 +42,9 @@ class PasswordResetControllerTest {
     }
 
     @Test void throttledForgotReturns429InsteadOfSuccess() throws Exception {
-        doThrow(new PasswordResetRateLimitException()).when(service).forgot(anyString(), anyString());
+        doThrow(new ApplicationException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
+                "RATE_LIMIT_EXCEEDED", "Too many password reset requests. Please try again later.", "3600"))
+                .when(service).forgot(anyString(), anyString());
         mvc.perform(post("/api/auth/forgot-password").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"alice@example.com\"}"))
                 .andExpect(status().isTooManyRequests()).andExpect(header().string("Retry-After", "3600"))
@@ -57,7 +60,9 @@ class PasswordResetControllerTest {
     }
 
     @Test void invalidResetAndEmailReturn400Message() throws Exception {
-        doThrow(new InvalidOperationException(PasswordResetService.INVALID_LINK)).when(service).reset(any(), any());
+        doThrow(new ApplicationException(org.springframework.http.HttpStatus.BAD_REQUEST,
+                "INVALID_PASSWORD_RESET_LINK", PasswordResetService.INVALID_LINK))
+                .when(service).reset(any(), any());
         mvc.perform(post("/api/auth/reset-password").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"token\":\"bad\",\"newPassword\":\"new-password\"}"))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value(PasswordResetService.INVALID_LINK));

@@ -35,6 +35,16 @@ public class EmployeeController {
     private final EmployeeAuditService employeeAuditService;
     private final com.rit.performance.service.EmployeeSummaryService employeeSummaryService;
 
+    @GetMapping("/check-contact")
+    public ResponseEntity<com.rit.performance.dto.ApiMessageResponse> checkContactAvailability(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String phoneNumber,
+            @RequestParam(required = false) Long excludeEmployeeId) {
+        employeeService.checkContactAvailability(email, phoneNumber, excludeEmployeeId);
+        return ResponseEntity.ok(com.rit.performance.dto.ApiMessageResponse.success(
+                "Employee contact details are available"));
+    }
+
     @GetMapping("/summaries")
     public ResponseEntity<com.rit.performance.dto.EmployeeSummaryPageResponse> getSummaries(
             @RequestParam(defaultValue = "0") int page,

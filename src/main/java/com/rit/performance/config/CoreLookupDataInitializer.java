@@ -20,6 +20,20 @@ public class CoreLookupDataInitializer implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
+        LookupType notificationCategory = lookupTypeRepository.findByCodeIgnoreCase("NOTIFICATION_CATEGORY")
+                .orElseGet(() -> ensureType("NOTIFICATION_CATEGORY", "Notification Category",
+                        "Categories for notification copy subscriptions"));
+        if (lookupValueRepository.findByLookupTypeIdAndCodeIgnoreCase(
+                notificationCategory.getId(), "ONBOARDING").isEmpty()) {
+            ensureValue(notificationCategory, "ONBOARDING", "Onboarding", "Onboarding notifications", 1);
+        }
+
+        if (lookupValueRepository.findByLookupTypeIdAndCodeIgnoreCase(
+                notificationCategory.getId(), "ALL_NOTIFICATIONS").isEmpty()) {
+            ensureValue(notificationCategory, "ALL_NOTIFICATIONS", "All Notifications",
+                    "Global admin copies of business notifications", 2);
+        }
+
         LookupType workMode = ensureType(
                 "WORK_MODE", "Work Mode", "Employee work mode options");
         ensureValue(workMode, "OFFSHORE", "Offshore", "Employee works offshore", 1);

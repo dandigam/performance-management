@@ -2,6 +2,11 @@
 
 `GET /api/employees/summaries?page=0&size=20`
 
+Only employees with status `ACTIVE` or `INACTIVE` appear in this directory. This restriction
+applies before pagination and counting, including when a status filter is supplied.
+`PENDING` and all other statuses are excluded. Onboarding records are listed separately
+at `GET /api/v1/hr/onboarding`; employees need an onboarding record to appear there.
+
 The existing `/api/employees` endpoint is unchanged. Summary filters apply in the database before counting and pagination. The response retains `content`, `page`, `size`, `totalElements`, `totalPages`, `first`, and `last`.
 
 | Parameter | Behavior |

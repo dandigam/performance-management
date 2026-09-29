@@ -12,6 +12,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
+import com.rit.performance.service.ApplicationEmail;
+import com.rit.performance.service.ApplicationEmailFactory;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -22,6 +25,8 @@ public class TimesheetApprovalService {
     private final TimesheetRepository timesheets;
     private final UserRepository users;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
 
     @Transactional
     public TimesheetApprovalUpdateResponse update(Long timesheetId, Long approvalId,
@@ -60,6 +65,12 @@ public class TimesheetApprovalService {
         sheet.setStatus(request.status() == TimesheetApprovalStatus.REJECTED ? TimesheetStatus.REJECTED
                 : primary ? TimesheetStatus.LEVEL1_APPROVED : TimesheetStatus.APPROVED);
         timesheets.saveAndFlush(sheet);
+        String action = request.status() == TimesheetApprovalStatus.REJECTED
+                ? "rejected by Level " + approval.getApprovalLevel()
+                : primary ? "approved by Level 1" : "finally approved by Level 2";
+        for (ApplicationEmail email : emailFactory.timesheetWorkflow(sheet, action, approval.getComments())) {
+            events.publishEvent(email);
+        }
         return new TimesheetApprovalUpdateResponse(sheet.getId(), approval.getId(),
                 approval.getApprovalLevel(), approval.getStatus(), sheet.getStatus(),
                 approval.getComments(), approval.getActionAt());

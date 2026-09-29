@@ -9,6 +9,9 @@ import com.rit.performance.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
+import com.rit.performance.service.ApplicationEmail;
+import com.rit.performance.service.ApplicationEmailFactory;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -22,6 +25,8 @@ public class TimesheetEntryService {
     private final HolidayRepository holidays;
     private final LeaveRequestRepository leaveRequests;
     private final Clock clock;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
 
     private record Key(LocalDate date, TimesheetEntryType type) {}
 
@@ -125,6 +130,11 @@ public class TimesheetEntryService {
             sheet.setSubmittedAt(LocalDateTime.now(clock));
         }
         timesheets.saveAndFlush(sheet);
+        if (request.status() == TimesheetStatus.SUBMITTED) {
+            for (ApplicationEmail email : emailFactory.timesheetWorkflow(sheet, "submitted", null)) {
+                events.publishEvent(email);
+            }
+        }
         var entries = sheet.getEntries().stream()
                 .sorted(Comparator.comparing(TimesheetEntry::getWorkDate).thenComparing(TimesheetEntry::getEntryType))
                 .map(entry -> TimesheetWeekEntryResponse.builder().entryId(entry.getId())

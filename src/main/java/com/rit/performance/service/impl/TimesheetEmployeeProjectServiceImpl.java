@@ -19,7 +19,10 @@ import com.rit.performance.repository.SowMilestonePositionAssignmentRepository;
 import com.rit.performance.repository.TimesheetEmployeeProjectRepository;
 import com.rit.performance.repository.SowMilestoneRepository;
 import com.rit.performance.service.TimesheetEmployeeProjectService;
+import com.rit.performance.service.ApplicationEmail;
+import com.rit.performance.service.ApplicationEmailFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +44,8 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
     private final SowMilestoneRepository milestoneRepository;
     private final TimesheetProjectScheduleService scheduleService;
     private final com.rit.performance.service.TimesheetGenerationService generationService;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
 
     @Override
     public List<TimesheetEmployeeProjectResponse> create(
@@ -84,6 +89,7 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
         generationService.cleanupEmptyDraftWeeks(employeeId, requests.stream()
                 .flatMap(request -> request.getDeletedDates().stream())
                 .map(date -> date.getWorkDate()).toList());
+        publishSetupEmails(saved, "created");
         return saved.stream().map(this::response).toList();
     }
 
@@ -114,7 +120,16 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
         generationService.cleanupEmptyDraftWeeks(employeeId, requests.stream()
                 .flatMap(request -> request.getDeletedDates().stream())
                 .map(date -> date.getWorkDate()).toList());
+        publishSetupEmails(saved, "updated");
         return saved.stream().map(this::response).toList();
+    }
+
+    private void publishSetupEmails(List<TimesheetEmployeeProject> setups, String action) {
+        for (TimesheetEmployeeProject setup : setups) {
+            for (ApplicationEmail email : emailFactory.timesheetSetup(setup, action)) {
+                events.publishEvent(email);
+            }
+        }
     }
 
     @Override

@@ -30,6 +30,9 @@ public class User extends BaseEntity {
     @Column(nullable = false, length = 20)
     private String status = "ACTIVE";
 
+    @Column(name = "portal_access", nullable = false, length = 20)
+    private String portalAccess = "FULL";
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 

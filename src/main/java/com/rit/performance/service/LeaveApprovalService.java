@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
@@ -24,6 +25,8 @@ public class LeaveApprovalService {
     private final LeaveRequestApprovalRepository approvals;
     private final EmployeeLeaveBalanceRepository balances;
     private final EmployeeLeaveBalanceAdjustmentRepository adjustments;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
 
     public List<TeamLeaveRequestResponse> team(String view) {
         Long approverId = currentEmployee.currentEmployee().getId();
@@ -93,6 +96,11 @@ public class LeaveApprovalService {
         else request.setStatus(LeaveRequestStatus.LEVEL1_APPROVED);
         requests.saveAndFlush(request);
         approvals.saveAndFlush(history);
+        String eventAction = action == LeaveApprovalAction.REJECTED ? "rejected"
+                : finalApproval ? "approved" : "approved by Level 1";
+        for (ApplicationEmail email : emailFactory.leaveRequest(request, eventAction, comments)) {
+            events.publishEvent(email);
+        }
         return detail(id);
     }
 

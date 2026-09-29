@@ -17,6 +17,8 @@ import com.rit.performance.dto.DocumentResponse;
 import java.util.List;
 
 public interface EmployeeService {
+    void checkContactAvailability(String email, String phoneNumber, Long excludeEmployeeId);
+
     EmployeeCreateResponse create(EmployeeCreateRequest request);
 
     List<EmployeeBasicInfoResponse> getBasicInfo();

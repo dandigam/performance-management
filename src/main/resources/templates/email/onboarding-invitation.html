@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Welcome to RailInfo Tech!</title></head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#162e48;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">Your next chapter starts here. Set up your password to begin onboarding with RailInfo Tech.</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
+<tr><td align="center" style="padding:32px 12px;">
+<!--[if mso]><table role="presentation" width="640"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;background-color:#ffffff;border:1px solid #dce5ee;border-radius:12px;">
+<tr><td style="padding:28px 32px;border-bottom:1px solid #e6edf3;">
+<img src="cid:rit-logo" width="270" alt="RailInfo Tech" style="display:block;width:270px;max-width:100%;height:auto;border:0;">
+</td></tr>
+<tr><td style="padding:32px;background-color:#123453;">
+<p style="margin:0 0 14px;color:#8fd4f5;font-size:11px;line-height:16px;font-weight:bold;letter-spacing:2px;">YOUR ONBOARDING STARTS HERE</p>
+<h1 style="margin:0;color:#ffffff;font-size:30px;line-height:38px;font-weight:bold;">Welcome to RailInfo Tech!</h1>
+<p style="margin:12px 0 0;color:#d6e7f3;font-size:15px;line-height:24px;">We're delighted to have you join our team.</p>
+</td></tr>
+<tr><td style="padding:30px 32px 24px;">
+<p style="margin:0 0 14px;font-size:16px;line-height:25px;">Hi <strong th:text="${recipientName}">Venkatesh Dandigam</strong>,</p>
+<p style="margin:0 0 24px;color:#506277;font-size:15px;line-height:25px;">Let's get you ready for your journey with us. Start by setting up your password, then sign in to complete your onboarding details and upload the required documents.</p>
+<table width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f5f8fb;border:1px solid #e0e8f0;border-radius:8px;">
+<tr><td colspan="2" style="padding:18px 20px 12px;font-size:11px;font-weight:bold;letter-spacing:1.4px;color:#577089;">YOUR JOINING DETAILS</td></tr>
+<tr><th align="left" style="padding:0 16px 12px 20px;font-size:13px;color:#65778b;font-weight:normal;">Designation</th><td style="padding:0 20px 12px 0;font-size:14px;font-weight:bold;" th:text="${designationName}">Senior Software Engineer</td></tr>
+<tr><th align="left" style="padding:0 16px 12px 20px;font-size:13px;color:#65778b;font-weight:normal;">Joining date</th><td style="padding:0 20px 12px 0;font-size:14px;" th:text="${joiningDate}">Jan 1, 2026</td></tr>
+<tr><th align="left" style="padding:0 16px 18px 20px;font-size:13px;color:#65778b;font-weight:normal;">Username</th><td style="padding:0 20px 18px 0;font-size:14px;word-break:break-word;" th:text="${username}">venkat@example.com</td></tr>
+</table>
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:26px 0 14px;"><tr><td bgcolor="#0076b8" style="border-radius:6px;text-align:center;mso-padding-alt:16px 28px;"><a th:href="${invitationUrl}" href="https://example.com/setup" style="display:inline-block;padding:16px 28px;font-size:15px;font-weight:bold;line-height:20px;color:#ffffff;text-decoration:none;border:1px solid #0076b8;border-radius:6px;">Set up your password</a></td></tr></table>
+<p style="margin:0;color:#63758a;font-size:12px;line-height:20px;">This personal setup link expires in <strong>24 hours</strong> and can be used once. Please do not share it.</p>
+</td></tr>
+<tr><td style="padding:0 32px 26px;">
+<h2 style="margin:0 0 16px;padding-top:24px;border-top:1px solid #e6edf3;font-size:17px;line-height:24px;">What happens next</h2>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+<tr><td width="30" valign="top" style="padding:0 0 14px;color:#0076b8;font-size:14px;font-weight:bold;">01</td><td style="padding:0 0 14px;font-size:14px;line-height:22px;"><strong>Create your password</strong><br><span style="color:#63758a;">Use the button above to set up your login.</span></td></tr>
+<tr><td width="30" valign="top" style="padding:0 0 14px;color:#0076b8;font-size:14px;font-weight:bold;">02</td><td style="padding:0 0 14px;font-size:14px;line-height:22px;"><strong>Complete your profile</strong><br><span style="color:#63758a;">Add your personal details, address, education, employment history and bank details.</span></td></tr>
+<tr><td width="30" valign="top" style="color:#0076b8;font-size:14px;font-weight:bold;">03</td><td style="font-size:14px;line-height:22px;"><strong>Upload documents and submit</strong><br><span style="color:#63758a;">Your HR team will review your onboarding information.</span></td></tr>
+</table>
+<p style="margin:24px 0 0;font-size:13px;line-height:22px;color:#63758a;">Need help or a new invitation link? Please contact your HR representative.</p>
+<p style="margin:20px 0 0;font-size:14px;line-height:23px;">We look forward to welcoming you.<br><strong>The RailInfo Tech Team</strong></p>
+</td></tr>
+<tr><td style="padding:20px 32px;background-color:#f7f9fc;border-top:1px solid #e6edf3;">
+<p style="margin:0;font-size:12px;line-height:20px;color:#718096;">Button not working? <a th:href="${invitationUrl}" href="https://example.com/setup" style="color:#0076b8;text-decoration:underline;">Open your password setup link</a>.</p>
+<p style="margin:8px 0 0;font-size:11px;line-height:18px;color:#718096;">This is an automated onboarding invitation. Please do not reply to this email.</p>
+</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr></table>
+</body></html>

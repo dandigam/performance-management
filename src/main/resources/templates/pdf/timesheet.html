@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <style>
+        @page { size: Letter landscape; margin: 14mm; @bottom-right { content: "Page " counter(page) " of " counter(pages); color: #64748b; font-size: 7pt; } }
+        * { box-sizing: border-box; }
+        body { margin: 0; color: #0f172a; font-family: Arial, sans-serif; font-size: 9pt; }
+        .header, .meta { display: table; width: 100%; }
+        .header { margin-bottom: 12px; }
+        .left, .right, .meta-item { display: table-cell; vertical-align: top; }
+        .right { text-align: right; }
+        .company { color: #006bd6; font-size: 12pt; font-weight: bold; }
+        h1 { margin: 4px 0; font-size: 16pt; }
+        h2 { font-size: 11pt; margin: 14px 0 7px; }
+        .meta { margin: 10px 0 14px; border: 1px solid #cbd5e1; }
+        .meta-item { width: 25%; padding: 8px; }
+        .label { color: #64748b; font-size: 8pt; }
+        .value { margin-top: 2px; font-weight: bold; }
+        .status { display: inline-block; padding: 4px 9px; border: 1px solid #94a3b8; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
+        thead { display: table-header-group; }
+        tr { page-break-inside: avoid; }
+        th { padding: 7px 4px; color: white; background: #17233b; border: 1px solid #475569; text-align: center; }
+        td { padding: 6px 4px; border: 1px solid #cbd5e1; text-align: center; }
+        td:first-child { text-align: left; }
+        .project td { background: #e8eef7; font-weight: bold; text-align: left; }
+        .total td { background: #f1f5f9; font-weight: bold; }
+        .regular td { font-weight: bold; }
+        .submission { margin-top: 16px; font-size: 8pt; }
+        .submission-title { display: inline-block; margin-bottom: 8px; color: #dc2626; font-weight: bold; text-decoration: underline; }
+        .submission-line { margin: 3px 0; }
+        .approval { margin-top: 8px; padding: 7px 10px; border-left: 2px solid #94a3b8; }
+        .muted { color: #64748b; }
+        .footer { margin-top: 14px; color: #64748b; font-size: 7pt; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <div class="left"><div class="company">Rail Infotech LLC</div><h1>Timesheet</h1></div>
+    <div class="right"><span class="status" th:text="${timesheet.statusLabel}">Submitted</span></div>
+</div>
+<div class="meta">
+    <div class="meta-item"><div class="label">Employee</div><div class="value" th:text="${timesheet.employeeName}"></div></div>
+    <div class="meta-item"><div class="label">Employee number</div><div class="value" th:text="${timesheet.employeeNumber}"></div></div>
+    <div class="meta-item"><div class="label">Period</div><div class="value"><span th:text="${timesheet.periodStart}"></span> to <span th:text="${timesheet.periodEnd}"></span></div></div>
+    <div class="meta-item"><div class="label">Work mode</div><div class="value" th:text="${timesheet.workMode ?: '-'}"></div></div>
+</div>
+<table>
+    <thead><tr><th>Project / assignment</th><th th:each="day : ${timesheet.weekDays}" th:text="${day.label}"></th><th>Total</th></tr></thead>
+    <tbody th:each="project : ${timesheet.projects}">
+    <tr class="project"><td th:attr="colspan=${timesheet.weekDays.size() + 2}"><span th:text="${project.projectName ?: 'General'}"></span><span th:if="${project.milestoneName != null}" th:text="${' · ' + project.milestoneName}"></span><span th:if="${project.designationName != null}" th:text="${' · ' + project.designationName}"></span></td></tr>
+    <tr class="regular"><td>Regular Hours</td><td th:each="day : ${project.days}" th:text="${day.regularHours}"></td><td th:text="${project.regularHours}"></td></tr>
+    <tr th:if="${timesheet.holidayHours.signum() > 0}"><td>Holiday</td><td th:each="day : ${project.days}" th:text="${day.holidayHours}"></td><td th:text="${timesheet.holidayHours}"></td></tr>
+    <tr th:if="${timesheet.leaveHours.signum() > 0}"><td>Leave</td><td th:each="day : ${project.days}" th:text="${day.leaveHours}"></td><td th:text="${timesheet.leaveHours}"></td></tr>
+    </tbody>
+    <tfoot><tr class="total"><td th:attr="colspan=${timesheet.weekDays.size() + 1}">Total hours</td><td th:text="${timesheet.totalHours}"></td></tr></tfoot>
+</table>
+<div class="submission">
+    <div class="submission-title">Submitted</div>
+    <div class="submission-line">Submitted by: <strong th:text="${timesheet.employeeName}"></strong></div>
+    <div class="submission-line">Submitted on: <strong th:text="${timesheet.submittedAtLabel}"></strong></div>
+</div>
+<h2>Approval history</h2>
+<div class="muted" th:if="${timesheet.approvalHistory.isEmpty()}">No approval actions recorded.</div>
+<div class="approval" th:each="entry : ${timesheet.approvalHistory}">
+    <strong th:text="${entry.action}"></strong> — <span th:text="${entry.stage}"></span><br />
+    <span th:text="${entry.employeeName}"></span><span th:if="${entry.actionAt != null}" th:text="${' · ' + entry.actionAt}"></span>
+    <div th:if="${entry.comments != null and !entry.comments.isBlank()}" th:text="${entry.comments}"></div>
+</div>
+<div class="footer">Generated <span th:text="${timesheet.generatedAt}"></span></div>
+</body>
+</html>

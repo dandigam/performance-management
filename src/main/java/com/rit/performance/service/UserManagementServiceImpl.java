@@ -1,6 +1,7 @@
 package com.rit.performance.service;
 
 import com.rit.performance.dto.UserManagementUserResponse;
+import com.rit.performance.dto.UserCreateRequest;
 import com.rit.performance.entity.Employee;
 import com.rit.performance.entity.EmployeeAssignment;
 import com.rit.performance.entity.EmployeeRole;
@@ -14,18 +15,22 @@ import com.rit.performance.repository.EmployeeRoleRepository;
 import com.rit.performance.repository.LookupValueRepository;
 import com.rit.performance.repository.SowRepository;
 import com.rit.performance.repository.UserRepository;
+import com.rit.performance.repository.EmployeeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -35,33 +40,62 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final SowRepository sowRepository;
     private final LookupValueRepository lookupValueRepository;
     private final EmployeeRoleRepository employeeRoleRepository;
+    private final EmployeeRepository employeeRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final UserInvitationService invitationService;
 
     @Override
     @Transactional(readOnly = true)
     public List<UserManagementUserResponse> getUsers() {
-        List<User> users = userRepository.findAllByOrderByIdAsc();
-        List<Long> employeeIds = users.stream()
-                .map(User::getEmployee)
-                .filter(Objects::nonNull)
-                .map(Employee::getId)
-                .distinct()
-                .toList();
+        return userRepository.findAllByOrderByIdAsc().stream().map(this::responseForUser).toList();
+    }
 
-        Map<Long, EmployeeAssignment> assignments = employeeIds.isEmpty()
-                ? Map.of()
-                : assignmentRepository.findCurrentForEmployees(employeeIds, LocalDate.now()).stream()
-                        .collect(Collectors.toMap(EmployeeAssignment::getEmployeeId,
-                                Function.identity(), (first, ignored) -> first, LinkedHashMap::new));
+    @Override
+    @Transactional
+    public UserManagementUserResponse createUser(UserCreateRequest request) {
+        String username = request.username().trim().toLowerCase(Locale.ROOT);
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            throw new InvalidOperationException("A user with this username already exists");
+        }
 
-        List<Long> sowIds = assignments.values().stream()
-                .map(EmployeeAssignment::getSowId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        Map<Long, Sow> sows = sowRepository.findAllById(sowIds).stream()
-                .collect(Collectors.toMap(Sow::getId, Function.identity()));
+        LookupValue role = activeSystemRole(request.roleId());
+        Employee employee = null;
+        if (request.employeeId() == null) {
+            if (!username.equals(email)) {
+                throw new InvalidOperationException(
+                        "email must match username for a user without a linked employee");
+            }
+        } else {
+            employee = employeeRepository.findById(request.employeeId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Employee not found: " + request.employeeId()));
+            if (userRepository.findByEmployeeId(employee.getId()).isPresent()) {
+                throw new InvalidOperationException("This employee already has a login account");
+            }
+            if (employee.getEmail() == null || !email.equalsIgnoreCase(employee.getEmail())) {
+                throw new InvalidOperationException("email must match the linked employee email");
+            }
+        }
 
-        return users.stream().map(user -> toResponse(user, assignments, sows)).toList();
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        user.setRole(role);
+        user.setEmployee(employee);
+        user.setStatus("INVITED");
+        if (request.portalAccess() != null) {
+            user.setPortalAccess(request.portalAccess());
+        }
+        user.setSessionVersion(0L);
+        User saved = userRepository.saveAndFlush(user);
+        if (employee != null) {
+            synchronizeEmployeeRole(saved, role.getId());
+        }
+        if (request.sendInvitation()) {
+            invitationService.send(saved, email);
+        }
+        return responseForUser(saved);
     }
 
     @Override
@@ -90,13 +124,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     public UserManagementUserResponse updateRole(Long userId, Long roleId) {
         User user = userRepository.findForSecurityUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
-        LookupValue role = lookupValueRepository.findById(roleId)
-                .orElseThrow(() -> new ResourceNotFoundException("SYSTEM_ROLE lookup not found: " + roleId));
-        if (role.getLookupType() == null
-                || !"SYSTEM_ROLE".equalsIgnoreCase(role.getLookupType().getCode())
-                || !role.isActive() || !role.getLookupType().isActive()) {
-            throw new InvalidOperationException("Lookup " + roleId + " is not an active SYSTEM_ROLE");
-        }
+        LookupValue role = activeSystemRole(roleId);
 
         if (user.getRole() != null && roleId.equals(user.getRole().getId())) {
             return responseForUser(user);
@@ -107,6 +135,17 @@ public class UserManagementServiceImpl implements UserManagementService {
         User saved = userRepository.save(user);
         synchronizeEmployeeRole(saved, roleId);
         return responseForUser(saved);
+    }
+
+    @Override
+    @Transactional
+    public void updatePortalAccess(Long userId, String portalAccess) {
+        User user = userRepository.findForSecurityUpdate(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+        if (portalAccess != null) {
+            user.setPortalAccess(portalAccess);
+            userRepository.save(user);
+        }
     }
 
     private void synchronizeEmployeeRole(User user, Long roleId) {
@@ -130,31 +169,23 @@ public class UserManagementServiceImpl implements UserManagementService {
         employeeRoleRepository.save(replacement);
     }
 
-    private UserManagementUserResponse responseForUser(User user) {
-        Employee employee = user.getEmployee();
-        if (employee == null) return toResponse(user, Map.of(), Map.of());
-        List<EmployeeAssignment> current = assignmentRepository.findCurrentForEmployees(
-                List.of(employee.getId()), LocalDate.now());
-        if (current.isEmpty() || current.get(0).getSowId() == null) {
-            return toResponse(user, Map.of(), Map.of());
+    private LookupValue activeSystemRole(Long roleId) {
+        LookupValue role = lookupValueRepository.findById(roleId)
+                .orElseThrow(() -> new ResourceNotFoundException("SYSTEM_ROLE lookup not found: " + roleId));
+        if (role.getLookupType() == null
+                || !"SYSTEM_ROLE".equalsIgnoreCase(role.getLookupType().getCode())
+                || !role.isActive() || !role.getLookupType().isActive()) {
+            throw new InvalidOperationException("Lookup " + roleId + " is not an active SYSTEM_ROLE");
         }
-        EmployeeAssignment assignment = current.get(0);
-        Sow sow = sowRepository.findById(assignment.getSowId()).orElse(null);
-        return toResponse(user, Map.of(employee.getId(), assignment),
-                sow == null ? Map.of() : Map.of(sow.getId(), sow));
+        return role;
     }
 
     private String normalizeStatus(String status) {
         return status == null ? "" : status.trim().toUpperCase(Locale.ROOT);
     }
 
-    private UserManagementUserResponse toResponse(User user,
-            Map<Long, EmployeeAssignment> assignments, Map<Long, Sow> sows) {
+    private UserManagementUserResponse responseForUser(User user) {
         Employee employee = user.getEmployee();
-        EmployeeAssignment assignment = employee == null ? null : assignments.get(employee.getId());
-        Sow sow = assignment == null ? null : sows.get(assignment.getSowId());
-        String departmentName = sow == null || sow.getBusinessUnit() == null
-                ? null : sow.getBusinessUnit().getName();
         String employeeName = employee == null ? null
                 : (employee.getFirstName() + " "
                         + (employee.getLastName() == null ? "" : employee.getLastName())).trim();
@@ -169,10 +200,11 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .roleId(user.getRole().getId())
                 .roleCode(user.getRole().getCode())
                 .roleName(user.getRole().getName())
-                .departmentName(departmentName)
                 .status(user.getStatus())
+                .portalAccess(user.getPortalAccess())
                 .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedOn())
                 .build();
     }
+
 }

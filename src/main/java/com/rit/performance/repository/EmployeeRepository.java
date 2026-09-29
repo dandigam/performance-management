@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface EmployeeRepository
-        extends JpaRepository<Employee, Long> {
+        extends JpaRepository<Employee, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<Employee> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from Employee e where e.id = :id")
@@ -19,7 +19,8 @@ public interface EmployeeRepository
 
     @org.springframework.data.jpa.repository.Query("""
             select e from Employee e
-            where (:status is null or upper(e.status) = :status)
+            where upper(e.status) in ('ACTIVE', 'INACTIVE')
+              and (:status is null or upper(e.status) = :status)
               and (:workMode is null or upper(e.workMode) = :workMode)
               and (:workLocation is null or upper(e.workLocation) = :workLocation)
               and (:assignmentStatus is null
@@ -63,6 +64,43 @@ public interface EmployeeRepository
             @org.springframework.data.repository.query.Param("today") java.time.LocalDate today,
             org.springframework.data.domain.Pageable pageable);
 
+    @Query("""
+            select e from Employee e
+            where (:designationId is null or e.designationId = :designationId)
+              and (:employmentType is null or upper(e.employmentType) = :employmentType)
+              and (:workMode is null or upper(e.workMode) = :workMode)
+              and (:workLocation is null or upper(e.workLocation) = :workLocation)
+              and (:status is null or upper(e.status) = :status)
+              and (:departmentId is null or exists (
+                    select a.id from EmployeeAssignment a, Sow s
+                    where a.employeeId = e.id and a.sowId = s.id
+                    and upper(a.status) = 'ASSIGNED' and a.effectiveFrom <= :today
+                    and (a.effectiveTo is null or a.effectiveTo >= :today)
+                    and s.businessUnit.id = :departmentId))
+              and (:search is null
+                or lower(concat(concat(coalesce(e.firstName, ''), ' '), coalesce(e.lastName, ''))) like :search escape '!'
+                or lower(e.ritId) like :search escape '!'
+                or lower(e.email) like :search escape '!'
+                or exists (select d.id from LookupValue d where d.id = e.designationId
+                    and lower(d.name) like :search escape '!')
+                or exists (select a.id from EmployeeAssignment a, Sow s
+                    left join s.businessUnit department
+                    where a.employeeId = e.id and a.sowId = s.id
+                    and upper(a.status) = 'ASSIGNED' and a.effectiveFrom <= :today
+                    and (a.effectiveTo is null or a.effectiveTo >= :today)
+                    and lower(department.name) like :search escape '!'))
+            """)
+    org.springframework.data.domain.Page<Employee> findWorkforceReport(
+            @Param("search") String search,
+            @Param("departmentId") Long departmentId,
+            @Param("designationId") Long designationId,
+            @Param("employmentType") String employmentType,
+            @Param("workMode") String workMode,
+            @Param("workLocation") String workLocation,
+            @Param("status") String status,
+            @Param("today") java.time.LocalDate today,
+            org.springframework.data.domain.Pageable pageable);
+
     Optional<Employee> findByEmail(String email);
 
     boolean existsByEmailIgnoreCase(String email);
@@ -72,6 +110,10 @@ public interface EmployeeRepository
     List<Employee> findByDesignationIdInAndStatusIgnoreCase(List<Long> designationIds, String status);
 
     boolean existsByEmailIgnoreCaseAndIdNot(String email, Long id);
+
+    boolean existsByPhoneNumber(String phoneNumber);
+
+    boolean existsByPhoneNumberAndIdNot(String phoneNumber, Long id);
 
     boolean existsByRitIdIgnoreCase(String ritId);
 

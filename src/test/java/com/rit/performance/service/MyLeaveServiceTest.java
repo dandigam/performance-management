@@ -25,7 +25,8 @@ class MyLeaveServiceTest {
     private final EmployeeLeaveBalanceService balanceService = mock(EmployeeLeaveBalanceService.class);
     private final LeaveRequestRepository requests = mock(LeaveRequestRepository.class);
     private final MyLeaveService service = new MyLeaveService(current, employees, assignments, rules,
-            schedules, balances, adjustments, balanceService, requests);
+            schedules, balances, adjustments, balanceService, requests,
+            mock(org.springframework.context.ApplicationEventPublisher.class), mock(ApplicationEmailFactory.class));
     private final LocalDate date = LocalDate.of(2026, 9, 21);
 
     private LeaveRequestDraftRequest input(BigDecimal hours) {

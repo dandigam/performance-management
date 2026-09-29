@@ -1,11 +1,38 @@
 # User Management API
 
+## Create user
+
+`POST /api/v1/user-management/users`
+
+Creates a login account with an optional employee link. The username and email must be unique.
+For an account without an employee, `email` must match `username` because the current user model
+uses the username as the account email.
+
+```json
+{
+  "username": "finance@rit.com",
+  "email": "finance@rit.com",
+  "roleId": 3,
+  "employeeId": null,
+  "sendInvitation": true
+}
+```
+
+The role must be an active `SYSTEM_ROLE`. When `employeeId` is supplied, that employee must not
+already have a user account and the request email must match the employee email.
+
+New accounts have `INVITED` status. When `sendInvitation` is `true`, the user receives a one-time
+password creation link that expires after 24 hours. Successfully setting the password changes the
+account status to `ACTIVE`.
+
+Returns `201 Created` with the created user object.
+
 ## List users
 
 `GET /api/v1/user-management/users`
 
 Returns login accounts ordered by user ID. Accounts without a linked employee are included with
-`null` employee and department fields. For an unlinked account, `email` falls back to `username`.
+`null` employee fields. For an unlinked account, `email` falls back to `username`.
 
 When authentication is enabled, this endpoint requires the `ADMIN` role.
 
@@ -23,7 +50,6 @@ When authentication is enabled, this endpoint requires the `ADMIN` role.
     "roleId": 31,
     "roleCode": "MANAGER",
     "roleName": "Manager",
-    "departmentName": "Engineering",
     "status": "ACTIVE",
     "lastLoginAt": "2026-09-20T09:30:00",
     "createdAt": "2026-01-10T12:00:00"
@@ -38,7 +64,6 @@ When authentication is enabled, this endpoint requires the `ADMIN` role.
     "roleId": 1,
     "roleCode": "ADMIN",
     "roleName": "Administrator",
-    "departmentName": null,
     "status": "ACTIVE",
     "lastLoginAt": null,
     "createdAt": "2026-01-10T12:00:00"
@@ -92,8 +117,7 @@ Unknown users and incorrect passwords return `401 Unauthorized` with:
 
 ### Response
 
-Returns the updated user object using the same fields as the list endpoint. Employee and department
-fields are `null` when the user has no linked employee.
+Returns the updated user object using the same fields as the list endpoint. Employee fields are `null` when the user has no linked employee.
 
 ## Update user role
 
@@ -115,3 +139,26 @@ refresh tokens.
 ### Response
 
 Returns the updated user object using the same fields as the list endpoint.
+
+## Portal access metadata
+
+`POST /api/v1/user-management/users` accepts optional `portalAccess`: `FULL`,
+`ONBOARDING`, or `BLOCKED`. Omitted or null defaults to `FULL`. Send
+`"portalAccess": "ONBOARDING"` when creating an onboarding account.
+
+`PUT /api/v1/user-management/users/{userId}/portal-access` updates this field:
+
+```json
+{ "portalAccess": "FULL" }
+```
+
+Returns `204 No Content`. Omitted or null leaves the existing value unchanged.
+Invalid values, including blank strings, fail validation. Existing ADMIN
+permissions apply to this endpoint.
+
+Login, refresh, and `/api/auth/me` responses include `portalAccess`.
+User management list, create, status-update, and role-update responses also include `portalAccess`.
+This field is metadata only; it does not enforce access restrictions or change
+account status or token validity. Apply
+`database/migrations/2026-09-27-user-portal-access.sql` before deploying.
+The migration initializes existing users to `FULL`.

@@ -2,7 +2,7 @@ package com.rit.performance.controller;
 
 import com.rit.performance.dto.request.*;
 import com.rit.performance.dto.ApiMessageResponse;
-import com.rit.performance.exception.InvalidOperationException;
+import com.rit.performance.exception.ApplicationException;
 import com.rit.performance.service.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -31,22 +31,12 @@ public class PasswordResetController {
 
     @PostMapping("/reset-password")
     public ResponseEntity<?> reset(@RequestBody ResetPasswordRequest request, HttpServletRequest http) {
-        if (!limiter.allow("reset-ip:" + http.getRemoteAddr(), 30, Duration.ofMinutes(15)))
-            return ResponseEntity.status(429).header("Retry-After", "900")
-                    .body(ApiMessageResponse.warning("RATE_LIMIT_EXCEEDED",
-                            "Too many requests. Please try again later."));
+        if (!limiter.allow("reset-ip:" + http.getRemoteAddr(), 30, Duration.ofMinutes(15))) {
+            throw new ApplicationException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
+                    "RATE_LIMIT_EXCEEDED", "Too many requests. Please try again later.", "900");
+        }
         service.reset(request.getToken(), request.getNewPassword());
         return ResponseEntity.ok(ApiMessageResponse.success("Password reset successfully."));
-    }
-
-    @ExceptionHandler(com.rit.performance.exception.PasswordResetRateLimitException.class)
-    public ResponseEntity<ApiMessageResponse> rateLimited(com.rit.performance.exception.PasswordResetRateLimitException e) {
-        return ResponseEntity.status(429).header("Retry-After", "3600")
-                .body(ApiMessageResponse.warning("RATE_LIMIT_EXCEEDED", e.getMessage()));
-    }
-    @ExceptionHandler(InvalidOperationException.class)
-    public ResponseEntity<ApiMessageResponse> invalid(InvalidOperationException e) {
-        return ResponseEntity.badRequest().body(ApiMessageResponse.warning(e.getCode(), e.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

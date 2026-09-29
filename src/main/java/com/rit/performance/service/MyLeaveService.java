@@ -9,6 +9,7 @@ import com.rit.performance.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -31,6 +32,8 @@ public class MyLeaveService {
     private final EmployeeLeaveBalanceAdjustmentRepository adjustments;
     private final EmployeeLeaveBalanceService balanceService;
     private final LeaveRequestRepository requests;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
 
     public List<EmployeeLeaveBalanceResponse> myBalances(int year) {
         return balanceService.getForEmployee(currentEmployee.currentEmployee().getId(), year);
@@ -114,7 +117,9 @@ public class MyLeaveService {
         request.setLevel2Approver(assignment.getLevel2Approver());
         request.setStatus(LeaveRequestStatus.SUBMITTED);
         request.setSubmittedAt(LocalDateTime.now());
-        return response(requests.saveAndFlush(request));
+        LeaveRequest saved = requests.saveAndFlush(request);
+        publish(saved, "submitted", null);
+        return response(saved);
     }
 
     @Transactional
@@ -126,7 +131,15 @@ public class MyLeaveService {
         if (request.getStatus() != LeaveRequestStatus.SUBMITTED)
             throw new InvalidOperationException("Only a submitted leave request can be cancelled.");
         request.setStatus(LeaveRequestStatus.CANCELLED);
-        return response(requests.saveAndFlush(request));
+        LeaveRequest saved = requests.saveAndFlush(request);
+        publish(saved, "cancelled", null);
+        return response(saved);
+    }
+
+    private void publish(LeaveRequest request, String action, String comments) {
+        for (ApplicationEmail email : emailFactory.leaveRequest(request, action, comments)) {
+            events.publishEvent(email);
+        }
     }
 
     private Prepared prepare(Long employeeId, LeaveRequestDraftRequest input) {

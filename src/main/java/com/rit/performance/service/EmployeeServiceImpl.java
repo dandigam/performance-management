@@ -29,6 +29,7 @@ import com.rit.performance.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -80,6 +81,31 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final AssessmentAssigneeResolver assigneeResolver;
     private final SowMilestonePositionAssignmentService positionAssignmentService;
     private final EmployeeAuditService employeeAuditService;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
+
+    @Override
+    @Transactional(readOnly = true)
+    public void checkContactAvailability(String email, String phoneNumber, Long excludeEmployeeId) {
+        String normalizedEmail = email == null || email.isBlank() ? null : email.trim().toLowerCase(Locale.ROOT);
+        String normalizedPhone = normalizePhoneNumber(phoneNumber);
+        if (normalizedEmail == null && normalizedPhone == null) {
+            throw new InvalidOperationException("Provide an employee email or phone number to check");
+        }
+        if (excludeEmployeeId != null && excludeEmployeeId <= 0) {
+            throw new InvalidOperationException("excludeEmployeeId must be positive");
+        }
+        if (normalizedEmail != null && (excludeEmployeeId == null
+                ? employeeRepository.existsByEmailIgnoreCase(normalizedEmail)
+                : employeeRepository.existsByEmailIgnoreCaseAndIdNot(normalizedEmail, excludeEmployeeId))) {
+            throw new InvalidOperationException("Employee email already exists: " + normalizedEmail);
+        }
+        if (normalizedPhone != null && (excludeEmployeeId == null
+                ? employeeRepository.existsByPhoneNumber(normalizedPhone)
+                : employeeRepository.existsByPhoneNumberAndIdNot(normalizedPhone, excludeEmployeeId))) {
+            throw new InvalidOperationException("Employee phone number already exists: " + normalizedPhone);
+        }
+    }
 
     @Override
     @Transactional
@@ -87,13 +113,17 @@ public class EmployeeServiceImpl implements EmployeeService {
         String email = request.getEmail().trim().toLowerCase();
         if (employeeRepository.existsByEmailIgnoreCase(email) || userRepository.existsByUsernameIgnoreCase(email))
             throw new InvalidOperationException("Employee email or username already exists: " + email);
+        String phoneNumber = normalizePhoneNumber(request.getPhoneNumber());
+        if (phoneNumber != null && employeeRepository.existsByPhoneNumber(phoneNumber)) {
+            throw new InvalidOperationException("Employee phone number already exists: " + phoneNumber);
+        }
         String csxRacfId = normalizeIdentifier(request.getCsxRacfId());
         validateIdentifiersAvailable(null, csxRacfId, null);
         Employee employee = new Employee();
         employee.setFirstName(request.getFirstName().trim());
         employee.setLastName(request.getLastName() == null ? null : request.getLastName().trim());
         employee.setEmail(email);
-        employee.setPhoneNumber(request.getPhoneNumber() == null ? null : request.getPhoneNumber().trim());
+        employee.setPhoneNumber(phoneNumber);
         employee.setGender(normalizeGender(request.getGender()));
         employee.setDateOfBirth(request.getDateOfBirth());
         employee.setCsxRacfId(csxRacfId);
@@ -136,6 +166,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .roleName(role.getName()).build();
         employeeAuditService.record(employee.getId(), "EMPLOYEE", "CREATED",
                 null, response.getEmployee(), request.getCreatedBy());
+        events.publishEvent(emailFactory.employeeCreated(employee, user));
         return response;
     }
 
@@ -942,12 +973,19 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         if (request.getLastName() != null) employee.setLastName(request.getLastName().trim());
         if (request.getEmail() != null) {
-            String email = request.getEmail().trim();
+            String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
             if (employeeRepository.existsByEmailIgnoreCaseAndIdNot(email, employee.getId()))
                 throw new InvalidOperationException("Employee email already exists: " + email);
             employee.setEmail(email);
         }
-        if (request.getPhoneNumber() != null) employee.setPhoneNumber(request.getPhoneNumber().trim());
+        if (request.getPhoneNumber() != null) {
+            String phoneNumber = normalizePhoneNumber(request.getPhoneNumber());
+            if (phoneNumber != null
+                    && employeeRepository.existsByPhoneNumberAndIdNot(phoneNumber, employee.getId())) {
+                throw new InvalidOperationException("Employee phone number already exists: " + phoneNumber);
+            }
+            employee.setPhoneNumber(phoneNumber);
+        }
         if (request.getGender() != null) employee.setGender(normalizeGender(request.getGender()));
         if (request.getDateOfBirth() != null) employee.setDateOfBirth(request.getDateOfBirth());
         if (request.getRitId() != null) {
@@ -1449,6 +1487,13 @@ public class EmployeeServiceImpl implements EmployeeService {
                 : employeeRepository.existsByCsxRacfIdIgnoreCaseAndIdNot(csxRacfId, excludedEmployeeId));
         if (csxRacfIdExists)
             throw new InvalidOperationException("CSX RACF ID already exists: " + csxRacfId);
+    }
+
+    private String normalizePhoneNumber(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            return null;
+        }
+        return phoneNumber.trim();
     }
 
     private String formatRitEmployeeId(Long employeeId) {

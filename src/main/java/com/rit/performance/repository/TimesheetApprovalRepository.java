@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface TimesheetApprovalRepository extends JpaRepository<TimesheetApproval, Long> {
+    @EntityGraph(attributePaths = {"approverEmployee"})
+    List<TimesheetApproval> findByTimesheetIdOrderByApprovalLevelAsc(Long timesheetId);
     @EntityGraph(attributePaths = {"timesheet", "timesheet.employee", "timesheet.timesheetEmployeeProject",
             "timesheet.timesheetEmployeeProject.sow", "timesheet.timesheetEmployeeProject.sow.client"})
     @Query("""

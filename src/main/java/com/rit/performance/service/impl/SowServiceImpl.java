@@ -29,7 +29,9 @@ import com.rit.performance.repository.*;
 import com.rit.performance.service.SowInvoiceService;
 import com.rit.performance.service.SowResourceRequirementService;
 import com.rit.performance.service.SowService;
+import com.rit.performance.service.ApplicationEmailFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,6 +70,8 @@ public class SowServiceImpl implements SowService {
     private final UserRepository userRepository;
     private final ClientRepository clientRepository;
     private final SowResourceRequirementService resourceRequirementService;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
 
     @Override
     public void deleteMilestone(Long sowId, Long milestoneId) {
@@ -266,6 +270,7 @@ public class SowServiceImpl implements SowService {
         createDraftInvoicesWhenEligible(sow, milestoneSync.retained());
         Sow saved = sowRepository.saveAndFlush(sow);
         resourceRequirementService.onPositionCreatedOrUpdated(saved.getId());
+        events.publishEvent(emailFactory.sowCreated(saved));
         return toResponse(saved);
     }
 
@@ -585,6 +590,7 @@ public class SowServiceImpl implements SowService {
         }
         Sow saved = sowRepository.saveAndFlush(sow);
         resourceRequirementService.onPositionCreatedOrUpdated(saved.getId());
+        events.publishEvent(emailFactory.sowUpdated(saved, "updated"));
         return toResponse(saved);
     }
 
@@ -607,7 +613,9 @@ public class SowServiceImpl implements SowService {
         }
         sow.setStatus(newStatus);
         sow.setStatusEffectiveDate(effectiveDate);
-        return toResponse(sowRepository.save(sow));
+        Sow saved = sowRepository.save(sow);
+        events.publishEvent(emailFactory.sowUpdated(saved, "status updated"));
+        return toResponse(saved);
     }
 
     @Override
@@ -628,7 +636,9 @@ public class SowServiceImpl implements SowService {
 
         sow.setSignedStatus(signedStatus);
         sow.setSignedDate("SIGNED".equals(signedStatus) ? request.getSignedDate() : null);
-        return toResponse(sowRepository.save(sow));
+        Sow saved = sowRepository.save(sow);
+        events.publishEvent(emailFactory.sowUpdated(saved, "signature updated"));
+        return toResponse(saved);
     }
 
     @Override

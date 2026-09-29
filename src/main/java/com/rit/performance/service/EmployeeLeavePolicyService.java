@@ -9,6 +9,7 @@ import com.rit.performance.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -21,6 +22,8 @@ public class EmployeeLeavePolicyService {
     private final EmployeeLeavePolicyRepository assignments;
     private final EmployeeRepository employees;
     private final LeavePolicyRepository policies;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
 
     @Transactional
     public EmployeeLeavePolicyResponse assign(Long employeeId, EmployeeLeavePolicyRequest request) {
@@ -35,7 +38,9 @@ public class EmployeeLeavePolicyService {
         EmployeeLeavePolicy assignment = new EmployeeLeavePolicy();
         assignment.setEmployee(employee);
         apply(assignment, policy, request);
-        return response(assignments.saveAndFlush(assignment));
+        EmployeeLeavePolicy saved = assignments.saveAndFlush(assignment);
+        publish(saved, "created");
+        return response(saved);
     }
 
     @Transactional
@@ -52,7 +57,9 @@ public class EmployeeLeavePolicyService {
             checkOverlap(employeeId, assignmentId, request.effectiveFrom(), request.effectiveTo());
         }
         apply(assignment, policy, request);
-        return response(assignments.saveAndFlush(assignment));
+        EmployeeLeavePolicy saved = assignments.saveAndFlush(assignment);
+        publish(saved, "updated");
+        return response(saved);
     }
 
     public List<EmployeeLeavePolicyResponse> getForEmployee(Long employeeId) {
@@ -79,7 +86,15 @@ public class EmployeeLeavePolicyService {
             checkOverlap(employeeId, assignmentId, assignment.getEffectiveFrom(), assignment.getEffectiveTo());
         }
         assignment.setStatus(status);
-        return response(assignments.saveAndFlush(assignment));
+        EmployeeLeavePolicy saved = assignments.saveAndFlush(assignment);
+        publish(saved, "status updated");
+        return response(saved);
+    }
+
+    private void publish(EmployeeLeavePolicy assignment, String action) {
+        for (ApplicationEmail email : emailFactory.leavePolicy(assignment, action)) {
+            events.publishEvent(email);
+        }
     }
 
     private Employee findEmployee(Long id) {

@@ -1,11 +1,13 @@
 package com.rit.performance.service;
 
 import com.rit.performance.entity.PasswordResetToken;
-import com.rit.performance.exception.InvalidOperationException;
+import com.rit.performance.entity.User;
+import com.rit.performance.exception.ApplicationException;
 import com.rit.performance.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +16,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +30,7 @@ public class PasswordResetService {
     private final PasswordEncoder encoder;
     private final PasswordResetRateLimiter limiter;
     private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
     private final EmailNotificationService notifications;
     private final Clock clock;
     @Value("${app.mail.base-url:http://localhost:5173}") private String frontendUrl;
@@ -34,46 +38,88 @@ public class PasswordResetService {
     @Transactional
     public void forgot(String email, String remoteAddress) {
         String normalized = email.trim().toLowerCase(Locale.ROOT);
-        if (!limiter.allow("forgot-ip:" + remoteAddress, 20, Duration.ofHours(1))) throw new com.rit.performance.exception.PasswordResetRateLimitException();
-        if (!limiter.allow("forgot-email:" + normalized, 3, Duration.ofHours(1))) throw new com.rit.performance.exception.PasswordResetRateLimitException();
-        var id = users.findActiveIdByEmail(normalized);
-        if (id.isEmpty()) throw new InvalidOperationException(EMAIL_NOT_FOUND);
-        var user = users.findForSecurityUpdate(id.get()).orElse(null);
-        if (user == null || !"ACTIVE".equalsIgnoreCase(user.getStatus()) || user.getEmployee() == null) throw new InvalidOperationException(EMAIL_NOT_FOUND);
+        if (!limiter.allow("forgot-ip:" + remoteAddress, 20, Duration.ofHours(1))) {
+            throw new ApplicationException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED",
+                    "Too many password reset requests. Please try again later.", "3600");
+        }
+        if (!limiter.allow("forgot-email:" + normalized, 3, Duration.ofHours(1))) {
+            throw new ApplicationException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED",
+                    "Too many password reset requests. Please try again later.", "3600");
+        }
+
+        Optional<Long> id = users.findActiveIdByEmail(normalized);
+        if (id.isEmpty()) {
+            throw new ApplicationException(HttpStatus.BAD_REQUEST, "EMAIL_NOT_FOUND", EMAIL_NOT_FOUND);
+        }
+
+        User user = users.findForSecurityUpdate(id.get()).orElse(null);
+        if (user == null || !"ACTIVE".equalsIgnoreCase(user.getStatus()) || user.getEmployee() == null) {
+            throw new ApplicationException(HttpStatus.BAD_REQUEST, "EMAIL_NOT_FOUND", EMAIL_NOT_FOUND);
+        }
+
         // Recheck the address after acquiring the account lock.
-        if (!normalized.equalsIgnoreCase(user.getEmployee().getEmail())) throw new InvalidOperationException(EMAIL_NOT_FOUND);
+        if (!normalized.equalsIgnoreCase(user.getEmployee().getEmail())) {
+            throw new ApplicationException(HttpStatus.BAD_REQUEST, "EMAIL_NOT_FOUND", EMAIL_NOT_FOUND);
+        }
+
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+
         PasswordResetToken token = new PasswordResetToken();
         token.setUser(user);
         token.setTokenHash(PasswordResetRateLimiter.hash(raw));
         token.setExpiresAt(clock.instant().plus(Duration.ofMinutes(30)));
         tokens.save(token);
-        events.publishEvent(new PasswordResetEmail(user.getEmployee().getEmail(),
-                frontendUrl.replaceAll("/$", "") + "/reset-password?token=" + raw));
+
+        String resetLink = frontendUrl.replaceAll("/$", "") + "/reset-password?token=" + raw;
+        events.publishEvent(emailFactory.passwordReset(user.getEmployee().getEmail(), resetLink));
     }
 
     @Transactional
     public void reset(String raw, String password) {
-        if (raw == null || !raw.matches("[A-Za-z0-9_-]{43}")) throw invalid();
+        if (raw == null || !raw.matches("[A-Za-z0-9_-]{43}")) {
+            throw new ApplicationException(HttpStatus.BAD_REQUEST,
+                    "INVALID_PASSWORD_RESET_LINK", INVALID_LINK);
+        }
+
         String hash = PasswordResetRateLimiter.hash(raw);
-        Long id = tokens.findUserIdByHash(hash).orElseThrow(PasswordResetService::invalid);
+        Long id = tokens.findUserIdByHash(hash).orElseThrow(() ->
+                new ApplicationException(HttpStatus.BAD_REQUEST,
+                        "INVALID_PASSWORD_RESET_LINK", INVALID_LINK));
+
         // All reset, login and refresh flows acquire the user lock before token locks.
-        var user = users.findForSecurityUpdate(id).orElseThrow(PasswordResetService::invalid);
-        var token = tokens.findByTokenHash(hash).orElseThrow(PasswordResetService::invalid);
+        User user = users.findForSecurityUpdate(id).orElseThrow(() ->
+                new ApplicationException(HttpStatus.BAD_REQUEST,
+                        "INVALID_PASSWORD_RESET_LINK", INVALID_LINK));
+        PasswordResetToken token = tokens.findByTokenHash(hash).orElseThrow(() ->
+                new ApplicationException(HttpStatus.BAD_REQUEST,
+                        "INVALID_PASSWORD_RESET_LINK", INVALID_LINK));
+
+        boolean accountCanSetPassword = "ACTIVE".equalsIgnoreCase(user.getStatus())
+                || "INVITED".equalsIgnoreCase(user.getStatus());
         if (token.isUsed() || !token.getExpiresAt().isAfter(clock.instant())
-                || !"ACTIVE".equalsIgnoreCase(user.getStatus())) throw invalid();
+                || !accountCanSetPassword) {
+            throw new ApplicationException(HttpStatus.BAD_REQUEST,
+                    "INVALID_PASSWORD_RESET_LINK", INVALID_LINK);
+        }
+
         PasswordPolicy.validate(password);
-        if (encoder.matches(password, user.getPassword()))
-            throw new InvalidOperationException("New password must be different from the current password.");
+        if (encoder.matches(password, user.getPassword())) {
+            throw new ApplicationException(HttpStatus.BAD_REQUEST, "PASSWORD_REUSE_NOT_ALLOWED",
+                    "New password must be different from the current password.");
+        }
+
         user.setPassword(encoder.encode(password));
+        if ("INVITED".equalsIgnoreCase(user.getStatus())) {
+            user.setStatus("ACTIVE");
+        }
         user.setSessionVersion(user.getSessionVersion() + 1);
         users.save(user);
+
         tokens.invalidateAllForUser(id);
         refreshTokens.revokeAllForUser(id, clock.instant());
         notifications.queuePasswordChanged(user);
     }
 
-    private static InvalidOperationException invalid() { return new InvalidOperationException(INVALID_LINK); }
 }

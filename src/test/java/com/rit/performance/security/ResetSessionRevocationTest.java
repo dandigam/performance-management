@@ -25,7 +25,7 @@ class ResetSessionRevocationTest {
         String before = jwt.createAccessToken(user).value();
         user.setSessionVersion(1L);
         when(details.loadUserByUsername("alice")).thenReturn(new AuthenticatedUser(1L, "alice", "hash", true, 1L, List.of()));
-        var filter = new JwtAuthenticationFilter(jwt, details);
+        var filter = new JwtAuthenticationFilter(jwt, details, mock(com.rit.performance.repository.UserRepository.class));
         var request = new MockHttpServletRequest("GET", "/api/auth/me");
         request.addHeader("Authorization", "Bearer " + before);
         var response = new MockHttpServletResponse();

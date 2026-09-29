@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SOW notification</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f6fa;font-family:Arial,sans-serif;color:#0f172a;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f6fa;">
+  <tr><td align="center" style="padding:32px 16px;">
+    <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+           style="width:100%;max-width:600px;background:#fff;border:1px solid #dbe3ee;border-radius:10px;">
+      <tr><td style="padding:24px 32px;background:#0f1b33;border-radius:10px 10px 0 0;">
+        <div style="font-size:20px;font-weight:700;color:#fff;">RailInfo Tech</div>
+        <div style="margin-top:6px;font-size:14px;color:#cbd5e1;">SOW notification</div>
+      </td></tr>
+      <tr><td style="padding:32px;">
+        <p style="margin:0 0 20px;font-size:16px;line-height:24px;">Hello <span th:text="${recipientName}">Admin</span>,</p>
+        <h1 style="margin:0 0 12px;font-size:24px;line-height:32px;">
+          A SOW was <span th:text="${changeType}">updated</span>
+        </h1>
+        <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:24px;">
+          <strong th:text="${sowName}">SOW</strong> was changed by
+          <strong th:text="${updatedBy}">System</strong>.
+        </p>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+               style="border:1px solid #dbe3ee;border-radius:8px;">
+          <tr>
+            <td style="padding:12px 16px;color:#64748b;border-bottom:1px solid #e2e8f0;">SOW number</td>
+            <td align="right" style="padding:12px 16px;font-weight:600;border-bottom:1px solid #e2e8f0;">SOW-<span th:text="${sowId}">1</span></td>
+          </tr>
+          <tr>
+            <td style="padding:12px 16px;color:#64748b;border-bottom:1px solid #e2e8f0;">Client</td>
+            <td th:text="${clientName}" align="right" style="padding:12px 16px;font-weight:600;border-bottom:1px solid #e2e8f0;"></td>
+          </tr>
+          <tr>
+            <td style="padding:12px 16px;color:#64748b;border-bottom:1px solid #e2e8f0;">Status</td>
+            <td th:text="${status}" align="right" style="padding:12px 16px;font-weight:600;border-bottom:1px solid #e2e8f0;"></td>
+          </tr>
+          <tr>
+            <td style="padding:12px 16px;color:#64748b;">Contract period</td>
+            <td align="right" style="padding:12px 16px;font-weight:600;">
+              <span th:text="${startDate}"></span> &ndash; <span th:text="${endDate}"></span>
+            </td>
+          </tr>
+        </table>
+        <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:28px;">
+          <tr><td style="background:#0876d1;border-radius:6px;">
+            <a th:href="${sowUrl}" style="display:inline-block;padding:12px 22px;color:#fff;font-size:15px;font-weight:700;text-decoration:none;">View SOW</a>
+          </td></tr>
+        </table>
+        <p th:if="${updatedAt != null}" style="margin:24px 0 0;color:#64748b;font-size:13px;line-height:20px;">
+          Updated <span th:text="${updatedAt}"></span>
+        </p>
+      </td></tr>
+      <tr><td style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;border-radius:0 0 10px 10px;color:#64748b;font-size:12px;line-height:18px;">
+        <span th:text="${footer}">Regards, RailInfo Tech</span><br />
+        This is an automated notification. Please do not reply to this email.
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

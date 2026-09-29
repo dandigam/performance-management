@@ -28,7 +28,7 @@ class PasswordResetSecurityTest {
         @Bean PasswordResetRateLimiter limiter() { return new PasswordResetRateLimiter(Clock.systemUTC()); }
         @Bean JwtService jwt() { return mock(JwtService.class); }
         @Bean AppUserDetailsService details() { return mock(AppUserDetailsService.class); }
-        @Bean JwtAuthenticationFilter filter(JwtService jwt, AppUserDetailsService details) { return new JwtAuthenticationFilter(jwt, details); }
+        @Bean JwtAuthenticationFilter filter(JwtService jwt, AppUserDetailsService details) { return new JwtAuthenticationFilter(jwt, details, mock(com.rit.performance.repository.UserRepository.class)); }
     }
 
     @BeforeEach void setup() {

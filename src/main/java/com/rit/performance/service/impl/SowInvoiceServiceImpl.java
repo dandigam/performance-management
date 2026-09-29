@@ -29,7 +29,9 @@ import com.rit.performance.mapper.AuditMapper;
 import com.rit.performance.entity.BaseEntity;
 import com.rit.performance.repository.SowMilestoneRepository;
 import com.rit.performance.service.SowInvoiceService;
+import com.rit.performance.service.ApplicationEmailFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,6 +63,8 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
     private final SowInvoicePaymentHistoryRepository paymentHistoryRepository;
     private final UserRepository userRepository;
     private final SowMilestoneRepository milestoneRepository;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
 
     @Override
     @Transactional(readOnly = true)
@@ -103,6 +107,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         apply(invoice, request);
         SowInvoice saved = invoiceRepository.saveAndFlush(invoice);
         recordInvoiceHistory(saved, "CREATED", request.getUpdatedBy());
+        events.publishEvent(emailFactory.invoice(saved, "created"));
         return toResponse(saved);
     }
 
@@ -118,6 +123,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         String action = Objects.equals(previousStatus, invoice.getInvoiceStatus())
                 ? "INVOICE_UPDATED" : invoice.getInvoiceStatus();
         recordInvoiceHistory(saved, action, request.getUpdatedBy());
+        events.publishEvent(emailFactory.invoice(saved, "updated"));
         return toResponse(saved);
     }
 
@@ -137,6 +143,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         SowInvoice saved = invoiceRepository.save(invoice);
         recordInvoiceHistory(saved, status, request.getUpdatedBy(),
                 request.getActionDate(), trimToNull(request.getReason()), previousStatus);
+        events.publishEvent(emailFactory.invoice(saved, "status updated to " + status));
         return toResponse(saved);
     }
 
@@ -185,8 +192,10 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                         .build())
                 .toList();
         List<SowInvoice> savedInvoices = invoiceRepository.saveAllAndFlush(missingInvoices);
-        savedInvoices.forEach(invoice -> recordInvoiceHistory(
-                invoice, "CREATED", invoice.getCreatedBy()));
+        savedInvoices.forEach(invoice -> {
+            recordInvoiceHistory(invoice, "CREATED", invoice.getCreatedBy());
+            events.publishEvent(emailFactory.invoice(invoice, "created"));
+        });
     }
 
     private void apply(SowInvoice invoice, SowInvoiceRequest request) {
@@ -255,6 +264,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         applyPayment(payment, request);
         SowInvoicePayment saved = paymentRepository.save(payment);
         recordPaymentHistory(saved, "CREATED", request.getUpdatedBy());
+        events.publishEvent(emailFactory.invoicePayment(saved, "created"));
         return toPaymentResponse(saved);
     }
 
@@ -265,6 +275,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         applyPayment(payment, request);
         SowInvoicePayment saved = paymentRepository.save(payment);
         recordPaymentHistory(saved, "UPDATED", request.getUpdatedBy());
+        events.publishEvent(emailFactory.invoicePayment(saved, "updated"));
         return toPaymentResponse(saved);
     }
 
@@ -272,6 +283,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
     public void deletePayment(Long invoiceId, Long paymentId) {
         SowInvoicePayment payment = findPayment(invoiceId, paymentId);
         recordPaymentHistory(payment, "DELETED", payment.getUpdatedBy());
+        events.publishEvent(emailFactory.invoicePayment(payment, "deleted"));
         paymentRepository.delete(payment);
     }
 

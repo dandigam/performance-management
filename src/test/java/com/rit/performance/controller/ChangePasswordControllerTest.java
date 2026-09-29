@@ -23,7 +23,7 @@ class ChangePasswordControllerTest {
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new ChangePasswordController(service))
             .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
             .setControllerAdvice(new GlobalExceptionHandler())
-            .addFilters(new JwtAuthenticationFilter(jwt, mock(AppUserDetailsService.class))).build();
+            .addFilters(new JwtAuthenticationFilter(jwt, mock(AppUserDetailsService.class), mock(com.rit.performance.repository.UserRepository.class))).build();
     private static final String BODY = "{\"currentPassword\":\"current-password\",\"newPassword\":\"new-password\"}";
 
     @AfterEach

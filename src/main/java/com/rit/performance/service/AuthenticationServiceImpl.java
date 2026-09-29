@@ -98,7 +98,9 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .expiresAt(accessToken == null ? null : accessToken.expiresAt())
                 .userId(user.getId()).username(user.getUsername())
                 .roleId(user.getRole().getId()).roleName(user.getRole().getName())
+                .roleId(user.getRole().getId()).roleCode(user.getRole().getCode())
                 .employeeId(employee == null ? null : employee.getId())
-                .employeeName(employeeName).status(user.getStatus()).build();
+                .employeeName(employeeName).status(user.getStatus())
+                .portalAccess(user.getPortalAccess()).build();
     }
 }

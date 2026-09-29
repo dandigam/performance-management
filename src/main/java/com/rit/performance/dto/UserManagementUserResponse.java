@@ -21,8 +21,8 @@ public class UserManagementUserResponse {
     private Long roleId;
     private String roleCode;
     private String roleName;
-    private String departmentName;
     private String status;
+    private String portalAccess;
     private LocalDateTime lastLoginAt;
     private LocalDateTime createdAt;
 }

@@ -10,7 +10,16 @@ import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
+import tools.jackson.databind.node.StringNode;
+import tools.jackson.databind.node.ArrayNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.LongNode;
+import com.rit.performance.dto.report.ReportFilterRequest;
+import com.rit.performance.dto.report.ReportQueryRequest;
+import com.rit.performance.dto.report.ReportSortRequest;
+import com.rit.performance.service.EmployeeReportQueryService;
 import static org.assertj.core.api.Assertions.*;
 
 class EmployeeSummaryQueryTest {
@@ -34,6 +43,28 @@ class EmployeeSummaryQueryTest {
         repository = new JpaRepositoryFactory(em).getRepository(EmployeeRepository.class);
     }
     @AfterEach void rollback() { em.getTransaction().rollback(); em.close(); }
+
+    @Test void summariesOnlyIncludeActiveAndInactiveBeforePaging() {
+        var active = employee("Active", "ACTIVE");
+        var inactive = employee("Inactive", "INACTIVE");
+        employee("Pending", "PENDING");
+        employee("Onboarding", "ONBOARDING");
+        employee("Invited", "INVITED");
+        employee("Submitted", "SUBMITTED");
+        var first = repository.findSummaries(null, null, null, null, null, null, null, today,
+                PageRequest.of(0, 1, Sort.by("firstName")));
+        assertThat(first.getContent()).containsExactly(active);
+        assertThat(first.getTotalElements()).isEqualTo(2);
+        assertThat(first.getTotalPages()).isEqualTo(2);
+        var second = repository.findSummaries(null, null, null, null, null, null, null, today,
+                PageRequest.of(1, 1, Sort.by("firstName")));
+        assertThat(second.getContent()).containsExactly(inactive);
+        assertThat(second.getTotalElements()).isEqualTo(2);
+        var excluded = repository.findSummaries(null, null, null, null, null, null, "ONBOARDING", today,
+                PageRequest.of(0, 20));
+        assertThat(excluded.getTotalElements()).isZero();
+        assertThat(excluded.getContent()).isEmpty();
+    }
 
     @Test void filtersBeforeCountingAndPaging() {
         for (int i = 0; i < 53; i++) employee(String.format("Employee%02d", i), "ACTIVE");
@@ -80,6 +111,154 @@ class EmployeeSummaryQueryTest {
                 null, today, pageable).getTotalElements()).isZero();
         assertThat(repository.findSummaries("%missing%", null, null, null, null, null, null,
                 today, pageable).getTotalElements()).isZero();
+    }
+
+    @Test void workforceReportCombinesFiltersBeforePaging() {
+        var type = LookupType.builder().code("REPORT_TEST").name("Report Test").build(); em.persist(type);
+        var department = LookupValue.builder().lookupType(type).code("ENG").name("Engineering").build(); em.persist(department);
+        var designation = LookupValue.builder().lookupType(type).code("TL").name("Technical Lead").build(); em.persist(designation);
+        var sow = Sow.builder().sowName("Engineering Delivery").sowType("TEST").engagementType("TEST")
+                .status(department).businessUnit(department).build(); em.persist(sow);
+
+        var matching = employee("Charan", "ACTIVE");
+        matching.setRitId("RIT03");
+        matching.setDesignationId(designation.getId());
+        matching.setEmploymentType("FULL_TIME");
+        matching.setWorkMode("OFFSHORE");
+        matching.setWorkLocation("REMOTE");
+        assignment(matching, sow, "ASSIGNED", today.minusDays(1), null);
+
+        var excluded = employee("Contractor", "ACTIVE");
+        excluded.setDesignationId(designation.getId());
+        excluded.setEmploymentType("CONTRACT");
+        excluded.setWorkMode("ONSITE");
+        excluded.setWorkLocation("OFFICE");
+
+        var page = repository.findWorkforceReport(
+                "%engineering%", department.getId(), designation.getId(), "FULL_TIME",
+                "OFFSHORE", "REMOTE", "ACTIVE", today,
+                PageRequest.of(0, 1, Sort.by("firstName")));
+
+        assertThat(page.getTotalElements()).isEqualTo(1);
+        assertThat(page.getTotalPages()).isEqualTo(1);
+        assertThat(page.getContent()).containsExactly(matching);
+    }
+
+    @Test void metadataDrivenWorkModeFilterReturnsOnsiteEmployees() {
+        var onsite = employee("Onsite", "ACTIVE");
+        onsite.setWorkMode("ONSITE");
+        var offshore = employee("Offshore", "ACTIVE");
+        offshore.setWorkMode("OFFSHORE");
+
+        var repositories = new JpaRepositoryFactory(em);
+        var service = new EmployeeReportQueryService(
+                repository,
+                repositories.getRepository(EmployeeAssignmentRepository.class),
+                repositories.getRepository(SowRepository.class),
+                repositories.getRepository(LookupValueRepository.class));
+        var request = new ReportQueryRequest(
+                List.of("employeeName", "workMode", "assignmentStatus"),
+                List.of(new ReportFilterRequest("workMode", "EQUALS", StringNode.valueOf("ONSITE"))),
+                List.of(new ReportSortRequest("employeeName", "ASC")), 0, 25);
+
+        var result = service.query(request);
+
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().get(0))
+                .containsEntry("employeeName", "Onsite")
+                .containsEntry("workMode", "ONSITE");
+    }
+
+    @Test void metadataDefinitionOperatorsExecuteForAllFilterKinds() {
+        var type = LookupType.builder().code("FILTER_TEST").name("Filter Test").build(); em.persist(type);
+        var department = LookupValue.builder().lookupType(type).code("ENG").name("Engineering").build(); em.persist(department);
+        var designation = LookupValue.builder().lookupType(type).code("LEAD").name("Technical Lead").build(); em.persist(designation);
+        var sow = Sow.builder().sowName("Delivery").sowType("TEST").engagementType("TEST")
+                .status(department).businessUnit(department).build(); em.persist(sow);
+        var employee = employee("Filterable", "ACTIVE");
+        employee.setLastName("Employee");
+        employee.setRitId("RIT99");
+        employee.setDesignationId(designation.getId());
+        employee.setEmploymentType("FULL_TIME");
+        employee.setWorkMode("ONSITE");
+        employee.setWorkLocation("REMOTE");
+        employee.setJoiningDate(today.minusDays(10));
+        assignment(employee, sow, "ASSIGNED", today.minusDays(5), null);
+
+        var repositories = new JpaRepositoryFactory(em);
+        var service = new EmployeeReportQueryService(repository,
+                repositories.getRepository(EmployeeAssignmentRepository.class),
+                repositories.getRepository(SowRepository.class),
+                repositories.getRepository(LookupValueRepository.class));
+
+        assertMatch(service, "employeeName", "CONTAINS", StringNode.valueOf("filter"));
+        assertMatch(service, "employeeNumber", "EQUALS", StringNode.valueOf("RIT99"));
+        assertMatch(service, "designationName", "CONTAINS", StringNode.valueOf("technical"));
+        assertMatch(service, "designationId", "EQUALS", LongNode.valueOf(designation.getId()));
+        assertMatch(service, "designationId", "IN", array(designation.getId()));
+        assertMatch(service, "departmentId", "EQUALS", LongNode.valueOf(department.getId()));
+        assertMatch(service, "departmentId", "IN", array(department.getId()));
+        assertMatch(service, "departmentId", "EQUALS", StringNode.valueOf(department.getId().toString()));
+        assertMatch(service, "designationId", "EQUALS", StringNode.valueOf(designation.getId().toString()));
+        assertThat(service.query(new ReportQueryRequest(
+                List.of("employeeName", "departmentName", "designationName"),
+                List.of(
+                        new ReportFilterRequest("designationId", "EQUALS",
+                                StringNode.valueOf(designation.getId().toString())),
+                        new ReportFilterRequest("departmentId", "EQUALS",
+                                StringNode.valueOf(department.getId().toString()))),
+                List.of(), 0, 25)).totalElements()).isEqualTo(1);
+        assertMatch(service, "employmentType", "IN", array("FULL_TIME"));
+        assertMatch(service, "workMode", "EQUALS", StringNode.valueOf("ONSITE"));
+        assertMatch(service, "workLocation", "EQUALS", StringNode.valueOf("REMOTE"));
+        assertMatch(service, "status", "EQUALS", StringNode.valueOf("ACTIVE"));
+        assertMatch(service, "assignmentStatus", "EQUALS", StringNode.valueOf("ASSIGNED"));
+        assertMatch(service, "joiningDate", "BEFORE", StringNode.valueOf(today.toString()));
+        assertMatch(service, "joiningDate", "AFTER", StringNode.valueOf(today.minusDays(20).toString()));
+
+        assertNoMatch(service, "workMode", "EQUALS", StringNode.valueOf("DOES_NOT_EXIST"));
+        assertNoMatch(service, "assignmentStatus", "EQUALS", StringNode.valueOf("UNASSIGNED"));
+        assertNoMatch(service, "joiningDate", "IS_EMPTY", null);
+
+        var assignedSummary = query(service, "assignmentStatus", "EQUALS", StringNode.valueOf("ASSIGNED"));
+        assertThat(assignedSummary.summary())
+                .containsEntry("totalEmployees", 1L)
+                .containsEntry("assignedEmployees", 1L)
+                .containsEntry("unassignedEmployees", 0L);
+        var unassignedSummary = query(service, "assignmentStatus", "EQUALS", StringNode.valueOf("UNASSIGNED"));
+        assertThat(unassignedSummary.summary())
+                .containsEntry("totalEmployees", 0L)
+                .containsEntry("assignedEmployees", 0L)
+                .containsEntry("unassignedEmployees", 0L);
+    }
+
+    private void assertMatch(EmployeeReportQueryService service, String field, String operator,
+            tools.jackson.databind.JsonNode value) {
+        assertThat(query(service, field, operator, value).totalElements()).isEqualTo(1);
+    }
+
+    private void assertNoMatch(EmployeeReportQueryService service, String field, String operator,
+            tools.jackson.databind.JsonNode value) {
+        var result = query(service, field, operator, value);
+        assertThat(result.totalElements()).isZero();
+        assertThat(result.content()).isEmpty();
+    }
+
+    private com.rit.performance.dto.report.GenericReportResponse query(
+            EmployeeReportQueryService service, String field, String operator,
+            tools.jackson.databind.JsonNode value) {
+        return service.query(new ReportQueryRequest(
+                List.of("employeeName"), List.of(new ReportFilterRequest(field, operator, value)),
+                List.of(new ReportSortRequest("employeeName", "ASC")), 0, 25));
+    }
+
+    private static ArrayNode array(long value) {
+        return JsonNodeFactory.instance.arrayNode().add(value);
+    }
+
+    private static ArrayNode array(String value) {
+        return JsonNodeFactory.instance.arrayNode().add(value);
     }
 
     private Employee employee(String name, String status) {

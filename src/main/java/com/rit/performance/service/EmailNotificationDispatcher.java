@@ -6,8 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 public class EmailNotificationDispatcher {
     private final EmailNotificationRepository repository;
     private final JavaMailSender mailSender;
+    private final NotificationRecipientResolver recipientResolver;
 
     @Value("${app.mail.from:}") private String from;
     @Value("${app.mail.max-retries:3}") private int maxRetries;
@@ -31,12 +32,28 @@ public class EmailNotificationDispatcher {
 
     private void send(EmailNotification notification) {
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
+            boolean brandedOnboarding = notification.getEventType() == EmailEventType.ONBOARDING_INVITATION;
+            MimeMessageHelper message = new MimeMessageHelper(mailSender.createMimeMessage(), brandedOnboarding,
+                    java.nio.charset.StandardCharsets.UTF_8.name());
             if (from != null && !from.isBlank()) message.setFrom(from);
-            message.setTo(notification.getRecipientEmail());
+            var recipients = recipientResolver.resolve(
+                    NotificationRecipientResolver.categoryFor(notification.getEventType()),
+                    notification.getRecipientEmail());
+            if (recipients.isEmpty()) {
+                notification.setStatus(EmailDeliveryStatus.SKIPPED);
+                notification.setNextAttemptDate(null);
+                notification.setErrorMessage(null);
+                repository.save(notification);
+                return;
+            }
+            recipients.apply(message);
             message.setSubject(notification.getSubject());
-            message.setText(compose(notification));
-            mailSender.send(message);
+            String content = compose(notification);
+            message.setText(content, isHtml(content));
+            if (brandedOnboarding) {
+                message.addInline("rit-logo", new org.springframework.core.io.ClassPathResource("email/rit-logo.png"), "image/png");
+            }
+            mailSender.send(message.getMimeMessage());
             notification.setStatus(EmailDeliveryStatus.SENT);
             notification.setSentDate(LocalDateTime.now());
             notification.setErrorMessage(null);
@@ -68,5 +85,10 @@ public class EmailNotificationDispatcher {
     private String truncate(String value, int max) {
         if (value == null) return "Unknown email delivery error";
         return value.length() <= max ? value : value.substring(0, max);
+    }
+
+    private boolean isHtml(String content) {
+        String value = content == null ? "" : content.stripLeading().toLowerCase(java.util.Locale.ROOT);
+        return value.startsWith("<!doctype html") || value.startsWith("<html");
     }
 }

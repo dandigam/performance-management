@@ -11,7 +11,10 @@ import com.rit.performance.exception.ResourceNotFoundException;
 import com.rit.performance.repository.*;
 import com.rit.performance.service.SowMilestonePositionAssignmentService;
 import com.rit.performance.service.SowResourceRequirementService;
+import com.rit.performance.service.ApplicationEmail;
+import com.rit.performance.service.ApplicationEmailFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +35,8 @@ public class SowMilestonePositionAssignmentServiceImpl
     private final SowResourceRequirementService resourceRequirementService;
     private final TimesheetEmployeeProjectRepository timesheetProjectRepository;
     private final TimesheetAssignmentCompletionService timesheetCompletionService;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
 
     @Override
     public SowMilestonePositionAssignmentResponse create(Long sowId, Long milestoneId,
@@ -48,6 +53,7 @@ public class SowMilestonePositionAssignmentServiceImpl
         SowMilestonePositionAssignment saved = repository.saveAndFlush(assignment);
         reconcilePositionStatus(position);
         resourceRequirementService.onResourceAssigned(sowId);
+        publishAssignmentEmail(saved, "assigned");
         return toResponse(saved, employeeMap(sowAssignment));
     }
 
@@ -94,6 +100,7 @@ public class SowMilestonePositionAssignmentServiceImpl
         reconcileParentStatus(sowAssignment, saved.getAssignmentEndDate(), request.getUpdatedBy());
         if ("COMPLETED".equalsIgnoreCase(saved.getStatus())) completeTimesheetSetup(saved);
         reconcileResourceRequirement(sowId, saved.getStatus());
+        publishAssignmentEmail(saved, "updated");
         return toResponse(saved, employeeMap(sowAssignment));
     }
 
@@ -115,6 +122,7 @@ public class SowMilestonePositionAssignmentServiceImpl
         reconcileParentStatus(saved.getEmployeeAssignment(),
                 request.getAssignmentEndDate(), request.getUpdatedBy());
         reconcileResourceRequirement(sowId, saved.getStatus());
+        publishAssignmentEmail(saved, "unassigned");
         return toResponse(saved,
                 employeeMap(assignment.getEmployeeAssignment()));
     }
@@ -142,6 +150,7 @@ public class SowMilestonePositionAssignmentServiceImpl
         reconcileParentStatus(saved.getEmployeeAssignment(),
                 request.getAssignmentEndDate(), request.getUpdatedBy());
         reconcileResourceRequirement(sowId, saved.getStatus());
+        publishAssignmentEmail(saved, "unassigned");
         return toResponse(saved,
                 employeeMap(assignment.getEmployeeAssignment()));
     }
@@ -167,6 +176,14 @@ public class SowMilestonePositionAssignmentServiceImpl
                 .filter(setup -> setup.getMilestonePositionAssignment() == null).toList();
         if (!legacy.isEmpty()) throw new InvalidOperationException(
                 "Link the legacy timesheet setup to its milestone position assignment before completing it");
+    }
+
+    private void publishAssignmentEmail(SowMilestonePositionAssignment assignment, String action) {
+        Employee employee = employeeRepository.findById(assignment.getEmployeeAssignment().getEmployeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found for assignment"));
+        for (ApplicationEmail email : emailFactory.milestoneAssignment(employee, assignment, action)) {
+            events.publishEvent(email);
+        }
     }
 
     private void completeSetup(TimesheetEmployeeProject setup, SowMilestonePositionAssignment assignment) {

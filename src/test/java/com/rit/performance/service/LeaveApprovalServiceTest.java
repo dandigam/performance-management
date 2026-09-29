@@ -18,7 +18,8 @@ class LeaveApprovalServiceTest {
     private final EmployeeLeaveBalanceRepository balances = mock(EmployeeLeaveBalanceRepository.class);
     private final EmployeeLeaveBalanceAdjustmentRepository adjustments = mock(EmployeeLeaveBalanceAdjustmentRepository.class);
     private final LeaveApprovalService service = new LeaveApprovalService(current, requests, approvals,
-            balances, adjustments);
+            balances, adjustments, mock(org.springframework.context.ApplicationEventPublisher.class),
+            mock(ApplicationEmailFactory.class));
 
     private LeaveRequest request(boolean withLevel2) {
         Employee employee = new Employee(); employee.setId(1L); employee.setFirstName("Worker");

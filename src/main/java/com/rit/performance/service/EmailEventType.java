@@ -1,6 +1,9 @@
 package com.rit.performance.service;
 
 public enum EmailEventType {
+    ONBOARDING_INVITATION,
+    ONBOARDING_CHANGES_REQUESTED,
+    ONBOARDING_SUBMITTED,
     CYCLE_PUBLISHED,
     ASSESSMENT_READY,
     ASSESSMENT_REOPENED,

@@ -19,7 +19,8 @@ public interface SowRepository extends JpaRepository<Sow, Long> {
     @EntityGraph(attributePaths = {
             "client", "businessUnit", "status", "ritContactEmployee", "ritEscalationEmployee",
             "milestones", "milestones.positions",
-            "milestones.positions.position", "milestones.positions.skill", "documents"
+            "milestones.positions.position", "milestones.positions.skill",
+            "milestones.positions.rateCard", "documents"
     })
     @Query("select distinct sow from Sow sow")
     List<Sow> findAllWithDetails();

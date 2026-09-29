@@ -23,6 +23,7 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final AppUserDetailsService userDetailsService;
+    private final com.rit.performance.repository.UserRepository users;
 
     @Value("${app.security.authentication-required:true}")
     private boolean authenticationRequired;
@@ -70,6 +71,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 reject(response, "User account is inactive");
                 return;
             }
+            if (userDetails instanceof AuthenticatedUser account
+                    && users.findById(account.id()).map(user -> "ONBOARDING_ONLY".equals(user.getPortalAccess()))
+                            .orElse(false)
+                    && request.getServletPath().startsWith("/api/")
+                    && !isOnboardingRequestAllowed(request.getMethod(), request.getServletPath())) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                response.getWriter().write("{\"code\":\"ONBOARDING_ACCESS_ONLY\","
+                        + "\"message\":\"This account only has onboarding access.\"}");
+                return;
+            }
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities());
@@ -90,5 +102,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write("{\"type\":\"WARNING\",\"code\":\"INVALID_ACCESS_TOKEN\","
                 + "\"message\":\"" + message + "\"}");
+    }
+
+    // Keep this list explicit: a prefix match would expose future admin/employee-ID routes.
+    static boolean isOnboardingRequestAllowed(String method, String path) {
+        return switch (method) {
+            case "GET" -> java.util.Set.of("/api/auth/me", "/api/v1/onboarding/me").contains(path);
+            case "POST" -> java.util.Set.of("/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
+                    "/api/v1/onboarding/me/submit").contains(path);
+            case "PUT" -> java.util.Set.of("/api/auth/change-password",
+                    "/api/v1/onboarding/me/personal", "/api/v1/onboarding/me/address",
+                    "/api/v1/onboarding/me/education", "/api/v1/onboarding/me/employment-history",
+                    "/api/v1/onboarding/me/bank-details", "/api/v1/onboarding/me/documents").contains(path);
+            default -> false;
+        };
     }
 }

@@ -18,7 +18,9 @@ class TimesheetEntryLeaveTest {
     private final HolidayRepository holidays = mock(HolidayRepository.class);
     private final LeaveRequestRepository leaves = mock(LeaveRequestRepository.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-09-25T12:00:00Z"), ZoneOffset.UTC);
-    private final TimesheetEntryService service = new TimesheetEntryService(timesheets, holidays, leaves, clock);
+    private final TimesheetEntryService service = new TimesheetEntryService(timesheets, holidays, leaves, clock,
+            mock(org.springframework.context.ApplicationEventPublisher.class),
+            mock(com.rit.performance.service.ApplicationEmailFactory.class));
     private final LocalDate date = LocalDate.of(2026, 9, 24);
 
     private Timesheet sheet() {

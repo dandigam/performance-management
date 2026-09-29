@@ -20,7 +20,9 @@ class SowMilestonePositionUnassignTest {
     private final TimesheetEmployeeProjectRepository setups = mock(TimesheetEmployeeProjectRepository.class);
     private final TimesheetAssignmentCompletionService completion = mock(TimesheetAssignmentCompletionService.class);
     private final SowMilestonePositionAssignmentServiceImpl service = new SowMilestonePositionAssignmentServiceImpl(
-            assignments, positions, employeeAssignments, employees, requirements, setups, completion);
+            assignments, positions, employeeAssignments, employees, requirements, setups, completion,
+            mock(org.springframework.context.ApplicationEventPublisher.class),
+            mock(com.rit.performance.service.ApplicationEmailFactory.class));
 
     @Test void unassignReopensPositionEvenWhenMilestoneHasEnded() {
         SowMilestonePositionAssignment assignment = stubAssignment();

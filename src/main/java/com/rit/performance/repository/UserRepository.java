@@ -11,6 +11,9 @@ import java.util.List;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     @EntityGraph(attributePaths = {"role", "employee"})
+    @Query("select u from User u where u.id = :id")
+    Optional<User> findCurrentUser(@org.springframework.data.repository.query.Param("id") Long id);
+    @EntityGraph(attributePaths = {"role", "employee"})
     List<User> findAllByOrderByIdAsc();
 
     @Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)

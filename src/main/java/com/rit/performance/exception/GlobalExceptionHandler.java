@@ -14,6 +14,37 @@ import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice(basePackages = "com.rit.performance")
 public class GlobalExceptionHandler {
+    @ExceptionHandler(ApplicationException.class)
+    public ResponseEntity<ApiMessageResponse> handleApplication(ApplicationException ex) {
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(ex.getStatus());
+        if (ex.getRetryAfter() != null) {
+            response.header("Retry-After", ex.getRetryAfter());
+        }
+        return response.body(ApiMessageResponse.warning(ex.getCode(), ex.getMessage()));
+    }
+    @ExceptionHandler(com.rit.performance.reports.timesheet.TimesheetPdfNotFoundException.class)
+    public ResponseEntity<ApiMessageResponse> handleTimesheetPdfNotFound(
+            com.rit.performance.reports.timesheet.TimesheetPdfNotFoundException ex) {
+        return response(HttpStatus.NOT_FOUND, "TIMESHEET_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(com.rit.performance.reports.timesheet.TimesheetPdfForbiddenException.class)
+    public ResponseEntity<ApiMessageResponse> handleTimesheetPdfForbidden(
+            com.rit.performance.reports.timesheet.TimesheetPdfForbiddenException ex) {
+        return response(HttpStatus.FORBIDDEN, "TIMESHEET_PDF_FORBIDDEN", ex.getMessage());
+    }
+
+    @ExceptionHandler(com.rit.performance.reports.timesheet.TimesheetPdfException.class)
+    public ResponseEntity<ApiMessageResponse> handleTimesheetPdfGeneration(
+            com.rit.performance.reports.timesheet.TimesheetPdfException ex) {
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "TIMESHEET_PDF_GENERATION_FAILED", ex.getMessage());
+    }
+
+    @ExceptionHandler(com.rit.performance.reports.timesheet.TimesheetPdfUnavailableException.class)
+    public ResponseEntity<ApiMessageResponse> handleTimesheetPdfUnavailable(
+            com.rit.performance.reports.timesheet.TimesheetPdfUnavailableException ex) {
+        return response(HttpStatus.CONFLICT, "TIMESHEET_PDF_NOT_AVAILABLE", ex.getMessage());
+    }
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ResponseEntity<ApiMessageResponse> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
         return response(HttpStatus.FORBIDDEN, "ACCESS_DENIED", ex.getMessage());
@@ -86,6 +117,13 @@ public class GlobalExceptionHandler {
         }
         return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
                 message);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiMessageResponse> handleDataIntegrityViolation(
+            org.springframework.dao.DataIntegrityViolationException ex) {
+        return response(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE",
+                "A record with the same unique value already exists.");
     }
 
     private ResponseEntity<ApiMessageResponse> response(HttpStatus status, String code, String message) {

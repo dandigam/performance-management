@@ -78,6 +78,16 @@ public interface TimesheetRepository extends JpaRepository<Timesheet, Long> {
     @EntityGraph(attributePaths = {"employee", "entries", "entries.sow", "entries.holiday"})
     Optional<Timesheet> findOneById(Long id);
 
+    @EntityGraph(attributePaths = {"employee", "entries", "entries.sow", "entries.sow.client",
+            "timesheetEmployeeProject", "timesheetEmployeeProject.sow",
+            "timesheetEmployeeProject.sow.client", "timesheetEmployeeProject.milestone",
+            "timesheetEmployeeProject.level1Approver", "timesheetEmployeeProject.level2Approver",
+            "timesheetEmployeeProject.milestonePositionAssignment",
+            "timesheetEmployeeProject.milestonePositionAssignment.milestonePosition",
+            "timesheetEmployeeProject.milestonePositionAssignment.milestonePosition.position"})
+    @Query("select t from Timesheet t where t.id = :id")
+    Optional<Timesheet> findForPdfById(@Param("id") Long id);
+
 
     @EntityGraph(attributePaths = {"employee", "approvals", "approvals.approverEmployee"})
     @Query("""
