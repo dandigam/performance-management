@@ -70,8 +70,12 @@ public class HolidayService {
     @Transactional
     public void delete(Long id) {
         Holiday holiday = find(id);
-        holiday.setActive(false);
-        repository.save(holiday);
+        if (repository.isReferencedByEntries(id) || repository.isReferencedByScheduledDays(id)) {
+            throw new InvalidOperationException("Holiday is used by timesheet records and cannot be deleted. "
+                    + "Set active to false to disable it instead.");
+        }
+        repository.delete(holiday);
+        repository.flush();
     }
 
     private Holiday find(Long id) {
