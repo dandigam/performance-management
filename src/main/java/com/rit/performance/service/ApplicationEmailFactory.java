@@ -54,6 +54,26 @@ public class ApplicationEmailFactory {
         htmlTemplateEngine.setTemplateResolver(htmlResolver);
     }
 
+    public ApplicationEmail employeeAdminNotification(Employee employee, boolean created) {
+        String action = created ? "created" : "updated";
+        Context context = context();
+        String status = Objects.toString(employee.getStatus(), "");
+        context.setVariable("notificationTitle", "Employee notification");
+        context.setVariable("recipientName", "Admin team");
+        context.setVariable("actionMessage", "Employee " + employeeName(employee) + " has been " + action + ".");
+        context.setVariable("details", List.of(
+                new EmailDetail("Employee name", employeeName(employee)),
+                new EmailDetail("Employee ID", Objects.toString(employee.getRitId(), "")),
+                new EmailDetail("Email", Objects.toString(employee.getEmail(), ""))));
+        context.setVariable("status", status);
+        context.setVariable("statusBackground", statusBackground(status));
+        context.setVariable("statusColor", statusColor(status));
+        context.setVariable("actionUrl", url("/login"));
+        return new ApplicationEmail(null, "Employee " + action + ": " + employeeName(employee),
+                htmlTemplateEngine.process("resource-operation", context), true,
+                NotificationRecipientResolver.GLOBAL_CATEGORY);
+    }
+
     public ApplicationEmail employeeCreated(Employee employee, User user) {
         Context context = context();
         context.setVariable("employeeName", employeeName(employee));
@@ -182,13 +202,24 @@ public class ApplicationEmailFactory {
     private ApplicationEmail sowNotification(Sow sow, String changeType, String subject) {
         Context context = context();
         context.setVariable("recipientName", "Admin");
+        boolean created = "created".equals(changeType);
+        Long actor = created ? sow.getCreatedBy() : sow.getUpdatedBy();
+        var timestamp = created ? sow.getCreatedOn() : sow.getUpdatedOn();
+        context.setVariable("subject", subject + ": " + sow.getSowName() + " (SOW-" + sow.getId() + ")");
+        context.setVariable("heading", subject);
+        context.setVariable("action", changeType);
+        context.setVariable("actorName", actor == null ? "System" : "User " + actor);
+        context.setVariable("sowNumber", "SOW-" + sow.getId());
+        context.setVariable("timestampLabel", created ? "Created on:" : "Updated on:");
+        context.setVariable("formattedTimestamp", timestamp == null ? "Not available" : timestamp.format(
+                java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm", Locale.ENGLISH)));
         context.setVariable("changeType", changeType);
         context.setVariable("sowId", sow.getId());
         context.setVariable("sowName", sow.getSowName());
         context.setVariable("clientName", sow.getClient() == null ? "" : sow.getClient().getClientName());
         context.setVariable("status", sow.getStatus() == null ? "" : sow.getStatus().getName());
-        context.setVariable("startDate", sow.getStartDate());
-        context.setVariable("endDate", sow.getEndDate());
+        context.setVariable("startDate", formatDate(sow.getStartDate()));
+        context.setVariable("endDate", formatDate(sow.getEndDate()));
         context.setVariable("updatedBy", sow.getUpdatedBy() == null ? "System" : "User " + sow.getUpdatedBy());
         context.setVariable("updatedAt", sow.getUpdatedOn());
         context.setVariable("sowUrl", url("/sows/" + sow.getId()));

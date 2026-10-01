@@ -3,6 +3,13 @@
 Both email delivery paths resolve additional recipients from active subscriptions at send time.
 Existing employee and lead primary recipients are preserved.
 
+Successful employee creation and updates through `/api/employees` send a separate
+admin notification after transaction commit to active `ALL_NOTIFICATIONS` subscribers,
+using their configured CC/BCC setting. These messages include employee name, employee
+ID, email, and status; no passwords or invitation tokens are included. The employee's
+creation welcome email remains separate. Mail must be enabled and the subscription
+configured with admin addresses; without recipients, the admin notification is skipped.
+
 All endpoints below require an authenticated ADMIN, including reads.
 Base path: `/api/v1/notification-subscriptions`.
 

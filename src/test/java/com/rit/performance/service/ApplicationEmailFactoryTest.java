@@ -12,6 +12,31 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ApplicationEmailFactoryTest {
     @Test
+    void employeeAdminNotificationsUseGlobalSubscribersWithoutPrivateCredentials() {
+        var factory = new ApplicationEmailFactory();
+        ReflectionTestUtils.setField(factory, "frontendUrl", "https://example.com");
+        var employee = employee(101L, "Test", "Employee", "employee@example.com");
+        employee.setRitId("RIT101");
+        employee.setStatus("ACTIVE");
+        for (boolean created : List.of(true, false)) {
+            var email = factory.employeeAdminNotification(employee, created);
+            assertNull(email.recipient());
+            assertEquals("ALL_NOTIFICATIONS", email.category());
+            assertTrue(email.subject().contains(created ? "created" : "updated"));
+            assertTrue(email.body().contains("RIT101"));
+            assertTrue(email.body().contains("employee@example.com"));
+            assertTrue(email.body().contains("ACTIVE"));
+            assertTrue(email.body().contains("Employee notification"));
+            assertTrue(email.body().contains("Employee name"));
+            assertTrue(email.body().contains("border-collapse:separate"));
+            assertFalse(email.body().contains("admin123"));
+            assertFalse(email.body().contains("reset-password?token="));
+        }
+        employee.setFirstName("<script>alert(1)</script>");
+        assertFalse(factory.employeeAdminNotification(employee, true).body().contains("<script>"));
+    }
+
+    @Test
     void rendersPersonalizedOnboardingInvitation() throws Exception {
         ApplicationEmailFactory factory = new ApplicationEmailFactory();
         Employee employee = employee(101L, "Venkatesh", "Dandigam", "venkat@example.com");
@@ -98,6 +123,10 @@ class ApplicationEmailFactoryTest {
         sow.setStatus(status);
         sow.setStartDate(LocalDate.of(2026, 1, 1));
         sow.setEndDate(LocalDate.of(2026, 12, 31));
+        sow.setCreatedBy(7L);
+        sow.setUpdatedBy(8L);
+        sow.setCreatedOn(java.time.LocalDateTime.of(2026, 1, 1, 9, 0));
+        sow.setUpdatedOn(java.time.LocalDateTime.of(2026, 2, 1, 10, 0));
 
         ApplicationEmail email = factory.sowUpdated(sow, "updated");
 
@@ -107,6 +136,17 @@ class ApplicationEmailFactoryTest {
         assertTrue(email.subject().contains("Test SOW (SOW-21)"));
         assertTrue(email.body().contains("RailInfo Tech"));
         assertTrue(email.body().contains("http://localhost:5173/sows/21"));
+        assertTrue(email.body().contains("Updated on:"));
+        assertTrue(email.body().contains("Feb 1, 2026 10:00"));
+        assertTrue(email.body().contains("User 8"));
+        var created = factory.sowCreated(sow);
+        assertTrue(created.body().contains("A new SOW has been created"));
+        assertTrue(created.body().contains("Created on:"));
+        assertTrue(created.body().contains("Jan 1, 2026 09:00"));
+        assertTrue(created.body().contains("User 7"));
+        assertFalse(created.body().contains("{{"));
+        sow.setSowName("<script>alert(1)</script>");
+        assertFalse(factory.sowCreated(sow).body().contains("<script>"));
     }
 
     private Employee employee(Long id, String firstName, String lastName, String email) {

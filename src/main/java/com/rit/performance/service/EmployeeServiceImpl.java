@@ -167,6 +167,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         employeeAuditService.record(employee.getId(), "EMPLOYEE", "CREATED",
                 null, response.getEmployee(), request.getCreatedBy());
         events.publishEvent(emailFactory.employeeCreated(employee, user));
+        events.publishEvent(emailFactory.employeeAdminNotification(employee, true));
         return response;
     }
 
@@ -871,6 +872,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeBasicInfoResponse response = currentEmployeeResponse(employee, assignment);
         employeeAuditService.record(employeeId, "EMPLOYEE", "UPDATED",
                 oldSnapshot, response, request.getUpdatedBy());
+        events.publishEvent(emailFactory.employeeAdminNotification(employee, false));
         return response;
     }
 

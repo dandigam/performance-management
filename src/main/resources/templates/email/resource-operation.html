@@ -12,7 +12,7 @@
            style="width:100%;max-width:600px;background:#fff;border:1px solid #dbe3ee;border-radius:10px;">
       <tr><td style="padding:24px 32px;background:#0f1b33;border-radius:10px 10px 0 0;">
         <div style="font-size:20px;font-weight:700;color:#fff;">RailInfo Tech</div>
-        <div style="margin-top:6px;font-size:14px;color:#cbd5e1;">Resource notification</div>
+        <div th:text="${notificationTitle ?: 'Resource notification'}" style="margin-top:6px;font-size:14px;color:#cbd5e1;">Resource notification</div>
       </td></tr>
       <tr><td style="padding:32px;">
         <p style="margin:0 0 20px;font-size:16px;line-height:24px;">
