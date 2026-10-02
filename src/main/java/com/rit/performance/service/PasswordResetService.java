@@ -73,6 +73,7 @@ public class PasswordResetService {
         tokens.save(token);
 
         String resetLink = frontendUrl.replaceAll("/$", "") + "/reset-password?token=" + raw;
+        System.out.println("String resetLink :::"+resetLink);
         events.publishEvent(emailFactory.passwordReset(user.getEmployee().getEmail(), resetLink));
     }
 

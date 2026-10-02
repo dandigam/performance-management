@@ -12,6 +12,21 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class ApplicationEmailFactoryTest {
     @Test
+    void employeeUpdateEmailUsesEmployeeAddressAndConfiguredLoginLink() {
+        var factory = new ApplicationEmailFactory();
+        ReflectionTestUtils.setField(factory, "frontendUrl", "https://portal.example.com");
+        var employee = employee(101L, "Test", "Employee", "updated@example.com");
+        var email = factory.employeeUpdated(employee);
+        assertEquals("updated@example.com", email.recipient());
+        assertEquals("Your RIT employee profile has been updated", email.subject());
+        assertTrue(email.html());
+        assertTrue(email.body().contains("Test Employee"));
+        assertTrue(email.body().contains("https://portal.example.com/login"));
+        employee.setFirstName("<script>alert(1)</script>");
+        assertFalse(factory.employeeUpdated(employee).body().contains("<script>"));
+    }
+
+    @Test
     void employeeAdminNotificationsUseGlobalSubscribersWithoutPrivateCredentials() {
         var factory = new ApplicationEmailFactory();
         ReflectionTestUtils.setField(factory, "frontendUrl", "https://example.com");

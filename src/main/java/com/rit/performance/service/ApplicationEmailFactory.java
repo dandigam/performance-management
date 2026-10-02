@@ -84,6 +84,15 @@ public class ApplicationEmailFactory {
                 htmlTemplateEngine.process("employee-created", context), true);
     }
 
+    public ApplicationEmail employeeUpdated(Employee employee) {
+        Context context = context();
+        context.setVariable("recipientName", employeeName(employee));
+        context.setVariable("message", "Your employee profile has been updated. Please sign in to review your details.");
+        context.setVariable("actionUrl", url("/login"));
+        return new ApplicationEmail(employee.getEmail(), "Your RIT employee profile has been updated",
+                htmlTemplateEngine.process("manual-notification", context), true);
+    }
+
     public ApplicationEmail passwordReset(String recipient, String resetLink) {
         Context context = context();
         context.setVariable("resetLink", resetLink);
