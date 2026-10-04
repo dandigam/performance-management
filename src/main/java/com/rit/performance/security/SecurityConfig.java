@@ -77,7 +77,9 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                                 .permitAll();
                     if (authenticationRequired) {
-                        auth.requestMatchers("/api/v1/user-management/**")
+                        auth.requestMatchers(HttpMethod.GET, "/api/v1/settings/**").authenticated()
+                                .requestMatchers("/api/v1/settings/**").hasRole("ADMIN")
+                                .requestMatchers("/api/v1/user-management/**")
                                 .hasRole("ADMIN")
                                 .requestMatchers("/api/v1/bank-accounts/**", "/api/v1/vendors/**")
                                 .hasAnyRole("ADMIN", "FINANCE")

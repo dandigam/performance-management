@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 @AllArgsConstructor
-public class ReviewCyclePublishServiceImpl implements ReviewCyclePublishService {
+public class ReviewCyclePublishServiceImpl extends WorkflowEventSource implements ReviewCyclePublishService {
 
     private final PerformanceCycleConfigRepository cycleRepository;
     private final PerformanceCycleSectionRepository sectionRepository;
@@ -85,8 +85,21 @@ public class ReviewCyclePublishServiceImpl implements ReviewCyclePublishService 
                 .toList();
         assessmentRepository.saveAll(assessments);
 
-        eligibleReviews.forEach(review ->
-                emailNotificationService.queueCyclePublished(cycle, review.getEmployee(), review));
+        eligibleReviews.forEach(review -> {
+            publishWorkflow(new NotificationEvents.ReviewAlert(review.getEmployee(), review.getId(),
+                    "CYCLE_PUBLISHED", "Performance review assigned",
+                    "Performance review #" + review.getId() + " is available. Open the review to see your tasks.",
+                    cycle.getId() + ":" + review.getEmployee().getId()));
+            emailNotificationService.queueCyclePublished(cycle, review.getEmployee(), review);
+            assessmentRepository.findByEmployeeReviewIdOrderByAssessmentLevelAsc(review.getId()).stream()
+                    .findFirst()
+                    .filter(first -> first.getStatus() != EmployeeReviewStatus.SUBMITTED)
+                    .filter(first -> !first.getAssessorEmployee().getId().equals(review.getEmployee().getId()))
+                    .ifPresent(first -> publishWorkflow(new NotificationEvents.ReviewAlert(
+                            first.getAssessorEmployee(), review.getId(), "ASSESSMENT_READY", "Review assessment ready",
+                            "Review #" + review.getId() + " is awaiting your assessment. Open the review to complete it.",
+                            first.getId() + ":INITIAL")));
+        });
 
         cycle.setStatus("PUBLISHED");
         cycle.setUpdatedBy(publishedBy);

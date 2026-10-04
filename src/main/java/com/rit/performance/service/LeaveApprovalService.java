@@ -96,6 +96,7 @@ public class LeaveApprovalService {
         else request.setStatus(LeaveRequestStatus.LEVEL1_APPROVED);
         requests.saveAndFlush(request);
         approvals.saveAndFlush(history);
+        events.publishEvent(new NotificationEvents.LeaveChanged(request));
         String eventAction = action == LeaveApprovalAction.REJECTED ? "rejected"
                 : finalApproval ? "approved" : "approved by Level 1";
         for (ApplicationEmail email : emailFactory.leaveRequest(request, eventAction, comments)) {

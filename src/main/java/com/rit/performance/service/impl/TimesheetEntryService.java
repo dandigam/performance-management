@@ -131,6 +131,7 @@ public class TimesheetEntryService {
         }
         timesheets.saveAndFlush(sheet);
         if (request.status() == TimesheetStatus.SUBMITTED) {
+            events.publishEvent(new com.rit.performance.service.NotificationEvents.TimesheetChanged(sheet));
             for (ApplicationEmail email : emailFactory.timesheetWorkflow(sheet, "submitted", null)) {
                 events.publishEvent(email);
             }

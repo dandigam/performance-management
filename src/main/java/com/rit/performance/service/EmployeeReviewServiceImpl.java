@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional
-public class EmployeeReviewServiceImpl implements EmployeeReviewService {
+public class EmployeeReviewServiceImpl extends WorkflowEventSource implements EmployeeReviewService {
     private final EmployeeReviewRepository reviewRepository;
     private final EmployeeReviewAssessmentRepository assessmentRepository;
     private final EmployeeReviewAnswerRepository answerRepository;
@@ -241,6 +241,12 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
         reviewRepository.saveAll(assessments.stream()
                 .map(EmployeeReviewAssessment::getEmployeeReview).toList());
         assessmentRepository.saveAll(assessments);
+
+        assessments.forEach(assessment -> publishWorkflow(new NotificationEvents.ReviewAlert(
+                assessment.getAssessorEmployee(), assessment.getEmployeeReview().getId(),
+                "ASSESSMENT_REOPENED", "Review assessment reopened",
+                "Your assessment was reopened. Open the review and submit it by " + newDueDate + ".",
+                assessment.getId() + ":" + assessment.getReopenedDate())));
 
         if (request.isNotifyAssignees()) assessments.forEach(assessment ->
                 emailNotificationService.queueAssessmentReopened(assessment.getEmployeeReview(), assessment,
@@ -586,6 +592,10 @@ public class EmployeeReviewServiceImpl implements EmployeeReviewService {
                     .ifPresent(next -> {
                         applyStageExtension(review, next);
                         assessmentRepository.save(next);
+                        publishWorkflow(new NotificationEvents.ReviewAlert(next.getAssessorEmployee(), review.getId(),
+                                "ASSESSMENT_READY", "Review assessment ready",
+                                "Review #" + review.getId() + " is awaiting your assessment. Open the review to complete it.",
+                                next.getId() + ":" + assessment.getSubmittedDate()));
                         emailNotificationService.queueAssessmentReady(review, next);
                     });
         }

@@ -137,6 +137,7 @@ public class MyLeaveService {
     }
 
     private void publish(LeaveRequest request, String action, String comments) {
+        events.publishEvent(new NotificationEvents.LeaveChanged(request));
         for (ApplicationEmail email : emailFactory.leaveRequest(request, action, comments)) {
             events.publishEvent(email);
         }

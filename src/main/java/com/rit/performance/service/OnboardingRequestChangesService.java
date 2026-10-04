@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class OnboardingRequestChangesService {
+public class OnboardingRequestChangesService extends WorkflowEventSource {
     private final EmployeeOnboardingRepository onboardings;
     private final OnboardingSelfService summaries;
     private final ApplicationEmailFactory emails;
@@ -36,6 +36,7 @@ public class OnboardingRequestChangesService {
         onboarding.setStatus("CHANGES_REQUESTED");
         onboarding.setUpdatedOn(java.time.LocalDateTime.now());
         onboardings.saveAndFlush(onboarding); // JPA increments @Version while holding the row lock.
+        publishWorkflow(new NotificationEvents.OnboardingChanged(onboarding));
         var email = emails.onboardingChangesRequested(onboarding.getEmployee(), onboarding.getReviewComments());
         notifications.save(EmailNotification.builder().eventType(EmailEventType.ONBOARDING_CHANGES_REQUESTED)
                 .recipientEmail(email.recipient()).subject(email.subject()).body(email.body())

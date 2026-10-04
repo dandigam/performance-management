@@ -65,6 +65,7 @@ public class TimesheetApprovalService {
         sheet.setStatus(request.status() == TimesheetApprovalStatus.REJECTED ? TimesheetStatus.REJECTED
                 : primary ? TimesheetStatus.LEVEL1_APPROVED : TimesheetStatus.APPROVED);
         timesheets.saveAndFlush(sheet);
+        events.publishEvent(new com.rit.performance.service.NotificationEvents.TimesheetChanged(sheet));
         String action = request.status() == TimesheetApprovalStatus.REJECTED
                 ? "rejected by Level " + approval.getApprovalLevel()
                 : primary ? "approved by Level 1" : "finally approved by Level 2";

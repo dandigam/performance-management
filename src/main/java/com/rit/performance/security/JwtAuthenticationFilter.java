@@ -107,6 +107,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     // Keep this list explicit: a prefix match would expose future admin/employee-ID routes.
     static boolean isOnboardingRequestAllowed(String method, String path) {
+        if ("GET".equals(method) && java.util.Set.of("/api/v1/notifications",
+                "/api/v1/notifications/unread-count").contains(path)) return true;
+        if ("PATCH".equals(method) && ("/api/v1/notifications/read-all".equals(path)
+                || path.matches("/api/v1/notifications/[0-9]+/read"))) return true;
         return switch (method) {
             case "GET" -> java.util.Set.of("/api/auth/me", "/api/v1/onboarding/me").contains(path);
             case "POST" -> java.util.Set.of("/api/auth/login", "/api/auth/refresh", "/api/auth/logout",

@@ -17,7 +17,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-public class OnboardingSelfService {
+public class OnboardingSelfService extends WorkflowEventSource {
     private static final ObjectMapper JSON = new ObjectMapper();
     private final CurrentEmployeeService currentEmployee;
     private final EmployeeOnboardingRepository onboardings;
@@ -50,6 +50,7 @@ public class OnboardingSelfService {
         onboarding.setSubmittedAt(java.time.Instant.now());
         onboarding.setUpdatedOn(java.time.LocalDateTime.now());
         onboardings.saveAndFlush(onboarding);
+        publishWorkflow(new NotificationEvents.OnboardingChanged(onboarding));
         notifications.queueOnboardingSubmitted(onboarding, resubmission);
         return getMine();
     }
