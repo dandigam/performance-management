@@ -10,7 +10,7 @@ import static org.assertj.core.api.Assertions.*;
 class OnboardingSubmissionEmailTest {
     @Test void queuesOneCategoryEmailWithSubmissionDetailsAndLabelsResubmission() {
         var repository = mock(EmailNotificationRepository.class);
-        var factory = new ApplicationEmailFactory();
+        var factory = new ApplicationEmailFactory(org.mockito.Mockito.mock(com.rit.performance.repository.UserRepository.class));
         ReflectionTestUtils.setField(factory, "frontendUrl", "https://example.test");
         var service = new EmailNotificationService(repository, factory);
         var employee = new Employee(); employee.setFirstName("Employee <test>"); employee.setRitId("RIT10");

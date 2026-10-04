@@ -48,7 +48,7 @@ public class SowServiceImpl implements SowService {
     private static final String SOW_STATUS_LOOKUP = "SOW_STATUS";
     private static final Map<String, Set<String>> VALID_SOW_STATUS_TRANSITIONS = Map.of(
             "DRAFT", Set.of("WAITING_FOR_APPROVAL"),
-            "WAITING_FOR_APPROVAL", Set.of("APPROVED", "ACTIVE"),
+            "WAITING_FOR_APPROVAL", Set.of("DRAFT", "APPROVED", "ACTIVE"),
             "APPROVED", Set.of("ACTIVE", "CANCELLED"),
             "ACTIVE", Set.of("ON_HOLD", "COMPLETED", "CANCELLED"),
             "ON_HOLD", Set.of("ACTIVE", "CANCELLED"));
@@ -72,6 +72,7 @@ public class SowServiceImpl implements SowService {
     private final SowResourceRequirementService resourceRequirementService;
     private final ApplicationEventPublisher events;
     private final ApplicationEmailFactory emailFactory;
+    private final com.rit.performance.service.SowStatusHistoryService statusHistory;
 
     @Override
     public void deleteMilestone(Long sowId, Long milestoneId) {
@@ -271,6 +272,7 @@ public class SowServiceImpl implements SowService {
         Sow saved = sowRepository.saveAndFlush(sow);
         resourceRequirementService.onPositionCreatedOrUpdated(saved.getId());
         events.publishEvent(emailFactory.sowCreated(saved));
+        statusHistory.record(saved, null);
         return toResponse(saved);
     }
 
@@ -596,7 +598,8 @@ public class SowServiceImpl implements SowService {
 
     @Override
     public SowResponse updateStatus(Long sowId, SowStatusUpdateRequest request) {
-        Sow sow = findSow(sowId);
+        Sow sow = sowRepository.findForStatusUpdate(sowId)
+                .orElseThrow(() -> new ResourceNotFoundException("SOW not found: " + sowId));
         LookupValue newStatus = resolveSowStatus(request.getStatus());
         String currentCode = sow.getStatus().getCode().toUpperCase(Locale.ROOT);
         String newCode = newStatus.getCode().toUpperCase(Locale.ROOT);
@@ -614,6 +617,7 @@ public class SowServiceImpl implements SowService {
         sow.setStatus(newStatus);
         sow.setStatusEffectiveDate(effectiveDate);
         Sow saved = sowRepository.save(sow);
+        statusHistory.record(saved, currentCode);
         events.publishEvent(emailFactory.sowUpdated(saved, "status updated"));
         return toResponse(saved);
     }

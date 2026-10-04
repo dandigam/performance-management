@@ -7,13 +7,10 @@
 <tr><td align="center" style="padding:32px 12px;">
 <!--[if mso]><table role="presentation" width="640"><tr><td><![endif]-->
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:640px;background-color:#ffffff;border:1px solid #dce5ee;border-radius:12px;">
-<tr><td style="padding:28px 32px;border-bottom:1px solid #e6edf3;">
-<img src="cid:rit-logo" width="270" alt="RailInfo Tech" style="display:block;width:270px;max-width:100%;height:auto;border:0;">
-</td></tr>
-<tr><td style="padding:32px;background-color:#123453;">
-<p style="margin:0 0 14px;color:#8fd4f5;font-size:11px;line-height:16px;font-weight:bold;letter-spacing:2px;">YOUR ONBOARDING STARTS HERE</p>
-<h1 style="margin:0;color:#ffffff;font-size:30px;line-height:38px;font-weight:bold;">Welcome to RailInfo Tech!</h1>
-<p style="margin:12px 0 0;color:#d6e7f3;font-size:15px;line-height:24px;">We're delighted to have you join our team.</p>
+<tr th:replace="~{fragments/header :: header('Onboarding')}"></tr>
+<tr><td style="padding:24px 32px 0;">
+<h1 style="margin:0;color:#162e48;font-size:24px;line-height:32px;font-weight:bold;">Welcome to RailInfo Tech!</h1>
+<p style="margin:12px 0 0;color:#506277;font-size:15px;line-height:24px;">We're delighted to have you join our team.</p>
 </td></tr>
 <tr><td style="padding:30px 32px 24px;">
 <p style="margin:0 0 14px;font-size:16px;line-height:25px;">Hi <strong th:text="${recipientName}">Venkatesh Dandigam</strong>,</p>
@@ -37,10 +34,8 @@
 <p style="margin:24px 0 0;font-size:13px;line-height:22px;color:#63758a;">Need help or a new invitation link? Please contact your HR representative.</p>
 <p style="margin:20px 0 0;font-size:14px;line-height:23px;">We look forward to welcoming you.<br><strong>The RailInfo Tech Team</strong></p>
 </td></tr>
-<tr><td style="padding:20px 32px;background-color:#f7f9fc;border-top:1px solid #e6edf3;">
-<p style="margin:0;font-size:12px;line-height:20px;color:#718096;">Button not working? <a th:href="${invitationUrl}" href="https://example.com/setup" style="color:#0076b8;text-decoration:underline;">Open your password setup link</a>.</p>
-<p style="margin:8px 0 0;font-size:11px;line-height:18px;color:#718096;">This is an automated onboarding invitation. Please do not reply to this email.</p>
-</td></tr>
+<tr><td style="padding:0 32px 24px;"><p style="margin:0;font-size:12px;line-height:20px;color:#718096;">Button not working? <a th:href="${invitationUrl}" href="https://example.com/setup" style="color:#0076b8;text-decoration:underline;">Open your password setup link</a>.</p></td></tr>
+<tr th:replace="~{fragments/footer :: footer}"></tr>
 </table>
 <!--[if mso]></td></tr></table><![endif]-->
 </td></tr></table>

@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"><body><table role="presentation">
+<tr th:fragment="header(title)">
+  <td class="email-content" style="padding:24px 32px;background:#ffffff;border-bottom:1px solid #e6edf3;border-radius:10px 10px 0 0;">
+    <img th:replace="~{fragments/brand :: logo}">
+    <p th:if="${title != null and !title.isBlank()}" th:text="${title}" style="margin:12px 0 0;color:#65778b;font-size:12px;line-height:18px;letter-spacing:1px;text-transform:uppercase;"></p>
+  </td>
+</tr>
+</table></body></html>

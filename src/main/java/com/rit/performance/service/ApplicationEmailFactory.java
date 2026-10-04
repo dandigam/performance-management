@@ -14,6 +14,7 @@ import com.rit.performance.entity.PerformanceCycles;
 import com.rit.performance.entity.EmployeeReview;
 import com.rit.performance.entity.EmployeeReviewAssessment;
 import com.rit.performance.entity.FinalRating;
+import com.rit.performance.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.thymeleaf.context.Context;
@@ -34,6 +35,7 @@ import java.time.format.DateTimeFormatter;
 public class ApplicationEmailFactory {
     private static final DateTimeFormatter EMAIL_DATE = DateTimeFormatter.ofPattern("MMM d, uuuu", Locale.US);
     private final SpringTemplateEngine htmlTemplateEngine;
+    private final UserRepository users;
 
     @Value("${app.mail.footer:Regards, RailInfo Tech}")
     private String footer;
@@ -43,7 +45,8 @@ public class ApplicationEmailFactory {
 
 
 
-    public ApplicationEmailFactory() {
+    public ApplicationEmailFactory(UserRepository users) {
+        this.users = users;
         ClassLoaderTemplateResolver htmlResolver = new ClassLoaderTemplateResolver();
         htmlResolver.setPrefix("templates/email/");
         htmlResolver.setSuffix(".html");
@@ -168,7 +171,7 @@ public class ApplicationEmailFactory {
         context.setVariable("employeeName", employeeName(review.getEmployee()));
         context.setVariable("roleName", assessment.getAssessorRole() == null
                 ? "reviewer" : assessment.getAssessorRole().getName());
-        context.setVariable("dueDate", assessment.getDueDate());
+        context.setVariable("dueDate", assessment.getDueDate() == null ? null : formatDate(assessment.getDueDate()));
         context.setVariable("reopenReason", assessment.getReopenReason());
         context.setVariable("actionUrl", url("/login"));
         return new ApplicationEmail(reviewer.getEmail(), employeeName(review.getEmployee()) + "'s review is ready",
@@ -183,10 +186,11 @@ public class ApplicationEmailFactory {
         context.setVariable("cycleName", review.getPerformanceCycle().getCycleName());
         context.setVariable("roleName", assessment.getAssessorRole() == null
                 ? "review" : assessment.getAssessorRole().getName() + " assessment");
-        context.setVariable("dueDate", newDueDate);
+        String dueDate = newDueDate instanceof LocalDate date ? formatDate(date) : Objects.toString(newDueDate, "Not available");
+        context.setVariable("dueDate", dueDate);
         context.setVariable("reason", reason);
         context.setVariable("actionUrl", url("/login"));
-        return new ApplicationEmail(reviewer.getEmail(), "Assessment reopened until " + newDueDate,
+        return new ApplicationEmail(reviewer.getEmail(), "Assessment reopened until " + dueDate,
                 htmlTemplateEngine.process("assessment-reopened", context), true, "PERFORMANCE_REVIEW");
     }
 
@@ -205,35 +209,38 @@ public class ApplicationEmailFactory {
     }
 
     public ApplicationEmail sowUpdated(Sow sow, String changeType) {
-        return sowNotification(sow, changeType, "A SOW has been updated");
+        return sowNotification(sow, changeType,
+                "status updated".equals(changeType) ? "SOW status changed" : "A SOW has been updated");
     }
 
     private ApplicationEmail sowNotification(Sow sow, String changeType, String subject) {
         Context context = context();
-        context.setVariable("recipientName", "Admin");
+        context.setVariable("recipientName", "team");
         boolean created = "created".equals(changeType);
         Long actor = created ? sow.getCreatedBy() : sow.getUpdatedBy();
         var timestamp = created ? sow.getCreatedOn() : sow.getUpdatedOn();
-        context.setVariable("subject", subject + ": " + sow.getSowName() + " (SOW-" + sow.getId() + ")");
+        context.setVariable("subject", subject + ": " + sow.getSowName() + " (" + sow.getId() + ")");
         context.setVariable("heading", subject);
-        context.setVariable("action", changeType);
-        context.setVariable("actorName", actor == null ? "System" : "User " + actor);
-        context.setVariable("sowNumber", "SOW-" + sow.getId());
+        String actorName = actorName(actor);
+        String status = sow.getStatus() == null ? "Not available" : sow.getStatus().getName();
+        String actionMessage = switch (changeType) {
+            case "status updated" -> "The status of " + sow.getSowName() + " was changed to " + status + " by " + actorName + ".";
+            case "signature updated" -> "The signature for " + sow.getSowName() + " was updated by " + actorName + ".";
+            default -> sow.getSowName() + " was " + changeType + " by " + actorName + ".";
+        };
+        context.setVariable("actionMessage", actionMessage);
+        context.setVariable("sowId", sow.getId());
         context.setVariable("timestampLabel", created ? "Created on:" : "Updated on:");
         context.setVariable("formattedTimestamp", timestamp == null ? "Not available" : timestamp.format(
                 java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy HH:mm", Locale.ENGLISH)));
-        context.setVariable("changeType", changeType);
-        context.setVariable("sowId", sow.getId());
         context.setVariable("sowName", sow.getSowName());
         context.setVariable("clientName", sow.getClient() == null ? "" : sow.getClient().getClientName());
-        context.setVariable("status", sow.getStatus() == null ? "" : sow.getStatus().getName());
+        context.setVariable("status", status);
         context.setVariable("startDate", formatDate(sow.getStartDate()));
         context.setVariable("endDate", formatDate(sow.getEndDate()));
-        context.setVariable("updatedBy", sow.getUpdatedBy() == null ? "System" : "User " + sow.getUpdatedBy());
-        context.setVariable("updatedAt", sow.getUpdatedOn());
         context.setVariable("sowUrl", url("/sows/" + sow.getId()));
         return new ApplicationEmail(null, subject + ": " + sow.getSowName()
-                + " (SOW-" + sow.getId() + ")",
+                + " (" + sow.getId() + ")",
                 htmlTemplateEngine.process("sow-notification", context), true, "SOW");
     }
 
@@ -269,10 +276,10 @@ public class ApplicationEmailFactory {
         context.setVariable("action", action);
         context.setVariable("employeeName", employeeName(timesheet.getEmployee()));
         context.setVariable("employeeId", timesheet.getEmployee().getRitId());
-        context.setVariable("periodStart", timesheet.getWeekStartDate());
-        context.setVariable("periodEnd", timesheet.getWeekEndDate());
+        context.setVariable("periodStart", formatDate(timesheet.getWeekStartDate()));
+        context.setVariable("periodEnd", formatDate(timesheet.getWeekEndDate()));
         context.setVariable("totalHours", timesheet.getTotalHours());
-        context.setVariable("status", timesheet.getStatus().name());
+        context.setVariable("status", displayStatus(timesheet.getStatus().name()));
         context.setVariable("comments", comments);
         context.setVariable("timesheetUrl", url("/timesheets"));
         emails.add(new ApplicationEmail(email, "Timesheet " + action,
@@ -375,7 +382,10 @@ public class ApplicationEmailFactory {
         context.setVariable("invoiceNumber", Objects.toString(invoice.getCsxInvoiceNumber(), ""));
         context.setVariable("sowName", invoice.getSow().getSowName());
         context.setVariable("milestoneName", invoice.getMilestone().getMilestoneName());
-        context.setVariable("invoiceDate", invoice.getMilestoneInvoiceDate());
+        context.setVariable("dateLabel", "Invoice date");
+        context.setVariable("amountLabel", "Invoice amount");
+        context.setVariable("statusLabel", "Status");
+        context.setVariable("invoiceDate", formatDate(invoice.getMilestoneInvoiceDate()));
         context.setVariable("invoiceAmount", invoice.getMilestoneInvoiceAmount());
         context.setVariable("raisedAmount", invoice.getInvoiceRaisedAmount());
         context.setVariable("status", invoice.getInvoiceStatus());
@@ -392,7 +402,10 @@ public class ApplicationEmailFactory {
         context.setVariable("invoiceNumber", Objects.toString(invoice.getCsxInvoiceNumber(), ""));
         context.setVariable("sowName", invoice.getSow().getSowName());
         context.setVariable("milestoneName", invoice.getMilestone().getMilestoneName());
-        context.setVariable("invoiceDate", payment.getPaymentDate());
+        context.setVariable("dateLabel", "Payment date");
+        context.setVariable("amountLabel", "Received amount");
+        context.setVariable("statusLabel", "Payment reference");
+        context.setVariable("invoiceDate", formatDate(payment.getPaymentDate()));
         context.setVariable("invoiceAmount", payment.getReceivedAmount());
         context.setVariable("raisedAmount", "");
         context.setVariable("status", Objects.toString(payment.getPaymentReference(), ""));
@@ -414,8 +427,22 @@ public class ApplicationEmailFactory {
     }
 
     private String employeeName(Employee employee) {
-        return (employee.getFirstName() + " "
+        return (Objects.toString(employee.getFirstName(), "") + " "
                 + (employee.getLastName() == null ? "" : employee.getLastName())).trim();
+    }
+
+    private String actorName(Long id) {
+        if (id == null) return "System";
+        return users.findCurrentUser(id).map(user -> {
+            String name = user.getEmployee() == null ? "" : employeeName(user.getEmployee());
+            return !name.isBlank() ? name : Objects.toString(user.getUsername(), "Unknown user");
+        }).orElse("Unknown user");
+    }
+
+    private String displayStatus(String value) {
+        if ("LEVEL1_APPROVED".equals(value)) return "Level 1 approved";
+        String label = value.replace('_', ' ').toLowerCase(Locale.ROOT);
+        return label.isEmpty() ? label : Character.toUpperCase(label.charAt(0)) + label.substring(1);
     }
 
     private String url(String path) {

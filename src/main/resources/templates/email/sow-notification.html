@@ -20,16 +20,7 @@
           style="width:100%;max-width:600px;background:#ffffff;border:1px solid #dce3ed;border-radius:10px;">
 
           <!-- Brand -->
-          <tr>
-            <td class="email-content" style="padding:28px 32px;background:#101b32;border-top:4px solid #0875d1;border-radius:10px 10px 0 0;">
-              <p style="margin:0;color:#ffffff;font-size:22px;font-weight:bold;">
-                RailInfo Tech
-              </p>
-              <p style="margin:8px 0 0;color:#cbd5e1;font-size:12px;line-height:18px;letter-spacing:1.2px;text-transform:uppercase;">
-                Statement of Work
-              </p>
-            </td>
-          </tr>
+          <tr th:replace="~{fragments/header :: header('Statement of Work')}"></tr>
 
           <!-- Message -->
           <tr>
@@ -42,8 +33,7 @@
               </h1>
 
               <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6;">
-                <strong th:text="${sowName}"></strong> was <th:block th:text="${action}"/> by
-                <strong th:text="${actorName}"></strong>.
+                <span th:text="${actionMessage}"></span>
               </p>
 
               <!-- SOW details -->
@@ -54,10 +44,10 @@
                 <tr>
                   <th class="detail-label" scope="row" align="left"
                     style="padding:14px 16px;color:#64748b;background:#f8fafc;font-weight:normal;border-bottom:1px solid #dce3ed;">
-                    SOW number
+                    SOW ID
                   </th>
                   <td class="detail-value" align="right"
-                    style="padding:14px 16px;font-weight:bold;border-bottom:1px solid #dce3ed;" th:text="${sowNumber}">
+                    style="padding:14px 16px;font-weight:bold;border-bottom:1px solid #dce3ed;" th:text="${sowId}">
                   </td>
                 </tr>
                 <tr>
@@ -110,15 +100,7 @@
           </tr>
 
           <!-- Footer -->
-          <tr>
-            <td class="email-content" style="padding:22px 32px;border-top:1px solid #dce3ed;background:#f8fafc;border-radius:0 0 10px 10px;">
-              <p style="margin:0;color:#64748b;font-size:12px;line-height:1.7;">
-                Regards,<br>
-                <strong style="color:#334155;">RailInfo Tech</strong><br>
-                This is an automated notification. Please do not reply to this email.
-              </p>
-            </td>
-          </tr>
+          <tr th:replace="~{fragments/footer :: footer}"></tr>
         </table>
       </td>
     </tr>

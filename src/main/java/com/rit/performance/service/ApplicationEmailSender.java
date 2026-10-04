@@ -32,14 +32,14 @@ public class ApplicationEmailSender {
             var recipients = recipientResolver.resolve(event.category(), event.recipient());
             if (recipients.isEmpty()) return;
             JavaMailSender mailSender = mailSenders.getObject();
-            MimeMessageHelper message = new MimeMessageHelper(mailSender.createMimeMessage(), false,
+            MimeMessageHelper message = new MimeMessageHelper(mailSender.createMimeMessage(), true,
                     java.nio.charset.StandardCharsets.UTF_8.name());
             if (from != null && !from.isBlank()) {
                 message.setFrom(from);
             }
             recipients.apply(message);
             message.setSubject(event.subject());
-            message.setText(event.body(), event.html());
+            EmailBranding.setContent(message, event.body(), event.html());
             mailSender.send(message.getMimeMessage());
         } catch (Exception exception) {
             // Do not log message content because it may contain a password reset token.

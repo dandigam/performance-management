@@ -32,8 +32,7 @@ public class EmailNotificationDispatcher {
 
     private void send(EmailNotification notification) {
         try {
-            boolean brandedOnboarding = notification.getEventType() == EmailEventType.ONBOARDING_INVITATION;
-            MimeMessageHelper message = new MimeMessageHelper(mailSender.createMimeMessage(), brandedOnboarding,
+            MimeMessageHelper message = new MimeMessageHelper(mailSender.createMimeMessage(), true,
                     java.nio.charset.StandardCharsets.UTF_8.name());
             if (from != null && !from.isBlank()) message.setFrom(from);
             var recipients = recipientResolver.resolve(
@@ -49,10 +48,7 @@ public class EmailNotificationDispatcher {
             recipients.apply(message);
             message.setSubject(notification.getSubject());
             String content = compose(notification);
-            message.setText(content, isHtml(content));
-            if (brandedOnboarding) {
-                message.addInline("rit-logo", new org.springframework.core.io.ClassPathResource("email/rit-logo.png"), "image/png");
-            }
+            EmailBranding.setContent(message, content, isHtml(content));
             mailSender.send(message.getMimeMessage());
             notification.setStatus(EmailDeliveryStatus.SENT);
             notification.setSentDate(LocalDateTime.now());
@@ -74,6 +70,16 @@ public class EmailNotificationDispatcher {
     }
 
     private String compose(EmailNotification notification) {
+        if (isHtml(notification.getBody())) {
+            StringBuilder extras = new StringBuilder();
+            if (notification.getActionUrl() != null && !notification.getActionUrl().isBlank())
+                extras.append("<p>Open: ").append(org.springframework.web.util.HtmlUtils.htmlEscape(notification.getActionUrl())).append("</p>");
+            if (notification.getFooter() != null && !notification.getFooter().isBlank())
+                extras.append("<p>").append(org.springframework.web.util.HtmlUtils.htmlEscape(notification.getFooter())).append("</p>");
+            String body = notification.getBody();
+            int end = body.toLowerCase(java.util.Locale.ROOT).lastIndexOf("</body>");
+            return end < 0 ? body + extras : body.substring(0, end) + extras + body.substring(end);
+        }
         StringBuilder text = new StringBuilder(notification.getBody());
         if (notification.getActionUrl() != null && !notification.getActionUrl().isBlank())
             text.append("\n\nOpen: ").append(notification.getActionUrl());

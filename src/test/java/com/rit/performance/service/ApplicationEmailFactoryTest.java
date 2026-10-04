@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ApplicationEmailFactoryTest {
     @Test
     void employeeUpdateEmailUsesEmployeeAddressAndConfiguredLoginLink() {
-        var factory = new ApplicationEmailFactory();
+        var factory = new ApplicationEmailFactory(org.mockito.Mockito.mock(com.rit.performance.repository.UserRepository.class));
         ReflectionTestUtils.setField(factory, "frontendUrl", "https://portal.example.com");
         var employee = employee(101L, "Test", "Employee", "updated@example.com");
         var email = factory.employeeUpdated(employee);
@@ -28,7 +28,7 @@ class ApplicationEmailFactoryTest {
 
     @Test
     void employeeAdminNotificationsUseGlobalSubscribersWithoutPrivateCredentials() {
-        var factory = new ApplicationEmailFactory();
+        var factory = new ApplicationEmailFactory(org.mockito.Mockito.mock(com.rit.performance.repository.UserRepository.class));
         ReflectionTestUtils.setField(factory, "frontendUrl", "https://example.com");
         var employee = employee(101L, "Test", "Employee", "employee@example.com");
         employee.setRitId("RIT101");
@@ -53,7 +53,7 @@ class ApplicationEmailFactoryTest {
 
     @Test
     void rendersPersonalizedOnboardingInvitation() throws Exception {
-        ApplicationEmailFactory factory = new ApplicationEmailFactory();
+        ApplicationEmailFactory factory = new ApplicationEmailFactory(org.mockito.Mockito.mock(com.rit.performance.repository.UserRepository.class));
         Employee employee = employee(101L, "Venkatesh", "Dandigam", "venkat@example.com");
         employee.setJoiningDate(LocalDate.of(2026, 1, 1));
         ApplicationEmail email = factory.onboardingInvitation(employee, "Senior Software Engineer",
@@ -77,7 +77,7 @@ class ApplicationEmailFactoryTest {
 
     @Test
     void rendersBrandedUserInvitation() {
-        ApplicationEmailFactory factory = new ApplicationEmailFactory();
+        ApplicationEmailFactory factory = new ApplicationEmailFactory(org.mockito.Mockito.mock(com.rit.performance.repository.UserRepository.class));
         ReflectionTestUtils.setField(factory, "footer", "Regards, RailInfo Tech");
 
         ApplicationEmail email = factory.userInvitation(
@@ -91,7 +91,7 @@ class ApplicationEmailFactoryTest {
 
     @Test
     void rendersTimesheetWorkflowForEmployeeAndBothApprovers() {
-        ApplicationEmailFactory factory = new ApplicationEmailFactory();
+        ApplicationEmailFactory factory = new ApplicationEmailFactory(org.mockito.Mockito.mock(com.rit.performance.repository.UserRepository.class));
         ReflectionTestUtils.setField(factory, "footer", "Regards, RIT");
         ReflectionTestUtils.setField(factory, "frontendUrl", "http://localhost:5173");
 
@@ -123,7 +123,7 @@ class ApplicationEmailFactoryTest {
 
     @Test
     void rendersSowNotificationAsBrandedHtml() {
-        ApplicationEmailFactory factory = new ApplicationEmailFactory();
+        ApplicationEmailFactory factory = new ApplicationEmailFactory(org.mockito.Mockito.mock(com.rit.performance.repository.UserRepository.class));
         ReflectionTestUtils.setField(factory, "footer", "Regards, RailInfo Tech");
         ReflectionTestUtils.setField(factory, "frontendUrl", "http://localhost:5173");
 
@@ -153,12 +153,12 @@ class ApplicationEmailFactoryTest {
         assertTrue(email.body().contains("http://localhost:5173/sows/21"));
         assertTrue(email.body().contains("Updated on:"));
         assertTrue(email.body().contains("Feb 1, 2026 10:00"));
-        assertTrue(email.body().contains("User 8"));
+        assertTrue(email.body().contains("Unknown user"));
         var created = factory.sowCreated(sow);
         assertTrue(created.body().contains("A new SOW has been created"));
         assertTrue(created.body().contains("Created on:"));
         assertTrue(created.body().contains("Jan 1, 2026 09:00"));
-        assertTrue(created.body().contains("User 7"));
+        assertTrue(created.body().contains("Unknown user"));
         assertFalse(created.body().contains("{{"));
         sow.setSowName("<script>alert(1)</script>");
         assertFalse(factory.sowCreated(sow).body().contains("<script>"));

@@ -21,7 +21,7 @@ class OnboardingRequestChangesServiceTest {
         var self = new OnboardingSelfService(current, repository, mock(LookupValueRepository.class),
                 mock(EmployeeAddressRepository.class), mock(EmployeeEducationRepository.class),
                 mock(EmployeeExperienceRepository.class), mock(BankAccountRepository.class), mock(EmailNotificationService.class), mock(com.rit.performance.repository.UserRepository.class));
-        var factory = new ApplicationEmailFactory();
+        var factory = new ApplicationEmailFactory(org.mockito.Mockito.mock(com.rit.performance.repository.UserRepository.class));
         org.springframework.test.util.ReflectionTestUtils.setField(factory, "frontendUrl", "https://example.test");
         var service = new OnboardingRequestChangesService(repository, self, factory, notifications);
         var employee = new Employee(); employee.setId(10L); employee.setFirstName("Employee");

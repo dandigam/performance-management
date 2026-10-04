@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"><body><table role="presentation">
+<tr th:fragment="footer">
+  <td class="email-content" style="padding:20px 32px;background:#f8fafc;border-top:1px solid #e6edf3;border-radius:0 0 10px 10px;color:#64748b;font-size:12px;line-height:20px;">
+    <p th:text="${footer != null and !footer.isBlank() ? footer : 'Regards, RailInfo Tech'}" style="margin:0 0 8px;white-space:pre-line;">Regards, RailInfo Tech</p>
+    <p style="margin:0;">This is an automated notification. Please do not reply to this email.</p>
+  </td>
+</tr>
+</table></body></html>
