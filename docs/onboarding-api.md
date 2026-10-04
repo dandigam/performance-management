@@ -160,3 +160,11 @@ are outside API 1. A future resend must invalidate the previous token and queue 
 
 Invitation email bodies contain the bearer setup link, so treat queue storage and email
 administration access as sensitive; the token table itself stores only a hash.
+
+## Password setup verification
+
+Onboarding setup links require email OTP verification before the password is saved.
+The frontend calls `POST /api/auth/password-otp` with the invitation token, then
+submits `token`, `otp`, and `newPassword` to `POST /api/auth/reset-password`.
+See [password setup/reset OTP flow](password-reset-api.md) for expiry, resend limits,
+error handling, and the database migration.

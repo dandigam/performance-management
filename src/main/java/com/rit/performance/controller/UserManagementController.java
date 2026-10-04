@@ -38,6 +38,12 @@ public class UserManagementController {
                 .body(userManagementService.createUser(request));
     }
 
+    @PostMapping("/users/{userId}/send-login-setup")
+    public ResponseEntity<Void> sendLoginSetup(@PathVariable Long userId) {
+        userManagementService.sendLoginSetup(userId);
+        return ResponseEntity.noContent().build();
+    }
+
     @PatchMapping("/users/{userId}/status")
     public ResponseEntity<UserManagementUserResponse> updateStatus(
             @PathVariable Long userId,

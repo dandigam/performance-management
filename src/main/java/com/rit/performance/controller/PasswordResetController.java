@@ -29,14 +29,23 @@ public class PasswordResetController {
                 .body(ApiMessageResponse.success(ACK));
     }
 
+    @PostMapping("/password-otp")
+    public ResponseEntity<ApiMessageResponse> sendOtp(@Valid @RequestBody PasswordOtpRequest request,
+                                                     HttpServletRequest http) {
+        service.sendOtp(request.getToken(), http.getRemoteAddr());
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(ApiMessageResponse.success("A verification code has been sent to your account email."));
+    }
+
     @PostMapping("/reset-password")
     public ResponseEntity<?> reset(@RequestBody ResetPasswordRequest request, HttpServletRequest http) {
         if (!limiter.allow("reset-ip:" + http.getRemoteAddr(), 30, Duration.ofMinutes(15))) {
             throw new ApplicationException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
                     "RATE_LIMIT_EXCEEDED", "Too many requests. Please try again later.", "900");
         }
-        service.reset(request.getToken(), request.getNewPassword());
-        return ResponseEntity.ok(ApiMessageResponse.success("Password reset successfully."));
+        service.reset(request.getToken(), request.getNewPassword(), request.getOtp());
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(ApiMessageResponse.success("Password reset successfully."));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

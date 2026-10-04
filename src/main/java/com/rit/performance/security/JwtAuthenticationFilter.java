@@ -32,7 +32,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         if ("POST".equals(request.getMethod()) &&
                 ("/api/auth/forgot-password".equals(request.getServletPath())
-                 || "/api/auth/reset-password".equals(request.getServletPath()))) return true;
+                 || "/api/auth/reset-password".equals(request.getServletPath())
+                 || "/api/auth/password-otp".equals(request.getServletPath()))) return true;
         String authorization = request.getHeader("Authorization");
         boolean hasBearerToken = StringUtils.hasText(authorization)
                 && authorization.startsWith("Bearer ");

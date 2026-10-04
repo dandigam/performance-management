@@ -30,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.time.LocalDate;
@@ -48,7 +50,6 @@ import java.time.LocalDate;
 @Service
 @RequiredArgsConstructor
 public class EmployeeServiceImpl implements EmployeeService {
-    private static final String DEFAULT_PASSWORD = "admin123";
     private static final String DEFAULT_ROLE = "EMPLOYEE";
     private static final String SYSTEM_ROLE_LOOKUP = "SYSTEM_ROLE";
     private static final String WORK_MODE_LOOKUP = "WORK_MODE";
@@ -83,6 +84,8 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeAuditService employeeAuditService;
     private final ApplicationEventPublisher events;
     private final ApplicationEmailFactory emailFactory;
+    private final PasswordEncoder passwordEncoder;
+    private final UserInvitationService invitationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -150,8 +153,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         createEmployeeRole(employee, role, LocalDate.now(), request.getCreatedBy());
         User user = new User();
         user.setUsername(email);
-        user.setPassword(DEFAULT_PASSWORD);
-        user.setStatus(userStatusFor(employee));
+        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        user.setStatus("ACTIVE".equals(userStatusFor(employee)) ? "INVITED" : "INACTIVE");
         user.setRole(role);
         user.setEmployee(employee);
         user = userRepository.save(user);
@@ -162,11 +165,13 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeCreateResponse response = EmployeeCreateResponse.builder()
                 .employee(currentEmployeeResponse(employee, assignment))
-                .userId(user.getId()).username(user.getUsername()).password(DEFAULT_PASSWORD)
+                .userId(user.getId()).username(user.getUsername())
                 .roleName(role.getName()).build();
         employeeAuditService.record(employee.getId(), "EMPLOYEE", "CREATED",
                 null, response.getEmployee(), request.getCreatedBy());
-        events.publishEvent(emailFactory.employeeCreated(employee, user));
+        if ("INVITED".equals(user.getStatus())) {
+            invitationService.send(user, employee.getEmail());
+        }
         events.publishEvent(emailFactory.employeeAdminNotification(employee, true));
         return response;
     }
@@ -880,13 +885,14 @@ public class EmployeeServiceImpl implements EmployeeService {
     private void ensureEmployeeUser(Employee employee, LookupValue role) {
         String username = employee.getEmail().trim().toLowerCase();
         User user = userRepository.findByEmployeeId(employee.getId()).orElse(null);
+        boolean newAccount = user == null;
         if (user == null) {
             if (userRepository.existsByUsernameIgnoreCase(username))
                 throw new InvalidOperationException("Username already exists: " + username);
             user = new User();
             user.setUsername(username);
-            user.setPassword(DEFAULT_PASSWORD);
-            user.setStatus("ACTIVE");
+            user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+            user.setStatus("INVITED");
             user.setRole(role);
             user.setEmployee(employee);
         } else if (!user.getUsername().equalsIgnoreCase(username)) {
@@ -894,9 +900,15 @@ public class EmployeeServiceImpl implements EmployeeService {
                 throw new InvalidOperationException("Username already exists: " + username);
             user.setUsername(username);
         }
-                user.setRole(role);
-                user.setStatus(userStatusFor(employee));
-        userRepository.save(user);
+        user.setRole(role);
+        // Profile edits must not activate an account still waiting for password setup.
+        if (!"INVITED".equalsIgnoreCase(user.getStatus()) || !"ACTIVE".equals(userStatusFor(employee))) {
+            user.setStatus(userStatusFor(employee));
+        }
+        user = userRepository.save(user);
+        if (newAccount && "INVITED".equals(user.getStatus())) {
+            invitationService.send(user, employee.getEmail());
+        }
     }
 
         private String userStatusFor(Employee employee) {

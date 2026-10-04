@@ -100,6 +100,23 @@ public class UserManagementServiceImpl implements UserManagementService {
 
     @Override
     @Transactional
+    public void sendLoginSetup(Long userId) {
+        User user = userRepository.findForSecurityUpdate(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+        String status = normalizeStatus(user.getStatus());
+        if (!"INVITED".equals(status) && !"ACTIVE".equals(status)) {
+            throw new InvalidOperationException("Login setup is only available for invited or active users");
+        }
+        String recipient = user.getEmployee() == null
+                ? user.getUsername() : user.getEmployee().getEmail();
+        if (recipient == null || recipient.isBlank()) {
+            throw new InvalidOperationException("The user does not have an email address for login setup");
+        }
+        invitationService.send(user, recipient.trim());
+    }
+
+    @Override
+    @Transactional
     public UserManagementUserResponse updateStatus(Long userId, String requestedStatus) {
         User user = userRepository.findForSecurityUpdate(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));

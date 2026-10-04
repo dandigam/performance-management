@@ -103,6 +103,14 @@ public class ApplicationEmailFactory {
                 htmlTemplateEngine.process("password-reset", context), true);
     }
 
+    public ApplicationEmail passwordOtp(String recipient, String otp, boolean setup) {
+        Context context = context();
+        context.setVariable("otp", otp);
+        context.setVariable("purpose", setup ? "set up your account password" : "reset your password");
+        return new ApplicationEmail(recipient, "Your RailInfo Tech verification code",
+                htmlTemplateEngine.process("password-otp", context), true);
+    }
+
     public ApplicationEmail userInvitation(String recipient, String username, String invitationUrl) {
         Context context = context();
         context.setVariable("username", username);

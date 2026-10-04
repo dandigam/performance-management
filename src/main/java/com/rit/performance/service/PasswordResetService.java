@@ -73,36 +73,67 @@ public class PasswordResetService {
         tokens.save(token);
 
         String resetLink = frontendUrl.replaceAll("/$", "") + "/reset-password?token=" + raw;
-        System.out.println("String resetLink :::"+resetLink);
         events.publishEvent(emailFactory.passwordReset(user.getEmployee().getEmail(), resetLink));
     }
 
     @Transactional
-    public void reset(String raw, String password) {
-        if (raw == null || !raw.matches("[A-Za-z0-9_-]{43}")) {
-            throw new ApplicationException(HttpStatus.BAD_REQUEST,
-                    "INVALID_PASSWORD_RESET_LINK", INVALID_LINK);
+    public void sendOtp(String raw, String remoteAddress) {
+        if (!limiter.allow("otp-ip:" + remoteAddress, 20, Duration.ofHours(1))) {
+            throw new ApplicationException(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMIT_EXCEEDED",
+                    "Too many verification code requests. Please try again later.", "3600");
         }
+        PasswordResetToken token = lockValidToken(raw);
+        if (token.getOtpAttempts() >= 5) throw new com.rit.performance.exception.InvalidPasswordOtpException(true);
+        if (token.getOtpSendCount() >= 3) {
+            throw new ApplicationException(HttpStatus.BAD_REQUEST, "OTP_SEND_LIMIT_EXCEEDED",
+                    "The code send limit has been reached. Please request a new setup or reset link.");
+        }
+        var now = clock.instant();
+        if (token.getOtpSentAt() != null && token.getOtpSentAt().plusSeconds(60).isAfter(now)) {
+            long wait = Math.max(1, Duration.between(now, token.getOtpSentAt().plusSeconds(60)).toSeconds() + 1);
+            throw new ApplicationException(HttpStatus.TOO_MANY_REQUESTS, "OTP_RESEND_TOO_SOON",
+                    "Please wait before requesting another code.", Long.toString(wait));
+        }
+        User user = token.getUser();
+        String recipient = user.getEmployee() == null ? user.getUsername() : user.getEmployee().getEmail();
+        if (recipient == null || recipient.isBlank()) {
+            throw new ApplicationException(HttpStatus.BAD_REQUEST, "EMAIL_NOT_FOUND", "No account email is available.");
+        }
+        String otp = String.format(Locale.ROOT, "%06d", RANDOM.nextInt(1_000_000));
+        token.setOtpHash(encoder.encode(otp));
+        var expires = now.plus(Duration.ofMinutes(10));
+        token.setOtpExpiresAt(expires.isBefore(token.getExpiresAt()) ? expires : token.getExpiresAt());
+        token.setOtpSentAt(now);
+        token.setOtpSendCount(token.getOtpSendCount() + 1);
+        // Resending never restores the failed-attempt budget.
+        tokens.save(token);
+        events.publishEvent(emailFactory.passwordOtp(recipient.trim(), otp, "INVITED".equalsIgnoreCase(user.getStatus())));
+    }
 
-        String hash = PasswordResetRateLimiter.hash(raw);
-        Long id = tokens.findUserIdByHash(hash).orElseThrow(() ->
-                new ApplicationException(HttpStatus.BAD_REQUEST,
-                        "INVALID_PASSWORD_RESET_LINK", INVALID_LINK));
+    /** Older callers cannot bypass OTP verification. */
+    public void reset(String raw, String password) {
+        throw new ApplicationException(HttpStatus.BAD_REQUEST, "OTP_REQUIRED",
+                "Request a verification code and include it with your new password.");
+    }
 
-        // All reset, login and refresh flows acquire the user lock before token locks.
-        User user = users.findForSecurityUpdate(id).orElseThrow(() ->
-                new ApplicationException(HttpStatus.BAD_REQUEST,
-                        "INVALID_PASSWORD_RESET_LINK", INVALID_LINK));
-        PasswordResetToken token = tokens.findByTokenHash(hash).orElseThrow(() ->
-                new ApplicationException(HttpStatus.BAD_REQUEST,
-                        "INVALID_PASSWORD_RESET_LINK", INVALID_LINK));
-
-        boolean accountCanSetPassword = "ACTIVE".equalsIgnoreCase(user.getStatus())
-                || "INVITED".equalsIgnoreCase(user.getStatus());
-        if (token.isUsed() || !token.getExpiresAt().isAfter(clock.instant())
-                || !accountCanSetPassword) {
-            throw new ApplicationException(HttpStatus.BAD_REQUEST,
-                    "INVALID_PASSWORD_RESET_LINK", INVALID_LINK);
+    @Transactional(noRollbackFor = com.rit.performance.exception.InvalidPasswordOtpException.class)
+    public void reset(String raw, String password, String otp) {
+        PasswordResetToken token = lockValidToken(raw);
+        User user = token.getUser();
+        Long id = user.getId();
+        if (token.getOtpAttempts() >= 5) throw new com.rit.performance.exception.InvalidPasswordOtpException(true);
+        if (token.getOtpHash() == null || otp == null || otp.isBlank()) {
+            throw new ApplicationException(HttpStatus.BAD_REQUEST, "OTP_REQUIRED",
+                    "Request a verification code and include it with your new password.");
+        }
+        if (token.getOtpExpiresAt() == null || !token.getOtpExpiresAt().isAfter(clock.instant())) {
+            throw new ApplicationException(HttpStatus.BAD_REQUEST, "OTP_EXPIRED", "The code has expired. Please request another code.");
+        }
+        if (!otp.matches("[0-9]{6}") || !encoder.matches(otp, token.getOtpHash())) {
+            token.setOtpAttempts(token.getOtpAttempts() + 1);
+            tokens.save(token);
+            // This specific exception commits only the attempt counter. No password changes have occurred.
+            throw new com.rit.performance.exception.InvalidPasswordOtpException(token.getOtpAttempts() >= 5);
         }
 
         PasswordPolicy.validate(password);
@@ -123,4 +154,22 @@ public class PasswordResetService {
         notifications.queuePasswordChanged(user);
     }
 
+
+    private PasswordResetToken lockValidToken(String raw) {
+        if (raw == null || !raw.matches("[A-Za-z0-9_-]{43}")) throw invalidLink();
+        String hash = PasswordResetRateLimiter.hash(raw);
+        Long id = tokens.findUserIdByHash(hash).orElseThrow(this::invalidLink);
+        // Preserve the user-then-token lock order used by login, reset and refresh.
+        User user = users.findForSecurityUpdate(id).orElseThrow(this::invalidLink);
+        PasswordResetToken token = tokens.findByTokenHash(hash).orElseThrow(this::invalidLink);
+        if (token.isUsed() || !token.getExpiresAt().isAfter(clock.instant())
+                || !("ACTIVE".equalsIgnoreCase(user.getStatus()) || "INVITED".equalsIgnoreCase(user.getStatus()))) {
+            throw invalidLink();
+        }
+        return token;
+    }
+
+    private ApplicationException invalidLink() {
+        return new ApplicationException(HttpStatus.BAD_REQUEST, "INVALID_PASSWORD_RESET_LINK", INVALID_LINK);
+    }
 }

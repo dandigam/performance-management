@@ -21,4 +21,14 @@ public class PasswordResetToken {
     private Instant expiresAt;
     @Column(nullable = false)
     private boolean used;
+    @Column(name = "otp_hash", length = 100)
+    private String otpHash;
+    @Column(name = "otp_expires_at")
+    private Instant otpExpiresAt;
+    @Column(name = "otp_sent_at")
+    private Instant otpSentAt;
+    @Column(name = "otp_attempts", nullable = false, columnDefinition = "int default 0")
+    private int otpAttempts;
+    @Column(name = "otp_send_count", nullable = false, columnDefinition = "int default 0")
+    private int otpSendCount;
 }

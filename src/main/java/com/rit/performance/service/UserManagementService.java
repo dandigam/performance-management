@@ -10,6 +10,8 @@ public interface UserManagementService {
 
     UserManagementUserResponse createUser(UserCreateRequest request);
 
+    void sendLoginSetup(Long userId);
+
     UserManagementUserResponse updateStatus(Long userId, String status);
 
     UserManagementUserResponse updateRole(Long userId, Long roleId);
