@@ -51,6 +51,12 @@ public class SowRequest {
     private Long csxEscalationEmployeeId;
     private Long ritContactEmployeeId;
     private Long ritEscalationEmployeeId;
+    private Long deliveryOwnerEmployeeId;
+    private Long technicalLeadEmployeeId;
+    @jakarta.validation.constraints.PastOrPresent
+    private LocalDate ownerChangeEffectiveDate;
+    @Size(max = 2000)
+    private String ownerChangeReason;
     private LocalDate startDate;
     private LocalDate endDate;
 

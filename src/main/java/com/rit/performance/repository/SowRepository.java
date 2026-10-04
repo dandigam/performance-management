@@ -11,17 +11,29 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SowRepository extends JpaRepository<Sow, Long> {
+    @EntityGraph(attributePaths = {"status", "deliveryOwnerEmployee", "technicalLeadEmployee"})
+    @Query("""
+            select s from Sow s
+            left join s.deliveryOwnerEmployee deliveryOwner
+            left join s.technicalLeadEmployee technicalLead
+            where deliveryOwner.id = :employeeId or technicalLead.id = :employeeId
+            order by s.id
+            """)
+    List<Sow> findManagedByEmployeeId(
+            @org.springframework.data.repository.query.Param("employeeId") Long employeeId);
+
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Sow s where s.id = :id")
     Optional<Sow> findForStatusUpdate(@org.springframework.data.repository.query.Param("id") Long id);
 
-    @EntityGraph(attributePaths = {"businessUnit", "status"})
+    @EntityGraph(attributePaths = {"businessUnit", "status", "deliveryOwnerEmployee", "technicalLeadEmployee"})
     @Query("select sow from Sow sow")
     Page<Sow> findSummaryPage(Pageable pageable);
 
 
     @EntityGraph(attributePaths = {
             "client", "businessUnit", "status", "ritContactEmployee", "ritEscalationEmployee",
+            "deliveryOwnerEmployee", "technicalLeadEmployee",
             "milestones", "milestones.positions",
             "milestones.positions.position", "milestones.positions.skill",
             "milestones.positions.rateCard", "documents"
@@ -31,6 +43,7 @@ public interface SowRepository extends JpaRepository<Sow, Long> {
 
     @EntityGraph(attributePaths = {
             "client", "businessUnit", "status", "ritContactEmployee", "ritEscalationEmployee",
+            "deliveryOwnerEmployee", "technicalLeadEmployee",
             "milestones", "milestones.positions",
             "milestones.positions.position", "milestones.positions.skill", "documents"
     })

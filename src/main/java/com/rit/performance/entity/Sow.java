@@ -10,6 +10,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "sows")
 @Getter
 @Setter
@@ -66,6 +67,14 @@ public class Sow extends BaseEntity {
     @JoinColumn(name = "rit_escalation_employee_id",
             foreignKey = @ForeignKey(name = "fk_sow_rit_escalation"))
     private Employee ritEscalationEmployee;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_owner_employee_id", foreignKey = @ForeignKey(name = "fk_sow_delivery_owner"))
+    private Employee deliveryOwnerEmployee;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "technical_lead_employee_id", foreignKey = @ForeignKey(name = "fk_sow_technical_lead"))
+    private Employee technicalLeadEmployee;
 
     @Column(name = "start_date")
     private LocalDate startDate;

@@ -59,6 +59,10 @@ public final class SowMapper {
                 .ritEscalationEmployeeEmail(ritEscalation == null
                         ? null : ritEscalation.getEmail())
                 .startDate(sow.getStartDate())
+                .deliveryOwnerEmployeeId(sow.getDeliveryOwnerEmployee() == null ? null : sow.getDeliveryOwnerEmployee().getId())
+                .deliveryOwnerEmployeeName(employeeName(sow.getDeliveryOwnerEmployee()))
+                .technicalLeadEmployeeId(sow.getTechnicalLeadEmployee() == null ? null : sow.getTechnicalLeadEmployee().getId())
+                .technicalLeadEmployeeName(employeeName(sow.getTechnicalLeadEmployee()))
                 .endDate(sow.getEndDate())
                 .status(sow.getStatus() == null ? null : sow.getStatus().getCode())
                 .statusEffectiveDate(sow.getStatusEffectiveDate())

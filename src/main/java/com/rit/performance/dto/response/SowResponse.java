@@ -40,6 +40,10 @@ public class SowResponse {
     private Long ritEscalationEmployeeId;
     private String ritEscalationEmployeeName;
     private String ritEscalationEmployeeEmail;
+    private Long deliveryOwnerEmployeeId;
+    private String deliveryOwnerEmployeeName;
+    private Long technicalLeadEmployeeId;
+    private String technicalLeadEmployeeName;
     private LocalDate startDate;
     private LocalDate endDate;
     private String status;

@@ -56,6 +56,8 @@ public interface SowService {
 
     SowResponse update(Long id, SowRequest request);
 
+    SowResponse updateOwners(Long id, com.rit.performance.dto.request.SowOwnersUpdateRequest request);
+
     SowResponse updateStatus(Long sowId, SowStatusUpdateRequest request);
 
     SowResponse updateSignature(Long sowId, SowSignatureUpdateRequest request);

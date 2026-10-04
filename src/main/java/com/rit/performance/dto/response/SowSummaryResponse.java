@@ -13,6 +13,10 @@ public class SowSummaryResponse {
     String businessUnitName;
     Long pocEmployeeId;
     String pocEmployeeName;
+    Long deliveryOwnerEmployeeId;
+    String deliveryOwnerEmployeeName;
+    Long technicalLeadEmployeeId;
+    String technicalLeadEmployeeName;
     LocalDate startDate;
     LocalDate endDate;
     String status;

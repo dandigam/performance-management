@@ -73,6 +73,7 @@ public class SowServiceImpl implements SowService {
     private final ApplicationEventPublisher events;
     private final ApplicationEmailFactory emailFactory;
     private final com.rit.performance.service.SowStatusHistoryService statusHistory;
+    private final com.rit.performance.service.SowOwnerHistoryService ownerHistory;
 
     @Override
     public void deleteMilestone(Long sowId, Long milestoneId) {
@@ -249,6 +250,10 @@ public class SowServiceImpl implements SowService {
                     .businessUnitId(businessUnit == null ? null : businessUnit.getId())
                     .businessUnitName(businessUnit == null ? null : businessUnit.getName())
                     .pocEmployeeId(poc == null ? null : poc.getId()).pocEmployeeName(pocName)
+                    .deliveryOwnerEmployeeId(sow.getDeliveryOwnerEmployee() == null ? null : sow.getDeliveryOwnerEmployee().getId())
+                    .deliveryOwnerEmployeeName(employeeName(sow.getDeliveryOwnerEmployee()))
+                    .technicalLeadEmployeeId(sow.getTechnicalLeadEmployee() == null ? null : sow.getTechnicalLeadEmployee().getId())
+                    .technicalLeadEmployeeName(employeeName(sow.getTechnicalLeadEmployee()))
                     .startDate(sow.getStartDate()).endDate(sow.getEndDate())
                     .status(sow.getStatus() == null ? null : sow.getStatus().getCode())
                     .totalPositionCount(positions.size()).openPositionCount(openCount).build());
@@ -273,6 +278,7 @@ public class SowServiceImpl implements SowService {
         resourceRequirementService.onPositionCreatedOrUpdated(saved.getId());
         events.publishEvent(emailFactory.sowCreated(saved));
         statusHistory.record(saved, null);
+        ownerHistory.record(saved, null, null, request.getOwnerChangeEffectiveDate(), request.getOwnerChangeReason());
         return toResponse(saved);
     }
 
@@ -574,7 +580,10 @@ public class SowServiceImpl implements SowService {
     @Override
     public SowResponse update(Long id, SowRequest request) {
         validateRequest(request);
-        Sow sow = findSow(id);
+        Sow sow = sowRepository.findForStatusUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("SOW not found: " + id));
+        Employee previousDeliveryOwner = sow.getDeliveryOwnerEmployee();
+        Employee previousTechnicalLead = sow.getTechnicalLeadEmployee();
         applySowFields(sow, request, false);
 
         MilestoneSync milestoneSync = synchronizeMilestones(sow, request.getMilestones());
@@ -593,7 +602,22 @@ public class SowServiceImpl implements SowService {
         Sow saved = sowRepository.saveAndFlush(sow);
         resourceRequirementService.onPositionCreatedOrUpdated(saved.getId());
         events.publishEvent(emailFactory.sowUpdated(saved, "updated"));
+        ownerHistory.record(saved, previousDeliveryOwner, previousTechnicalLead,
+                request.getOwnerChangeEffectiveDate(), request.getOwnerChangeReason());
         return toResponse(saved);
+    }
+
+    @Override
+    public SowResponse updateOwners(Long id, com.rit.performance.dto.request.SowOwnersUpdateRequest request) {
+        if (request.effectiveDate() == null) throw new InvalidOperationException("effectiveDate is required");
+        Sow sow = sowRepository.findForStatusUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("SOW not found: " + id));
+        Employee previousDeliveryOwner = sow.getDeliveryOwnerEmployee();
+        Employee previousTechnicalLead = sow.getTechnicalLeadEmployee();
+        sow.setDeliveryOwnerEmployee(findRitEmployee(request.deliveryOwnerEmployeeId(), "Delivery owner"));
+        sow.setTechnicalLeadEmployee(findRitEmployee(request.technicalLeadEmployeeId(), "Technical lead"));
+        ownerHistory.record(sow, previousDeliveryOwner, previousTechnicalLead, request.effectiveDate(), request.reason());
+        return toResponse(sowRepository.saveAndFlush(sow));
     }
 
     @Override
@@ -756,6 +780,8 @@ public class SowServiceImpl implements SowService {
                 request.getRitContactEmployeeId(), "RIT contact"));
         sow.setRitEscalationEmployee(findRitEmployee(
                 request.getRitEscalationEmployeeId(), "RIT escalation person"));
+        sow.setDeliveryOwnerEmployee(findRitEmployee(request.getDeliveryOwnerEmployeeId(), "Delivery owner"));
+        sow.setTechnicalLeadEmployee(findRitEmployee(request.getTechnicalLeadEmployeeId(), "Technical lead"));
         sow.setStartDate(request.getStartDate());
         sow.setEndDate(request.getEndDate());
         if (applyWorkflowFields) {
@@ -1150,6 +1176,7 @@ public class SowServiceImpl implements SowService {
     }
 
     private String employeeName(Employee employee) {
+        if (employee == null) return null;
         return (employee.getFirstName() + " "
                 + (employee.getLastName() == null ? "" : employee.getLastName())).trim();
     }
