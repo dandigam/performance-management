@@ -11,6 +11,10 @@ import java.time.LocalDate;
 @Getter
 @Setter
 public class HolidayRequest {
+    @NotNull(message = "clientId is required")
+    @jakarta.validation.constraints.Positive(message = "clientId must be positive")
+    private Long clientId;
+
     @NotBlank(message = "holidayName is required")
     @Size(max = 150)
     private String holidayName;

@@ -12,6 +12,8 @@ public final class CsxEmployeeMapper {
         String lastName = employee.getLastName() == null ? "" : employee.getLastName().trim();
         return CsxEmployeeResponse.builder()
                 .id(employee.getId())
+                .clientId(employee.getClient() == null ? null : employee.getClient().getId())
+                .clientName(employee.getClient() == null ? null : employee.getClient().getClientName())
                 .firstName(employee.getFirstName())
                 .lastName(employee.getLastName())
                 .employeeName((firstName + " " + lastName).trim())

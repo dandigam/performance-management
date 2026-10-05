@@ -8,7 +8,7 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "holidays", uniqueConstraints = @UniqueConstraint(
-        name = "uk_holiday_location_date", columnNames = {"location_type", "holiday_date"}))
+        name = "uk_holiday_client_location_date", columnNames = {"client_id", "location_type", "holiday_date"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,6 +19,10 @@ public class Holiday extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "client_id", foreignKey = @ForeignKey(name = "fk_holiday_client"))
+    private Client client;
 
     @Column(name = "holiday_name", nullable = false, length = 150)
     private String holidayName;

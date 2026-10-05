@@ -11,6 +11,10 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class CsxEmployeeCreateRequest {
+    @jakarta.validation.constraints.NotNull(message = "clientId is required")
+    @jakarta.validation.constraints.Positive(message = "clientId must be positive")
+    private Long clientId;
+
     @NotBlank(message = "firstName is required")
     @Size(max = 50, message = "firstName must not exceed 50 characters")
     private String firstName;

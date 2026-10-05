@@ -10,5 +10,6 @@ public interface CsxEmployeeService {
     CsxEmployeeResponse create(CsxEmployeeCreateRequest request);
     CsxEmployeeResponse update(Long id, CsxEmployeeUpdateRequest request);
     List<CsxEmployeeResponse> getAll();
+    List<CsxEmployeeResponse> getAll(Long clientId);
     CsxEmployeeResponse getById(Long id);
 }

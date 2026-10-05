@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 @Builder
 public class HolidayResponse {
     private Long id;
+    private Long clientId;
+    private String clientName;
     private String holidayName;
     private LocalDate holidayDate;
     private String locationType;

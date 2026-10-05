@@ -11,6 +11,18 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SowRepository extends JpaRepository<Sow, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select s from Sow s where upper(s.status.code) = 'DRAFT' and s.client.id = :clientId
+            and exists (select m.id from SowMilestone m where m.sow = s
+                and m.startDate <= :monthEnd and m.endDate >= :monthStart)
+            order by s.id
+            """)
+    List<Sow> findDraftForHolidayMonths(
+            @org.springframework.data.repository.query.Param("clientId") Long clientId,
+            @org.springframework.data.repository.query.Param("monthStart") java.time.LocalDate monthStart,
+            @org.springframework.data.repository.query.Param("monthEnd") java.time.LocalDate monthEnd);
+
     @EntityGraph(attributePaths = {"status", "deliveryOwnerEmployee", "technicalLeadEmployee"})
     @Query("""
             select s from Sow s
