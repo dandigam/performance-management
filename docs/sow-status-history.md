@@ -1,6 +1,6 @@
 # SOW status history
 
-Existing API URLs, request payloads, and response bodies are unchanged. A read-only history API is available as described below.
+Existing API URLs are unchanged. Status PATCH accepts a reason, and history responses include it.
 The current status and effective date remain in `sows`.
 
 Apply `database/migrations/2026-10-03-sow-status-history.sql` before deploying.
@@ -28,7 +28,7 @@ Normal application history rows have is_baseline=false. Main SOW records are not
 GET /api/v1/sows/{sowId}/status-history returns a JSON array, oldest first by changedAt then id.
 Uses the existing SOW authentication rules. No body or pagination parameters are required.
 Fields: id, sowId, previousStatus, status, statusEffectiveDate, changedAt, changedBy,
-changedByName, approvedAt, baseline. Actor names reflect current user details; missing users
+changedByName, approvedAt, baseline, reason. Actor names reflect current user details; missing users
 or unknown actors have a null name. Baseline effective dates may be null.
 Existing SOW without history: 200 with []. Missing or deleted SOW: 404; retained history
 for deleted SOWs is not exposed by this endpoint.
@@ -36,3 +36,26 @@ for deleted SOWs is not exposed by this endpoint.
 
 Correction workflow: WAITING_FOR_APPROVAL may return to DRAFT, then be edited and
 resubmitted to WAITING_FOR_APPROVAL. Both transitions are recorded; other transition rules remain unchanged.
+
+## Hold and cancellation reasons
+
+`PATCH /api/v1/sows/{sowId}/status` requires a nonblank `reason` when the target
+status is `ON_HOLD` or `CANCELLED`. It is optional for other transitions.
+
+```json
+{
+  "status": "ON_HOLD",
+  "statusEffectiveDate": "2026-10-08",
+  "reason": "Waiting for client approval."
+}
+```
+
+Missing/blank required reasons and reasons longer than 2000 characters return 400.
+Leading/trailing whitespace is removed, and optional blank reasons become null.
+The reason is saved on that status-history row in the same transaction as the
+status change. General SOW remarks and actualStartDate are not overwritten.
+The PATCH still returns the usual SOW response; read reasons through the status-history
+endpoint. Existing history, baselines, and initial creation records have null reasons.
+
+Apply `database/migrations/2026-10-08-sow-status-reason.sql` before deploying when
+Hibernate schema updates are disabled. No historical reasons are inferred or backfilled.

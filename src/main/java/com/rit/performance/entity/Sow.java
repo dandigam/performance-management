@@ -79,6 +79,9 @@ public class Sow extends BaseEntity {
     @Column(name = "start_date")
     private LocalDate startDate;
 
+    @Column(name = "actual_start_date")
+    private LocalDate actualStartDate;
+
     @Column(name = "end_date")
     private LocalDate endDate;
 

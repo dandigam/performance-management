@@ -23,4 +23,7 @@ public class SowStatusUpdateRequest {
 
     @NotNull(message = "statusEffectiveDate is required")
     private LocalDate statusEffectiveDate;
+
+    @Size(max = 2000, message = "reason must not exceed 2000 characters")
+    private String reason;
 }

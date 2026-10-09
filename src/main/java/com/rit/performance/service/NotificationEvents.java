@@ -8,6 +8,7 @@ public final class NotificationEvents {
     public record LeaveChanged(LeaveRequest request) {}
     public record TimesheetChanged(Timesheet timesheet) {}
     public record OnboardingChanged(EmployeeOnboarding onboarding) {}
+    public record BusinessEmailAlert(ApplicationEmail email) {}
     public record ReviewAlert(Employee recipient, Long reviewId, String eventType, String title,
                               String message, String occurrence) {}
 }

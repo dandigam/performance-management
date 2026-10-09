@@ -877,8 +877,10 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeBasicInfoResponse response = currentEmployeeResponse(employee, assignment);
         employeeAuditService.record(employeeId, "EMPLOYEE", "UPDATED",
                 oldSnapshot, response, request.getUpdatedBy());
-        events.publishEvent(emailFactory.employeeUpdated(employee));
-        events.publishEvent(emailFactory.employeeAdminNotification(employee, false));
+        ApplicationEmail employeeEmail = emailFactory.employeeUpdated(employee);
+        events.publishEvent(employeeEmail);
+        events.publishEvent(emailFactory.employeeAdminNotification(employee, false)
+                .withBellAlert(employeeEmail.bellAlert()));
         return response;
     }
 

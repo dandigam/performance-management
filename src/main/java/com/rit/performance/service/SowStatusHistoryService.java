@@ -18,12 +18,18 @@ public class SowStatusHistoryService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void record(Sow sow, String previousStatus) {
+        record(sow, previousStatus, null);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void record(Sow sow, String previousStatus, String reason) {
         String status = sow.getStatus().getCode();
         if (status.equalsIgnoreCase(previousStatus)) return;
         var history = new SowStatusHistory();
         history.setSowId(sow.getId());
         history.setPreviousStatus(previousStatus);
         history.setStatus(status);
+        history.setReason(reason);
         history.setStatusEffectiveDate(sow.getStatusEffectiveDate());
         history.setChangedAt(LocalDateTime.now());
         history.setChangedBy(auditorAware.getCurrentAuditor().orElse(null));

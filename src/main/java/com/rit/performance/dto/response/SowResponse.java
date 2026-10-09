@@ -45,6 +45,7 @@ public class SowResponse {
     private Long technicalLeadEmployeeId;
     private String technicalLeadEmployeeName;
     private LocalDate startDate;
+    private LocalDate actualStartDate;
     private LocalDate endDate;
     private String status;
     private LocalDate statusEffectiveDate;

@@ -38,7 +38,7 @@ public interface SowRepository extends JpaRepository<Sow, Long> {
     @Query("select s from Sow s where s.id = :id")
     Optional<Sow> findForStatusUpdate(@org.springframework.data.repository.query.Param("id") Long id);
 
-    @EntityGraph(attributePaths = {"businessUnit", "status", "deliveryOwnerEmployee", "technicalLeadEmployee"})
+    @EntityGraph(attributePaths = {"client", "businessUnit", "status", "deliveryOwnerEmployee", "technicalLeadEmployee"})
     @Query("select sow from Sow sow")
     Page<Sow> findSummaryPage(Pageable pageable);
 

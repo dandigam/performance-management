@@ -74,7 +74,8 @@ public class ApplicationEmailFactory {
         context.setVariable("actionUrl", url("/login"));
         return new ApplicationEmail(null, "Employee " + action + ": " + employeeName(employee),
                 htmlTemplateEngine.process("resource-operation", context), true,
-                NotificationRecipientResolver.GLOBAL_CATEGORY);
+                NotificationRecipientResolver.GLOBAL_CATEGORY)
+                .withBell("EMPLOYEE", "EMPLOYEE_" + action.toUpperCase(Locale.ROOT), "EMPLOYEE", employee.getId());
     }
 
     public ApplicationEmail employeeCreated(Employee employee, User user) {
@@ -84,7 +85,8 @@ public class ApplicationEmailFactory {
         context.setVariable("username", user.getUsername());
         context.setVariable("loginUrl", url("/login"));
         return new ApplicationEmail(employee.getEmail(), "Your RIT employee account has been created",
-                htmlTemplateEngine.process("employee-created", context), true);
+                htmlTemplateEngine.process("employee-created", context), true)
+                .withBell("EMPLOYEE", "EMPLOYEE_CREATED", "EMPLOYEE", employee.getId());
     }
 
     public ApplicationEmail employeeUpdated(Employee employee) {
@@ -93,7 +95,8 @@ public class ApplicationEmailFactory {
         context.setVariable("message", "Your employee profile has been updated. Please sign in to review your details.");
         context.setVariable("actionUrl", url("/login"));
         return new ApplicationEmail(employee.getEmail(), "Your RIT employee profile has been updated",
-                htmlTemplateEngine.process("manual-notification", context), true);
+                htmlTemplateEngine.process("manual-notification", context), true)
+                .withBell("EMPLOYEE", "EMPLOYEE_UPDATED", "EMPLOYEE", employee.getId());
     }
 
     public ApplicationEmail passwordReset(String recipient, String resetLink) {
@@ -249,7 +252,10 @@ public class ApplicationEmailFactory {
         context.setVariable("sowUrl", url("/sows/" + sow.getId()));
         return new ApplicationEmail(null, subject + ": " + sow.getSowName()
                 + " (" + sow.getId() + ")",
-                htmlTemplateEngine.process("sow-notification", context), true, "SOW");
+                htmlTemplateEngine.process("sow-notification", context), true, "SOW")
+                .withBell("SOW", "SOW_" + changeType.toUpperCase(Locale.ROOT).replace(' ', '_'), "SOW", sow.getId(),
+                        java.util.stream.Stream.of(sow.getDeliveryOwnerEmployee(), sow.getTechnicalLeadEmployee())
+                                .filter(Objects::nonNull).map(Employee::getId).distinct().toList(), true);
     }
 
     public List<ApplicationEmail> timesheetWorkflow(Timesheet timesheet, String action, String comments) {
@@ -309,7 +315,9 @@ public class ApplicationEmailFactory {
         };
         return resourceOperation(employee, "Resource assignment " + action,
                 employeeMessage, "The employee's milestone resource assignment was " + action + ".",
-                details, Objects.toString(assignment.getStatus(), ""), "/sows", "RESOURCE_ALLOCATION");
+                details, Objects.toString(assignment.getStatus(), ""), "/sows", "RESOURCE_ALLOCATION")
+                .stream().map(email -> email.withBell("RESOURCE_ALLOCATION", "ASSIGNMENT_CHANGED",
+                        "SOW", assignment.getMilestonePosition().getSow().getId())).toList();
     }
 
     public List<ApplicationEmail> timesheetSetup(TimesheetEmployeeProject setup, String action) {
@@ -321,7 +329,9 @@ public class ApplicationEmailFactory {
         return resourceOperation(setup.getEmployee(), "Timesheet setup " + action,
                 "Your timesheet setup was " + action + ".",
                 "The employee's timesheet setup was " + action + ".", details,
-                Objects.toString(setup.getStatus(), ""), "/timesheets", "TIMESHEET");
+                Objects.toString(setup.getStatus(), ""), "/timesheets", "TIMESHEET")
+                .stream().map(email -> email.withBell("TIMESHEET", "TIMESHEET_SETUP_CHANGED",
+                        "TIMESHEET_SETUP", setup.getId())).toList();
     }
 
     public List<ApplicationEmail> leavePolicy(EmployeeLeavePolicy assignment, String action) {
@@ -332,7 +342,9 @@ public class ApplicationEmailFactory {
         return resourceOperation(assignment.getEmployee(), "Leave setup " + action,
                 "Your leave setup was " + action + ".",
                 "The employee's leave setup was " + action + ".", details,
-                Objects.toString(assignment.getStatus(), ""), "/leave", "LEAVE");
+                Objects.toString(assignment.getStatus(), ""), "/leave", "LEAVE")
+                .stream().map(email -> email.withBell("LEAVE", "LEAVE_POLICY_CHANGED",
+                        "EMPLOYEE", assignment.getEmployee().getId())).toList();
     }
 
     public List<ApplicationEmail> leaveRequest(LeaveRequest request, String action, String comments) {
@@ -399,7 +411,8 @@ public class ApplicationEmailFactory {
         context.setVariable("status", invoice.getInvoiceStatus());
         context.setVariable("actionUrl", url("/sows"));
         return new ApplicationEmail(null, "Invoice " + action,
-                htmlTemplateEngine.process("invoice-notification", context), true, "INVOICE");
+                htmlTemplateEngine.process("invoice-notification", context), true, "INVOICE")
+                .withBell("INVOICE", "INVOICE_CHANGED", "SOW", invoice.getSow().getId());
     }
 
     public ApplicationEmail invoicePayment(SowInvoicePayment payment, String action) {
@@ -419,7 +432,8 @@ public class ApplicationEmailFactory {
         context.setVariable("status", Objects.toString(payment.getPaymentReference(), ""));
         context.setVariable("actionUrl", url("/sows"));
         return new ApplicationEmail(null, "Invoice payment " + action,
-                htmlTemplateEngine.process("invoice-notification", context), true, "INVOICE");
+                htmlTemplateEngine.process("invoice-notification", context), true, "INVOICE")
+                .withBell("INVOICE", "INVOICE_PAYMENT_CHANGED", "SOW", invoice.getSow().getId());
     }
 
     private Context context() {

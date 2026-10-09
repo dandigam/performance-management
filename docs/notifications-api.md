@@ -1,7 +1,8 @@
 # In-app notifications
 
-The bell inbox is independent of email delivery, email subscriptions and device-only
-preferences. Alerts are stored per login account in `user_notifications`. Nothing is
+The bell inbox is independent of email delivery and device-only preferences.
+New business-email alerts use linked primary/subscription recipients as described below.
+Alerts are stored per login account in `user_notifications`. Nothing is
 backfilled from existing emails or historical workflow records.
 
 All endpoints require a signed-in active user, even with the development authentication
@@ -16,7 +17,8 @@ own inbox. Onboarding-only accounts may access these endpoints too.
 | PATCH | `/api/v1/notifications/read-all` | `{"updatedCount":3}` |
 
 List parameters: `page=0`, `size=20` (1–100), `unreadOnly=false`, and optional
-`category` (`LEAVE`, `TIMESHEET`, `ONBOARDING`, `PERFORMANCE_REVIEW`). Ordering is
+`category` (`LEAVE`, `TIMESHEET`, `ONBOARDING`, `PERFORMANCE_REVIEW`, `SOW`,
+`EMPLOYEE`, `RESOURCE_ALLOCATION`, `INVOICE`, `GENERAL`). Ordering is
 `createdOn DESC, id DESC`. Page results include `content`, `totalElements`,
 `totalPages`, `number`, and `size`. Invalid pagination/category returns 400.
 PATCH requests require no body. Repeating read operations is safe and preserves
@@ -100,7 +102,40 @@ Apply [notification schema](../database/migrations/2026-10-04-user-notifications
 before deploying when Hibernate schema updates are disabled. Timestamps use UTC
 instants. The schema adds one table with recipient/list/unread/deduplication indexes.
 
-This release does not add reminders, overdue schedulers, onboarding approval,
-SOW/invoice/allocation/vendor alerts, preferences, deletion/retention jobs, SSE or
-WebSockets. Those are separate follow-up work. Frontend source is not present here;
-the bell UI must be connected in its source project.
+This release does not add automatic reminder/overdue schedulers, onboarding approval,
+vendor alerts, preferences, deletion/retention jobs, SSE or WebSockets. Frontend
+source is not present here; the bell UI must be connected in its source project.
+
+## Additional business-email alerts
+
+Employee creation/profile changes, SOW creation/general updates/status/signature
+changes, resource assignments, timesheet setup, leave policy setup, invoices and
+invoice payments now create bell alerts when their business email event is published.
+Explicitly queued MANUAL and REMINDER emails create one alert occurrence when queued.
+Existing leave workflow, timesheet workflow, onboarding and performance alerts keep
+their existing domain-event handling and recipients; they are not duplicated by the
+new email listener. Their email-copy subscribers are not automatically added to those
+existing workflow alerts.
+
+For the new alerts, primary email and active category/global CC/BCC subscriptions
+are matched to active FULL-portal accounts by username or linked employee email.
+External addresses without accounts and distribution-list members are not expanded.
+SOW events additionally include active FULL admins, the delivery owner and technical
+lead. The user who made the change is included when eligible under these same
+recipient rules (including an admin approving their own SOW change). Multiple recipient matches produce
+only one alert per account/occurrence; the employee and admin copies of one profile
+update share the same occurrence. Later updates create a new occurrence.
+
+Creation is synchronous in the business transaction, independent of SMTP settings,
+email failures and retries. Rollback removes the alerts too. Password resets, OTPs,
+password changes and invitation/setup-link emails have no bell metadata and are
+excluded. The listener never copies HTML email bodies, credentials, CC/BCC lists or
+action URLs into inbox messages. Titles use the email subject as plain text.
+
+New record references: `SOW` (SOW ID, also used for invoice/payment/assignment
+events), `EMPLOYEE` (employee ID), `TIMESHEET_SETUP` (setup ID), and `NOTIFICATION`
+(manual email ID). For NOTIFICATION, show the inbox message without navigating to
+the admin email-management endpoint. Other routes must retain destination permissions.
+Clicking an alert must call PATCH /notifications/{id}/read, refresh unread-count,
+and then navigate when appropriate. This reduces only that user's count; it does
+not delete the alert. No new schema is needed beyond the existing notifications table.

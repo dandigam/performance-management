@@ -33,6 +33,6 @@ public class SowStatusHistoryQueryService {
         }
         return rows.stream().map(r -> new SowStatusHistoryResponse(r.getId(), r.getSowId(),
                 r.getPreviousStatus(), r.getStatus(), r.getStatusEffectiveDate(), r.getChangedAt(),
-                r.getChangedBy(), names.get(r.getChangedBy()), r.getApprovedAt(), r.isBaseline())).toList();
+                r.getChangedBy(), names.get(r.getChangedBy()), r.getApprovedAt(), r.isBaseline(), r.getReason())).toList();
     }
 }

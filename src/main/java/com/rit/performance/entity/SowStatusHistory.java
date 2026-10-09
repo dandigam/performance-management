@@ -21,6 +21,8 @@ public class SowStatusHistory {
     private String previousStatus;
     @Column(nullable = false, length = 30, updatable = false)
     private String status;
+    @Column(length = 2000, updatable = false)
+    private String reason;
     @Column(name = "status_effective_date", updatable = false)
     private LocalDate statusEffectiveDate;
     @Column(name = "changed_at", nullable = false, updatable = false)

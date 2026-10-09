@@ -18,7 +18,8 @@ import java.util.Set;
 public class UserNotificationService {
     private final UserNotificationRepository notifications;
     private final UserRepository users;
-    private static final Set<String> CATEGORIES = Set.of("LEAVE", "TIMESHEET", "ONBOARDING", "PERFORMANCE_REVIEW");
+    private static final Set<String> CATEGORIES = Set.of("LEAVE", "TIMESHEET", "ONBOARDING", "PERFORMANCE_REVIEW",
+            "SOW", "EMPLOYEE", "RESOURCE_ALLOCATION", "INVOICE", "GENERAL");
 
     public Page<UserNotificationResponse> list(int page, int size, boolean unreadOnly, String category) {
         Long userId = currentUserId();

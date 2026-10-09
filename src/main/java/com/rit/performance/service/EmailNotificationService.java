@@ -20,6 +20,7 @@ import java.time.LocalDate;
 public class EmailNotificationService {
     private final EmailNotificationRepository repository;
     private final ApplicationEmailFactory emailFactory;
+    private final org.springframework.context.ApplicationEventPublisher events;
     public void queueOnboardingSubmitted(EmployeeOnboarding onboarding, boolean resubmission) {
         var email = emailFactory.onboardingSubmitted(onboarding, null, resubmission);
         // Empty primary recipient denotes a category-only notification.
@@ -94,7 +95,12 @@ public class EmailNotificationService {
                 .subject(email.subject()).body(email.body())
                 .employeeReviewId(request.getEmployeeReviewId())
                 .cycleId(request.getCycleId()).deduplicationKey("MANUAL:" + UUID.randomUUID()).build();
-        return toResponse(repository.save(notification));
+        EmailNotification saved = repository.save(notification);
+        if (saved.getEventType() == EmailEventType.MANUAL || saved.getEventType() == EmailEventType.REMINDER) {
+            events.publishEvent(new NotificationEvents.BusinessEmailAlert(
+                    email.withBell("GENERAL", saved.getEventType().name(), "NOTIFICATION", saved.getId())));
+        }
+        return toResponse(saved);
     }
 
     @Transactional(readOnly = true)

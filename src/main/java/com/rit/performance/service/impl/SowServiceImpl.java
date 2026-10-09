@@ -247,6 +247,8 @@ public class SowServiceImpl implements SowService {
                     + Objects.toString(poc.getLastName(), "").trim()).trim();
             content.add(SowSummaryResponse.builder()
                     .sowId(sow.getId()).sowName(sow.getSowName())
+                    .clientId(sow.getClient() == null ? null : sow.getClient().getId())
+                    .clientName(sow.getClient() == null ? null : sow.getClient().getClientName())
                     .businessUnitId(businessUnit == null ? null : businessUnit.getId())
                     .businessUnitName(businessUnit == null ? null : businessUnit.getName())
                     .pocEmployeeId(poc == null ? null : poc.getId()).pocEmployeeName(pocName)
@@ -255,6 +257,7 @@ public class SowServiceImpl implements SowService {
                     .technicalLeadEmployeeId(sow.getTechnicalLeadEmployee() == null ? null : sow.getTechnicalLeadEmployee().getId())
                     .technicalLeadEmployeeName(employeeName(sow.getTechnicalLeadEmployee()))
                     .startDate(sow.getStartDate()).endDate(sow.getEndDate())
+                    .actualStartDate(sow.getActualStartDate())
                     .status(sow.getStatus() == null ? null : sow.getStatus().getCode())
                     .totalPositionCount(positions.size()).openPositionCount(openCount).build());
         }
@@ -627,6 +630,12 @@ public class SowServiceImpl implements SowService {
         LookupValue newStatus = resolveSowStatus(request.getStatus());
         String currentCode = sow.getStatus().getCode().toUpperCase(Locale.ROOT);
         String newCode = newStatus.getCode().toUpperCase(Locale.ROOT);
+        String reason = request.getReason() == null ? null : request.getReason().strip();
+        if (reason != null && reason.isBlank()) reason = null;
+        if (Set.of("ON_HOLD", "CANCELLED").contains(newCode) && reason == null)
+            throw new InvalidOperationException("reason is required when status is " + newCode);
+        if (request.getReason() != null && request.getReason().length() > 2000)
+            throw new InvalidOperationException("reason must not exceed 2000 characters");
 
         if (!VALID_SOW_STATUS_TRANSITIONS
                 .getOrDefault(currentCode, Set.of()).contains(newCode)) {
@@ -640,8 +649,9 @@ public class SowServiceImpl implements SowService {
         }
         sow.setStatus(newStatus);
         sow.setStatusEffectiveDate(effectiveDate);
+        captureActualStartDate(sow);
         Sow saved = sowRepository.save(sow);
-        statusHistory.record(saved, currentCode);
+        statusHistory.record(saved, currentCode, reason);
         events.publishEvent(emailFactory.sowUpdated(saved, "status updated"));
         return toResponse(saved);
     }
@@ -789,6 +799,7 @@ public class SowServiceImpl implements SowService {
             sow.setStatus(resolvedStatus);
             sow.setStatusEffectiveDate(request.getStatusEffectiveDate() == null
                     ? LocalDate.now() : request.getStatusEffectiveDate());
+            captureActualStartDate(sow);
         }
         sow.setRemarks(normalizeDescription(request.getRemarks()));
         if (applyWorkflowFields) {
@@ -826,6 +837,14 @@ public class SowServiceImpl implements SowService {
         milestone.setAmount(request.getAmount());
         milestone.setStatus(normalizeMilestoneStatus(request.getStatus()));
         synchronizeMilestonePositions(milestone, request);
+    }
+
+    private void captureActualStartDate(Sow sow) {
+        if (sow.getActualStartDate() != null || !"ACTIVE".equalsIgnoreCase(sow.getStatus().getCode())) return;
+        LocalDate workStartDate = sow.getStatusEffectiveDate();
+        if (workStartDate == null || workStartDate.isAfter(LocalDate.now()))
+            throw new InvalidOperationException("Work start date is required and cannot be in the future");
+        sow.setActualStartDate(workStartDate);
     }
 
     private void synchronizeMilestonePositions(SowMilestone milestone, SowMilestoneRequest request) {

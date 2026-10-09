@@ -9,6 +9,8 @@ import java.time.LocalDate;
 public class SowSummaryResponse {
     Long sowId;
     String sowName;
+    Long clientId;
+    String clientName;
     Long businessUnitId;
     String businessUnitName;
     Long pocEmployeeId;
@@ -18,6 +20,7 @@ public class SowSummaryResponse {
     Long technicalLeadEmployeeId;
     String technicalLeadEmployeeName;
     LocalDate startDate;
+    LocalDate actualStartDate;
     LocalDate endDate;
     String status;
     int totalPositionCount;
