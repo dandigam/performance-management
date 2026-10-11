@@ -34,7 +34,7 @@ public class OnboardingRequestChangesService extends WorkflowEventSource {
         onboarding.setReviewedBy(reviewer);
         onboarding.setReviewedAt(java.time.Instant.now());
         onboarding.setStatus("CHANGES_REQUESTED");
-        onboarding.setUpdatedOn(java.time.LocalDateTime.now());
+        onboarding.setUpdatedOn(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
         onboardings.saveAndFlush(onboarding); // JPA increments @Version while holding the row lock.
         publishWorkflow(new NotificationEvents.OnboardingChanged(onboarding));
         var email = emails.onboardingChangesRequested(onboarding.getEmployee(), onboarding.getReviewComments());

@@ -30,6 +30,9 @@ import java.time.LocalDate;
 @RequestMapping("/api/v1/reports")
 @RequiredArgsConstructor
 public class ReportController {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
 
     private final EmployeeWorkforceReportService employeeWorkforceReportService;
     private final EmployeeReportQueryService employeeReportQueryService;
@@ -50,7 +53,7 @@ public class ReportController {
     @PostMapping("/sows/export")
     public ResponseEntity<StreamingResponseBody> exportSowReport(
             @Valid @RequestBody ReportExportRequest request) {
-        String filename = "sow-milestones-" + LocalDate.now() + ".xlsx";
+        String filename = "sow-milestones-" + LocalDate.now(businessClock) + ".xlsx";
         EmployeeReportExportData data = sowMilestoneReportService.exportData(request);
         StreamingResponseBody body = outputStream ->
                 employeeReportExcelService.write(data, "SOW and Milestones", outputStream);
@@ -76,7 +79,7 @@ public class ReportController {
     @PostMapping("/employees/export")
     public ResponseEntity<StreamingResponseBody> exportEmployeeReport(
             @Valid @RequestBody ReportExportRequest request) {
-        String filename = "employee-workforce-" + LocalDate.now() + ".xlsx";
+        String filename = "employee-workforce-" + LocalDate.now(businessClock) + ".xlsx";
         EmployeeReportExportData data = employeeReportQueryService.exportData(request);
         StreamingResponseBody body = outputStream -> employeeReportExcelService.write(data, outputStream);
         return ResponseEntity.ok()

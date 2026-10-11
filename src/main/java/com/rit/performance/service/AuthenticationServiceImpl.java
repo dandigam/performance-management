@@ -53,7 +53,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         if (passwordEncoder.upgradeEncoding(user.getPassword())) {
             user.setPassword(passwordEncoder.encode(request.getPwd()));
         }
-        user.setLastLoginAt(LocalDateTime.now());
+        user.setLastLoginAt(LocalDateTime.now(java.time.ZoneOffset.UTC));
         userRepository.save(user);
         RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issue(user);
         return new AuthenticationResult(toResponse(user), refreshToken.value());

@@ -90,7 +90,7 @@ public class LeaveApprovalService {
         history.setApprover(approver);
         history.setAction(action);
         history.setComments(comments);
-        history.setActionAt(LocalDateTime.now());
+        history.setActionAt(LocalDateTime.now(java.time.ZoneOffset.UTC));
         if (action == LeaveApprovalAction.REJECTED) request.setStatus(LeaveRequestStatus.REJECTED);
         else if (finalApproval) request.setStatus(LeaveRequestStatus.APPROVED);
         else request.setStatus(LeaveRequestStatus.LEVEL1_APPROVED);

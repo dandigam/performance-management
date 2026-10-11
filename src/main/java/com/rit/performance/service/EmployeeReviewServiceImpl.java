@@ -24,6 +24,9 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 public class EmployeeReviewServiceImpl extends WorkflowEventSource implements EmployeeReviewService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private final EmployeeReviewRepository reviewRepository;
     private final EmployeeReviewAssessmentRepository assessmentRepository;
     private final EmployeeReviewAnswerRepository answerRepository;
@@ -182,7 +185,7 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
                                     .dueDate(dueDate)
                                     .overdue(pending != null && java.util.Objects.equals(
                                             assessment.getId(), pending.getId())
-                                            && calculateOverdue(dueDate, assessment.getStatus(), LocalDate.now()))
+                                            && calculateOverdue(dueDate, assessment.getStatus(), LocalDate.now(businessClock)))
                                     .build();
                         })
                         .toList())
@@ -205,7 +208,7 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
                 .collect(Collectors.toMap(review -> review.getEmployee().getId(), Function.identity()));
 
         List<PerformanceCycleTimeline> timelines = timelineRepository.findByPerformanceCycleIdOrderByDisplayOrderAsc(cycleId);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(businessClock);
         List<EmployeeReviewAssessment> assessments = new ArrayList<>();
         for (Long employeeId : employeeIds) {
             EmployeeReview review = reviewsByEmployee.get(employeeId);
@@ -227,7 +230,7 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
         }
 
         String reason = request.getReason().trim();
-        LocalDateTime reopenedDate = LocalDateTime.now();
+        LocalDateTime reopenedDate = LocalDateTime.now(java.time.ZoneOffset.UTC);
         LocalDate newDueDate = today.plusDays(request.getDaysPerStage());
         assessments.forEach(assessment -> {
             EmployeeReview review = assessment.getEmployeeReview();
@@ -418,8 +421,8 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
     }
 
     private EmployeeAssignment legacyAssignment(EmployeeReview review) {
-        LocalDate reviewDate = review.getCreatedOn() == null ? LocalDate.now()
-                : review.getCreatedOn().toLocalDate();
+        LocalDate reviewDate = review.getCreatedOn() == null ? LocalDate.now(businessClock)
+                : review.getCreatedOn().atOffset(java.time.ZoneOffset.UTC).atZoneSameInstant(businessClock.getZone()).toLocalDate();
         return employeeAssignmentRepository.findEffectiveOnDate(review.getEmployee().getId(), reviewDate).stream()
                 .findFirst()
                 .orElseGet(() -> employeeAssignmentRepository
@@ -519,7 +522,7 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
                 .progressPercentage(employeeProgress).overallProgressPercentage(review.getProgressPercentage())
                 .originalDueDate(originalDueDate).dueDate(dueDate)
                 .overdue(calculateOverdue(dueDate,
-                        employeeAssessment == null ? null : employeeAssessment.getStatus(), LocalDate.now()))
+                        employeeAssessment == null ? null : employeeAssessment.getStatus(), LocalDate.now(businessClock)))
                 .extended(extended)
                 .extensionDaysPerStage(extended ? review.getExtensionDaysPerStage() : null)
                 .extensionReason(extended ? employeeAssessment.getReopenReason() : null)
@@ -575,7 +578,7 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
             if (selfAssessment) validateMandatoryQuestions(review, assessment);
             assessment.setStatus(EmployeeReviewStatus.SUBMITTED);
             assessment.setProgressPercentage(new BigDecimal("100.00"));
-            assessment.setSubmittedDate(LocalDateTime.now());
+            assessment.setSubmittedDate(LocalDateTime.now(java.time.ZoneOffset.UTC));
         } else {
             assessment.setStatus(EmployeeReviewStatus.IN_PROGRESS);
             assessment.setProgressPercentage(selfAssessment
@@ -626,7 +629,7 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
     }
 
     private void startAssessment(EmployeeReviewAssessment assessment) {
-        if (assessment.getStartedDate() == null) assessment.setStartedDate(LocalDateTime.now());
+        if (assessment.getStartedDate() == null) assessment.setStartedDate(LocalDateTime.now(java.time.ZoneOffset.UTC));
         if (assessment.getStatus() == EmployeeReviewStatus.NOT_STARTED) assessment.setStatus(EmployeeReviewStatus.IN_PROGRESS);
     }
 
@@ -641,7 +644,7 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
         List<PerformanceCycleTimeline> timelines = timelineRepository
                 .findByPerformanceCycleIdOrderByDisplayOrderAsc(review.getPerformanceCycle().getId());
         LocalDate dueDate = effectiveDueDate(assessment, timelines);
-        if (calculateOverdue(dueDate, assessment.getStatus(), LocalDate.now())) {
+        if (calculateOverdue(dueDate, assessment.getStatus(), LocalDate.now(businessClock))) {
             throw new InvalidOperationException("Assessment deadline has passed; an admin extension is required");
         }
     }
@@ -758,9 +761,9 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
     void applyStageExtension(EmployeeReview review, EmployeeReviewAssessment assessment) {
         Integer daysPerStage = review.getExtensionDaysPerStage();
         if (daysPerStage == null) return;
-        assessment.setDueDate(LocalDate.now().plusDays(daysPerStage));
+        assessment.setDueDate(LocalDate.now(businessClock).plusDays(daysPerStage));
         assessment.setReopenReason(review.getExtensionReason());
-        assessment.setReopenedDate(LocalDateTime.now());
+        assessment.setReopenedDate(LocalDateTime.now(java.time.ZoneOffset.UTC));
     }
 
     @Override

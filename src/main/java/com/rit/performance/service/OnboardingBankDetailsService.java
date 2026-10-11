@@ -52,7 +52,7 @@ public class OnboardingBankDetailsService {
         account.setRoutingNumberEncrypted(india ? null : request.bankCode().trim());
         banks.saveAndFlush(account);
         if ("INVITED".equals(onboarding.getStatus())) onboarding.setStatus("IN_PROGRESS");
-        onboarding.setUpdatedOn(java.time.LocalDateTime.now());
+        onboarding.setUpdatedOn(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
         onboardings.saveAndFlush(onboarding);
         return selfService.getMine();
     }

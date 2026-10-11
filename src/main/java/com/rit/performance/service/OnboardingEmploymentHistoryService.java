@@ -37,7 +37,7 @@ public class OnboardingEmploymentHistoryService {
                         .position(detail.position().trim()).location(detail.location().trim())
                         .fromDate(detail.fromDate()).endDate(detail.endDate()).build()).toList());
         if ("INVITED".equals(onboarding.getStatus())) onboarding.setStatus("IN_PROGRESS");
-        onboarding.setUpdatedOn(java.time.LocalDateTime.now());
+        onboarding.setUpdatedOn(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
         onboardings.saveAndFlush(onboarding);
         return selfService.getMine();
     }

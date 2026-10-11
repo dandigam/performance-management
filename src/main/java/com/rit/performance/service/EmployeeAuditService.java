@@ -45,7 +45,7 @@ public class EmployeeAuditService {
                 .oldValues(json(oldValues))
                 .newValues(json(newValues))
                 .changedBy(changedBy)
-                .changedOn(LocalDateTime.now())
+                .changedOn(LocalDateTime.now(java.time.ZoneOffset.UTC))
                 .build());
     }
 

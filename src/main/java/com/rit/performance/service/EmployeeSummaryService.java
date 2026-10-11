@@ -18,6 +18,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class EmployeeSummaryService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private final EmployeeRepository employeeRepository;
     private final EmployeeAssignmentRepository assignmentRepository;
     private final SowRepository sowRepository;
@@ -45,7 +48,7 @@ public class EmployeeSummaryService {
         }
         String pattern = search == null || search.isBlank() ? null : "%" + search.trim()
                 .toLowerCase(Locale.ROOT).replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(businessClock);
         var employees = employeeRepository.findSummaries(pattern, departmentId, sowId,
                 assignmentStatus, workMode, normalizedWorkLocation, status, today,
                 PageRequest.of(page, size, summarySort(sort)));

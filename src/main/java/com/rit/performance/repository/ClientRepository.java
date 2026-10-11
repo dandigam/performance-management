@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ClientRepository extends JpaRepository<Client, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("select c from Client c where c.id = :id")
+    Optional<Client> findForRateCardUpdate(Long id);
     boolean existsByClientNameIgnoreCase(String clientName);
     boolean existsByClientNameIgnoreCaseAndIdNot(String clientName, Long id);
 

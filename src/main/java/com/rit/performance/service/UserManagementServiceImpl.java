@@ -35,6 +35,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class UserManagementServiceImpl implements UserManagementService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private final UserRepository userRepository;
     private final EmployeeAssignmentRepository assignmentRepository;
     private final SowRepository sowRepository;
@@ -168,7 +171,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private void synchronizeEmployeeRole(User user, Long roleId) {
         if (user.getEmployee() == null) return;
         Long employeeId = user.getEmployee().getId();
-        LocalDate effectiveFrom = LocalDate.now();
+        LocalDate effectiveFrom = LocalDate.now(businessClock);
         EmployeeRole current = employeeRoleRepository
                 .findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDesc(employeeId)
                 .orElse(null);

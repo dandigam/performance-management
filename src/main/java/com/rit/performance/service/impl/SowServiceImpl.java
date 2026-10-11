@@ -45,6 +45,9 @@ import java.util.stream.Collectors;
 @Transactional
 @RequiredArgsConstructor
 public class SowServiceImpl implements SowService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private static final String SOW_STATUS_LOOKUP = "SOW_STATUS";
     private static final Map<String, Set<String>> VALID_SOW_STATUS_TRANSITIONS = Map.of(
             "DRAFT", Set.of("WAITING_FOR_APPROVAL"),
@@ -643,13 +646,16 @@ public class SowServiceImpl implements SowService {
                     "Invalid SOW status transition: " + currentCode + " -> " + newCode);
         }
 
-        LocalDate effectiveDate = request.getStatusEffectiveDate();
-        if (effectiveDate.isAfter(LocalDate.now())) {
-            throw new InvalidOperationException("statusEffectiveDate cannot be in the future");
-        }
+        // Status changes take effect today, independently of the browser's date.
+        LocalDate effectiveDate = LocalDate.now(businessClock);
+        if ("WAITING_FOR_APPROVAL".equals(newCode)) sow.setSubmittedDate(effectiveDate);
         sow.setStatus(newStatus);
         sow.setStatusEffectiveDate(effectiveDate);
-        captureActualStartDate(sow);
+        if ("ACTIVE".equals(newCode) && sow.getActualStartDate() == null) {
+            // The UI's date is the selected work start, which may be in the future.
+            sow.setActualStartDate(request.getStatusEffectiveDate() == null
+                    ? effectiveDate : request.getStatusEffectiveDate());
+        }
         Sow saved = sowRepository.save(sow);
         statusHistory.record(saved, currentCode, reason);
         events.publishEvent(emailFactory.sowUpdated(saved, "status updated"));
@@ -668,7 +674,7 @@ public class SowServiceImpl implements SowService {
             throw new InvalidOperationException(
                     "signedDate is required when signedStatus is SIGNED");
         }
-        if (request.getSignedDate() != null && request.getSignedDate().isAfter(LocalDate.now())) {
+        if (request.getSignedDate() != null && request.getSignedDate().isAfter(LocalDate.now(businessClock))) {
             throw new InvalidOperationException("signedDate cannot be in the future");
         }
 
@@ -778,7 +784,7 @@ public class SowServiceImpl implements SowService {
         sow.setBusinessUnit(lookupValueRepository.findById(request.getBusinessUnitId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Business unit not found: " + request.getBusinessUnitId())));
-        sow.setSubmittedDate(request.getSubmittedDate());
+        // Submission date is managed by the approval workflow.
         sow.setCsxProjectId(trimToNull(request.getCsxProjectId()));
         validateCsxEmployee(request.getProjectOwnerEmployeeId(), "Project owner");
         validateCsxEmployee(request.getCsxContactEmployeeId(), "CSX contact");
@@ -798,7 +804,11 @@ public class SowServiceImpl implements SowService {
             LookupValue resolvedStatus = resolveSowStatus(request.getStatus());
             sow.setStatus(resolvedStatus);
             sow.setStatusEffectiveDate(request.getStatusEffectiveDate() == null
-                    ? LocalDate.now() : request.getStatusEffectiveDate());
+                    ? LocalDate.now(businessClock) : request.getStatusEffectiveDate());
+            if ("WAITING_FOR_APPROVAL".equalsIgnoreCase(resolvedStatus.getCode())) {
+                sow.setSubmittedDate(LocalDate.now(businessClock));
+                sow.setStatusEffectiveDate(sow.getSubmittedDate());
+            }
             captureActualStartDate(sow);
         }
         sow.setRemarks(normalizeDescription(request.getRemarks()));
@@ -842,7 +852,7 @@ public class SowServiceImpl implements SowService {
     private void captureActualStartDate(Sow sow) {
         if (sow.getActualStartDate() != null || !"ACTIVE".equalsIgnoreCase(sow.getStatus().getCode())) return;
         LocalDate workStartDate = sow.getStatusEffectiveDate();
-        if (workStartDate == null || workStartDate.isAfter(LocalDate.now()))
+        if (workStartDate == null || workStartDate.isAfter(LocalDate.now(businessClock)))
             throw new InvalidOperationException("Work start date is required and cannot be in the future");
         sow.setActualStartDate(workStartDate);
     }
@@ -939,7 +949,7 @@ public class SowServiceImpl implements SowService {
             }
             position.setRateOverrideReason(reason);
             position.setRateUpdatedBy(request.getRateUpdatedBy());
-            position.setRateUpdatedDate(java.time.LocalDateTime.now());
+            position.setRateUpdatedDate(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
         } else {
             position.setRateOverrideReason(null);
             position.setRateUpdatedBy(null);

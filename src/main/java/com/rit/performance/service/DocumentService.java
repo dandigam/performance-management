@@ -42,7 +42,7 @@ public class DocumentService {
                 .fileUrl(trimToNull(request.getFileUrl()))
                 .module(trimToNull(request.getModule()))
                 .uploadedAt(request.getUploadedAt() == null
-                        ? LocalDateTime.now() : request.getUploadedAt())
+                        ? LocalDateTime.now(java.time.ZoneOffset.UTC) : request.getUploadedAt())
                 .build();
         return toResponse(repository.save(document));
     }
@@ -71,7 +71,7 @@ public class DocumentService {
                     .documentType(trimToNull(documentType))
                     .fileUrl(storedFile.toString())
                     .module(trimToNull(module))
-                    .uploadedAt(LocalDateTime.now())
+                    .uploadedAt(LocalDateTime.now(java.time.ZoneOffset.UTC))
                     .build();
             try {
                 return toResponse(repository.saveAndFlush(document));

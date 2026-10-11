@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 public class TimesheetClockConfig {
 
     @Bean
-    public Clock timesheetClock() {
-        return Clock.systemDefaultZone();
+    public Clock timesheetClock(@org.springframework.beans.factory.annotation.Value("${app.business.time-zone:America/New_York}") String zone) {
+        return Clock.system(java.time.ZoneId.of(zone));
     }
 }

@@ -31,7 +31,7 @@ public class SowStatusHistoryService {
         history.setStatus(status);
         history.setReason(reason);
         history.setStatusEffectiveDate(sow.getStatusEffectiveDate());
-        history.setChangedAt(LocalDateTime.now());
+        history.setChangedAt(LocalDateTime.now(java.time.ZoneOffset.UTC));
         history.setChangedBy(auditorAware.getCurrentAuditor().orElse(null));
         if ("APPROVED".equalsIgnoreCase(status)) history.setApprovedAt(history.getChangedAt());
         repository.save(history);

@@ -19,7 +19,7 @@ public class UserNotificationService {
     private final UserNotificationRepository notifications;
     private final UserRepository users;
     private static final Set<String> CATEGORIES = Set.of("LEAVE", "TIMESHEET", "ONBOARDING", "PERFORMANCE_REVIEW",
-            "SOW", "EMPLOYEE", "RESOURCE_ALLOCATION", "INVOICE", "GENERAL");
+            "SOW", "EMPLOYEE", "RESOURCE_ALLOCATION", "INVOICE", "GENERAL", "RATE_CARD");
 
     public Page<UserNotificationResponse> list(int page, int size, boolean unreadOnly, String category) {
         Long userId = currentUserId();

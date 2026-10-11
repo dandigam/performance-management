@@ -26,7 +26,7 @@ public class EmailNotificationDispatcher {
 
     @Scheduled(fixedDelayString = "${app.mail.dispatch-delay-ms:30000}")
     public void dispatch() {
-        repository.findReadyToSend(LocalDateTime.now(), maxRetries, PageRequest.of(0, 50))
+        repository.findReadyToSend(LocalDateTime.now(java.time.ZoneOffset.UTC), maxRetries, PageRequest.of(0, 50))
                 .forEach(this::send);
     }
 
@@ -51,7 +51,7 @@ public class EmailNotificationDispatcher {
             EmailBranding.setContent(message, content, isHtml(content));
             mailSender.send(message.getMimeMessage());
             notification.setStatus(EmailDeliveryStatus.SENT);
-            notification.setSentDate(LocalDateTime.now());
+            notification.setSentDate(LocalDateTime.now(java.time.ZoneOffset.UTC));
             notification.setErrorMessage(null);
             notification.setNextAttemptDate(null);
         } catch (Exception exception) {
@@ -63,7 +63,7 @@ public class EmailNotificationDispatcher {
                 notification.setNextAttemptDate(null);
             } else {
                 notification.setStatus(EmailDeliveryStatus.PENDING);
-                notification.setNextAttemptDate(LocalDateTime.now().plusMinutes((long) attempts * attempts));
+                notification.setNextAttemptDate(LocalDateTime.now(java.time.ZoneOffset.UTC).plusMinutes((long) attempts * attempts));
             }
         }
         repository.save(notification);

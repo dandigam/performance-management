@@ -124,7 +124,7 @@ public class FinalRatingServiceImpl extends WorkflowEventSource implements Final
         rating.setFinalRating(finalAssessment.getOverallRating());
         rating.setPublished(true);
         rating.setPublishedBy(publisher);
-        rating.setPublishedDate(LocalDateTime.now());
+        rating.setPublishedDate(LocalDateTime.now(java.time.ZoneOffset.UTC));
         rating = finalRatingRepository.save(rating);
         publishWorkflow(new NotificationEvents.ReviewAlert(rating.getEmployeeReview().getEmployee(),
                 rating.getEmployeeReview().getId(), "RESULT_PUBLISHED", "Review results published",

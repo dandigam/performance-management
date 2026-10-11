@@ -30,6 +30,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class EmployeeReportQueryService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
 
     private static final String REPORT_CODE = "EMPLOYEE_WORKFORCE";
     private static final List<ReportOption> ASSIGNMENT_OPTIONS = List.of(
@@ -59,7 +62,7 @@ public class EmployeeReportQueryService {
                 ? List.of(new ReportSortRequest("employeeName", "ASC")) : request.sort();
         validateFilters(filters);
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(businessClock);
         List<Employee> employees = employeeRepository.findAll(
                 specification(filters, today), buildSort(sorts));
         List<Map<String, Object>> content = rows(employees, selectedKeys, today);
@@ -82,7 +85,7 @@ public class EmployeeReportQueryService {
         validatePage(pageNumber, pageSize);
         validateFilters(filters);
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(businessClock);
         Specification<Employee> contentSpec = specification(filters, today);
         Sort sort = buildSort(sorts);
         var page = employeeRepository.findAll(contentSpec, PageRequest.of(pageNumber, pageSize, sort));

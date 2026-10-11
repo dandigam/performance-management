@@ -37,7 +37,7 @@ public class OnboardingEducationService {
                         .collegeUniversity(detail.institution().trim())
                         .passingYear(detail.passingYear()).percentage(detail.percentage()).build()).toList());
         if ("INVITED".equals(onboarding.getStatus())) onboarding.setStatus("IN_PROGRESS");
-        onboarding.setUpdatedOn(java.time.LocalDateTime.now());
+        onboarding.setUpdatedOn(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
         onboardings.saveAndFlush(onboarding);
         return selfService.getMine();
     }

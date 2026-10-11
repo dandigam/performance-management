@@ -13,6 +13,9 @@ import java.util.*;
 
 @Service @RequiredArgsConstructor @Transactional(readOnly = true)
 public class SowOwnerHistoryService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private final SowOwnerHistoryRepository history;
     private final SowRepository sows;
     private final AuditorAware<Long> auditor;
@@ -20,8 +23,8 @@ public class SowOwnerHistoryService {
     @Transactional(propagation = Propagation.MANDATORY)
     public void record(Sow sow, Employee previousDeliveryOwner, Employee previousTechnicalLead,
                        LocalDate effectiveDate, String reason) {
-        LocalDate date = effectiveDate == null ? LocalDate.now() : effectiveDate;
-        if (date.isAfter(LocalDate.now())) throw new InvalidOperationException("Owner effective date cannot be in the future");
+        LocalDate date = effectiveDate == null ? LocalDate.now(businessClock) : effectiveDate;
+        if (date.isAfter(LocalDate.now(businessClock))) throw new InvalidOperationException("Owner effective date cannot be in the future");
         if (reason != null && reason.length() > 2000) throw new InvalidOperationException("Owner change reason must not exceed 2000 characters");
         recordRole(sow.getId(), "DELIVERY_OWNER", previousDeliveryOwner, sow.getDeliveryOwnerEmployee(), date, reason);
         recordRole(sow.getId(), "TECHNICAL_LEAD", previousTechnicalLead, sow.getTechnicalLeadEmployee(), date, reason);
@@ -44,7 +47,7 @@ public class SowOwnerHistoryService {
         row.setPreviousEmployeeId(id(previous)); row.setPreviousEmployeeName(name(previous));
         row.setEmployeeId(id(current)); row.setEmployeeName(name(current));
         row.setEffectiveDate(date); row.setReason(reason == null || reason.isBlank() ? null : reason.trim());
-        row.setChangedAt(LocalDateTime.now()); row.setChangedBy(baseline ? null : auditor.getCurrentAuditor().orElse(null));
+        row.setChangedAt(LocalDateTime.now(java.time.ZoneOffset.UTC)); row.setChangedBy(baseline ? null : auditor.getCurrentAuditor().orElse(null));
         row.setBaseline(baseline);
         history.save(row);
     }

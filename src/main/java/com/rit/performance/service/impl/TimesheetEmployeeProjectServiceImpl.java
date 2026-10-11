@@ -37,6 +37,9 @@ import java.util.Set;
 @RequiredArgsConstructor
 @Transactional
 public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeeProjectService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private final TimesheetEmployeeProjectRepository repository;
     private final EmployeeRepository employeeRepository;
     private final SowRepository sowRepository;
@@ -308,7 +311,7 @@ public class TimesheetEmployeeProjectServiceImpl implements TimesheetEmployeePro
     }
 
     private TimesheetEmployeeProjectResponse response(TimesheetEmployeeProject assignment) {
-        LocalDate weekStart = LocalDate.now().with(
+        LocalDate weekStart = LocalDate.now(businessClock).with(
                 TemporalAdjusters.previousOrSame(DayOfWeek.SUNDAY));
         LocalDate weekEnd = weekStart.plusDays(6);
         String designationName = assignment.getSow() == null ? null : milestoneAssignmentRepository

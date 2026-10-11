@@ -61,7 +61,7 @@ public class TimesheetApprovalService {
             throw new InvalidOperationException("Approval is not available at the current timesheet stage");
         approval.setStatus(request.status());
         approval.setComments(request.comments());
-        approval.setActionAt(LocalDateTime.now(clock));
+        approval.setActionAt(LocalDateTime.now(clock.withZone(java.time.ZoneOffset.UTC)));
         sheet.setStatus(request.status() == TimesheetApprovalStatus.REJECTED ? TimesheetStatus.REJECTED
                 : primary ? TimesheetStatus.LEVEL1_APPROVED : TimesheetStatus.APPROVED);
         timesheets.saveAndFlush(sheet);

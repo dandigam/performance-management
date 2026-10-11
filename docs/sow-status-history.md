@@ -45,7 +45,6 @@ status is `ON_HOLD` or `CANCELLED`. It is optional for other transitions.
 ```json
 {
   "status": "ON_HOLD",
-  "statusEffectiveDate": "2026-10-08",
   "reason": "Waiting for client approval."
 }
 ```
@@ -59,3 +58,5 @@ endpoint. Existing history, baselines, and initial creation records have null re
 
 Apply `database/migrations/2026-10-08-sow-status-reason.sql` before deploying when
 Hibernate schema updates are disabled. No historical reasons are inferred or backfilled.
+
+The status PATCH assigns statusEffectiveDate from the backend business clock (America/New_York by default), ignoring the request date. Clients may omit it.

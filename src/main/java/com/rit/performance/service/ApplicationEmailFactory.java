@@ -226,16 +226,46 @@ public class ApplicationEmailFactory {
 
     private ApplicationEmail sowNotification(Sow sow, String changeType, String subject) {
         Context context = context();
-        context.setVariable("recipientName", "team");
+        context.setVariable("recipientName", "Team");
         boolean created = "created".equals(changeType);
         Long actor = created ? sow.getCreatedBy() : sow.getUpdatedBy();
         var timestamp = created ? sow.getCreatedOn() : sow.getUpdatedOn();
+        String statusCode = sow.getStatus() == null || sow.getStatus().getCode() == null
+                ? "" : sow.getStatus().getCode().toUpperCase(Locale.ROOT);
+        boolean statusUpdated = "status updated".equals(changeType);
+        boolean completed = statusUpdated && "COMPLETED".equals(statusCode);
+        if (statusUpdated) {
+            subject = switch (statusCode) {
+                case "ACTIVE" -> "SOW is now active";
+                case "APPROVED" -> "SOW approved";
+                case "CANCELLED" -> "SOW cancelled";
+                case "COMPLETED" -> "Congratulations, Team! SOW completed";
+                default -> subject;
+            };
+        }
         context.setVariable("subject", subject + ": " + sow.getSowName() + " (" + sow.getId() + ")");
         context.setVariable("heading", subject);
+        context.setVariable("completed", completed);
         String actorName = actorName(actor);
         String status = sow.getStatus() == null ? "Not available" : sow.getStatus().getName();
         String actionMessage = switch (changeType) {
-            case "status updated" -> "The status of " + sow.getSowName() + " was changed to " + status + " by " + actorName + ".";
+            case "created" -> "A new SOW, " + sow.getSowName() + ", has been created"
+                    + (sow.getClient() == null ? "" : " for " + sow.getClient().getClientName())
+                    + " by " + actorName + ". Please review the details below.";
+            case "status updated" -> switch (statusCode) {
+                case "ACTIVE" -> "The SOW, " + sow.getSowName() + ", is now active. "
+                        + "Please review the SOW details and coordinate the planned work with your team. "
+                        + "Status updated by " + actorName + ".";
+                case "APPROVED" -> "The SOW, " + sow.getSowName() + ", has been approved. "
+                        + "Please review the approved details and coordinate the next steps for activation. "
+                        + "Status updated by " + actorName + ".";
+                case "CANCELLED" -> "The SOW, " + sow.getSowName() + ", has been cancelled. "
+                        + "Please review the details and coordinate any outstanding work or commitments with the SOW owner. "
+                        + "Status updated by " + actorName + ".";
+                case "COMPLETED" -> "The SOW, " + sow.getSowName() + ", has been completed. "
+                        + "Status updated by " + actorName + ".";
+                default -> "The status of " + sow.getSowName() + " was changed to " + status + " by " + actorName + ".";
+            };
             case "signature updated" -> "The signature for " + sow.getSowName() + " was updated by " + actorName + ".";
             default -> sow.getSowName() + " was " + changeType + " by " + actorName + ".";
         };
@@ -434,6 +464,24 @@ public class ApplicationEmailFactory {
         return new ApplicationEmail(null, "Invoice payment " + action,
                 htmlTemplateEngine.process("invoice-notification", context), true, "INVOICE")
                 .withBell("INVOICE", "INVOICE_PAYMENT_CHANGED", "SOW", invoice.getSow().getId());
+    }
+
+    public ApplicationEmail rateCardNotification(com.rit.performance.dto.RateCardResponse card,
+            com.rit.performance.dto.RateCardResponse previous, String action, String recipients, String actor) {
+        String heading = "Rate card " + action.toLowerCase(Locale.ROOT).replace('_', ' ');
+        String subject = heading + ": " + card.getPositionTitleName() + " (#" + card.getId() + ")";
+        Context context = context();
+        context.setVariable("subject", subject);
+        context.setVariable("heading", heading);
+        context.setVariable("action", "NEW_RATE".equals(action) ? "created with a new rate"
+                : action.toLowerCase(Locale.ROOT).replace('_', ' '));
+        context.setVariable("retired", "RETIRED".equals(action));
+        context.setVariable("card", card);
+        context.setVariable("previous", previous);
+        context.setVariable("actor", actor);
+        return new ApplicationEmail(recipients, subject,
+                htmlTemplateEngine.process("rate-card-notification", context), true, "RATE_CARD")
+                .withBell("RATE_CARD", "RATE_CARD_" + action, "RATE_CARD", card.getId(), List.of(), true);
     }
 
     private Context context() {

@@ -50,6 +50,9 @@ import java.time.LocalDate;
 @Service
 @RequiredArgsConstructor
 public class EmployeeServiceImpl implements EmployeeService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private static final String DEFAULT_ROLE = "EMPLOYEE";
     private static final String SYSTEM_ROLE_LOOKUP = "SYSTEM_ROLE";
     private static final String WORK_MODE_LOOKUP = "WORK_MODE";
@@ -150,7 +153,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         synchronizeDocuments(employee, request.getDocumentList());
         EmployeeAssignment assignment = createInitialAssignment(employee.getId(), request);
         LookupValue role = requestedEmployeeRole(request.getRoleId());
-        createEmployeeRole(employee, role, LocalDate.now(), request.getCreatedBy());
+        createEmployeeRole(employee, role, LocalDate.now(businessClock), request.getCreatedBy());
         User user = new User();
         user.setUsername(email);
         user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
@@ -278,7 +281,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         assignment.setManagerId(managerId);
         assignment.setSowId(sowId);
 
-        assignment.setEffectiveFrom(effectiveFrom == null ? LocalDate.now() : effectiveFrom);
+        assignment.setEffectiveFrom(effectiveFrom == null ? LocalDate.now(businessClock) : effectiveFrom);
         assignment.setEffectiveTo(nested.getAssignmentEndDate());
         validateAssignmentDates(assignment.getEffectiveFrom(), assignment.getEffectiveTo());
 
@@ -945,7 +948,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeRole mapping = new EmployeeRole();
         mapping.setEmployeeId(employee.getId());
         mapping.setRoleId(role.getId());
-        mapping.setEffectiveFrom(effectiveFrom == null ? LocalDate.now() : effectiveFrom);
+        mapping.setEffectiveFrom(effectiveFrom == null ? LocalDate.now(businessClock) : effectiveFrom);
         mapping.setIsCurrent(true);
         mapping.setCreatedBy(actorId);
         mapping.setUpdatedBy(actorId);
@@ -959,7 +962,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (!request.isRoleIdPresent()) {
             if (current != null) return requireLookup(current.getRoleId(), SYSTEM_ROLE_LOOKUP);
             LookupValue defaultRole = employeeRoleLookup();
-            createEmployeeRole(employee, defaultRole, LocalDate.now(), request.getUpdatedBy());
+            createEmployeeRole(employee, defaultRole, LocalDate.now(businessClock), request.getUpdatedBy());
             return defaultRole;
         }
         if (request.getRoleId() == null)
@@ -970,7 +973,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         LocalDate effectiveFrom = request.getProjectAssignment() != null
                 && request.getProjectAssignment().getEffectiveFrom() != null
                 ? request.getProjectAssignment().getEffectiveFrom()
-                : LocalDate.now();
+                : LocalDate.now(businessClock);
         if (current != null) {
             validateEffectiveDate(effectiveFrom, current.getEffectiveFrom(), "role");
             current.setEffectiveTo(effectiveFrom);
@@ -1071,7 +1074,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         LocalDate effectiveFrom = nested.getEffectiveFrom() != null
                 ? nested.getEffectiveFrom()
-                : LocalDate.now();
+                : LocalDate.now(businessClock);
         validateAssignmentDates(effectiveFrom, assignmentEndDate);
         if (reactivating) {
             current.setLeadId(leadId);
@@ -1216,7 +1219,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeBasicInfoResponse response = toResponse(
                 employee, assignment, role, employees, lookupValues, sows, null,
                 assignments, milestones);
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(businessClock);
         response.setCurrentProjects(currentProjects(
                 assignments.stream()
                         .filter(item -> item.getEffectiveFrom() != null

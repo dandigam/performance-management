@@ -12,7 +12,7 @@ class OnboardingSubmissionEmailTest {
         var repository = mock(EmailNotificationRepository.class);
         var factory = new ApplicationEmailFactory(org.mockito.Mockito.mock(com.rit.performance.repository.UserRepository.class));
         ReflectionTestUtils.setField(factory, "frontendUrl", "https://example.test");
-        var service = new EmailNotificationService(repository, factory);
+        var service = new EmailNotificationService(repository, factory, mock(org.springframework.context.ApplicationEventPublisher.class));
         var employee = new Employee(); employee.setFirstName("Employee <test>"); employee.setRitId("RIT10");
         var onboarding = new EmployeeOnboarding(); onboarding.setId(10L); onboarding.setEmployee(employee);
         onboarding.setVersion(5); onboarding.setSubmittedAt(java.time.Instant.parse("2026-09-29T12:00:00Z"));

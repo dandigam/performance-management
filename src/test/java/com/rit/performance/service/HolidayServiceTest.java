@@ -11,7 +11,7 @@ import static org.mockito.Mockito.*;
 
 class HolidayServiceTest {
     private final HolidayRepository repository = mock(HolidayRepository.class);
-    private final HolidayService service = new HolidayService(repository);
+    private final HolidayService service = new HolidayService(repository, mock(HolidayMilestoneHoursService.class), mock(com.rit.performance.repository.ClientRepository.class));
 
     @Test void permanentlyDeletesActiveAndPreviouslyDisabledHolidays() {
         for (boolean active : new boolean[]{true, false}) {

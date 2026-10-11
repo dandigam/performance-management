@@ -127,7 +127,7 @@ public class TimesheetEntryService {
                     .approvalLevel(2).approverEmployee(setup.getLevel2Approver())
                     .status(TimesheetApprovalStatus.PENDING).build());
             sheet.setStatus(TimesheetStatus.SUBMITTED);
-            sheet.setSubmittedAt(LocalDateTime.now(clock));
+            sheet.setSubmittedAt(LocalDateTime.now(clock.withZone(java.time.ZoneOffset.UTC)));
         }
         timesheets.saveAndFlush(sheet);
         if (request.status() == TimesheetStatus.SUBMITTED) {

@@ -116,7 +116,7 @@ public class MyLeaveService {
         request.setLevel1Approver(assignment.getLevel1Approver());
         request.setLevel2Approver(assignment.getLevel2Approver());
         request.setStatus(LeaveRequestStatus.SUBMITTED);
-        request.setSubmittedAt(LocalDateTime.now());
+        request.setSubmittedAt(LocalDateTime.now(java.time.ZoneOffset.UTC));
         LeaveRequest saved = requests.saveAndFlush(request);
         publish(saved, "submitted", null);
         return response(saved);

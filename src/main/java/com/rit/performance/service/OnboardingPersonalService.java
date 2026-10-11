@@ -37,7 +37,7 @@ public class OnboardingPersonalService {
         employees.saveAndFlush(employee);
         if ("INVITED".equals(onboarding.getStatus())) onboarding.setStatus("IN_PROGRESS");
         // A section update must advance the onboarding version even after the first save.
-        onboarding.setUpdatedOn(java.time.LocalDateTime.now());
+        onboarding.setUpdatedOn(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
         onboardings.saveAndFlush(onboarding);
         return selfService.getMine();
     }

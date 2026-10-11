@@ -52,6 +52,9 @@ import java.util.stream.Collectors;
 @Transactional
 @RequiredArgsConstructor
 public class SowInvoiceServiceImpl implements SowInvoiceService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private static final Set<String> INVOICE_STATUSES = Set.of(
             "EXPECTED", "DRAFT", "RAISED", "SUBMITTED", "CANCELLED", "REJECTED");
     private static final Set<String> PAYMENT_STATUSES = Set.of(
@@ -217,7 +220,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
         invoice.setInvoiceStatus(invoiceStatus);
         LocalDate submittedDate = request.getSubmittedDate();
         if (submittedDate == null && "SUBMITTED".equals(invoiceStatus)) {
-            submittedDate = LocalDate.now();
+            submittedDate = LocalDate.now(businessClock);
         }
         invoice.setSubmittedDate(submittedDate);
         invoice.setNotes(trimToNull(request.getNotes()));
@@ -438,7 +441,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                 .reason(reason)
                 .previousStatus(previousStatus)
                 .changedBy(changedBy)
-                .changedOn(LocalDateTime.now())
+                .changedOn(LocalDateTime.now(java.time.ZoneOffset.UTC))
                 .build());
     }
 
@@ -455,7 +458,7 @@ public class SowInvoiceServiceImpl implements SowInvoiceService {
                 .notes(payment.getNotes())
                 .action(action)
                 .changedBy(changedBy)
-                .changedOn(LocalDateTime.now())
+                .changedOn(LocalDateTime.now(java.time.ZoneOffset.UTC))
                 .build());
     }
 

@@ -19,7 +19,10 @@ Content-Type: application/json
 ```
 
 When the SOW becomes ACTIVE and actualStartDate is unset, the server records the
-selected statusEffectiveDate as actualStartDate. The date cannot be in the future.
+UI-supplied statusEffectiveDate as actualStartDate, including future dates. If omitted,
+it defaults to the current backend business date. The SOW becomes ACTIVE immediately.
+The stored statusEffectiveDate and status-history effective date remain today's backend
+business date; the selected work date is returned separately as actualStartDate.
 It is not required to match the planned period: actual work can start early or late.
 Creating a SOW directly as ACTIVE also records its effective date (today if omitted).
 Existing status transition validation, audit history and notifications still apply.

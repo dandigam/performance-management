@@ -43,7 +43,7 @@ public interface TimesheetRepository extends JpaRepository<Timesheet, Long> {
             INSERT INTO timesheets (employee_id, timesheet_employee_project_id, week_start_date, week_end_date,
                 regular_hours, holiday_hours, leave_hours, total_hours, status, created_at, updated_at)
             SELECT DISTINCT :employeeId, p.id, :weekStart, :weekEnd,
-                0, 0, 0, 0, 'DRAFT', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                0, 0, 0, 0, 'DRAFT', UTC_TIMESTAMP(), UTC_TIMESTAMP()
             FROM timesheet_employee_projects p
             JOIN timesheet_employee_project_day d ON d.timesheet_employee_project_id = p.id
             WHERE p.employee_id = :employeeId AND d.active = true

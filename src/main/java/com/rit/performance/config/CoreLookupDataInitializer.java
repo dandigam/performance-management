@@ -34,6 +34,12 @@ public class CoreLookupDataInitializer implements ApplicationRunner {
                     "Global admin copies of business notifications", 2);
         }
 
+        if (lookupValueRepository.findByLookupTypeIdAndCodeIgnoreCase(
+                notificationCategory.getId(), "RATE_CARD").isEmpty()) {
+            ensureValue(notificationCategory, "RATE_CARD", "Rate Cards",
+                    "Rate-card creation, rate changes and retirement notifications", 20);
+        }
+
         LookupType workMode = ensureType(
                 "WORK_MODE", "Work Mode", "Employee work mode options");
         ensureValue(workMode, "OFFSHORE", "Offshore", "Employee works offshore", 1);

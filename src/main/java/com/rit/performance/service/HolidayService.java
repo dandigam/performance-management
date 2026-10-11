@@ -19,6 +19,9 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class HolidayService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private final HolidayRepository repository;
     private final HolidayMilestoneHoursService milestoneHours;
     private final com.rit.performance.repository.ClientRepository clients;
@@ -78,7 +81,7 @@ public class HolidayService {
     @Transactional(readOnly = true)
     public List<HolidayResponse> getAll(Long clientId, Integer year, String locationType, Boolean active) {
         if (clientId != null) findClient(clientId);
-        int selectedYear = year == null ? LocalDate.now().getYear() : year;
+        int selectedYear = year == null ? LocalDate.now(businessClock).getYear() : year;
         LocalDate start = LocalDate.of(selectedYear, 1, 1);
         LocalDate end = LocalDate.of(selectedYear, 12, 31);
         String location = locationType == null || locationType.isBlank() ? null : normalizeLocation(locationType);

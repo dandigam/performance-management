@@ -24,6 +24,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class AiChatServiceImpl implements AiChatService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
 
     private final RestClient restClient;
     private final String apiKey;
@@ -127,7 +130,7 @@ public class AiChatServiceImpl implements AiChatService {
 
                 Review progress:
                 %s
-                """.formatted(LocalDate.now(), employeeSummary(), vendorSummary(), sowSummary(),
+                """.formatted(LocalDate.now(businessClock), employeeSummary(), vendorSummary(), sowSummary(),
                 reviewSummary());
     }
 

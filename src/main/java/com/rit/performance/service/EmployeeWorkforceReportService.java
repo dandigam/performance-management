@@ -31,6 +31,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class EmployeeWorkforceReportService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
 
     private final EmployeeRepository employeeRepository;
     private final EmployeeAssignmentRepository assignmentRepository;
@@ -58,7 +61,7 @@ public class EmployeeWorkforceReportService {
         workLocation = normalizeLookupFilter(workLocation, "WORK_LOCATION", "workLocation");
         status = normalizeLookupFilter(status, "EMPLOYEE_STATUS", "status");
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(businessClock);
         String searchPattern = searchPattern(search);
         var employees = employeeRepository.findWorkforceReport(
                 searchPattern, departmentId, designationId, employmentType, workMode,

@@ -48,7 +48,7 @@ public class OnboardingSelfService extends WorkflowEventSource {
         boolean resubmission = "CHANGES_REQUESTED".equals(onboarding.getStatus());
         onboarding.setStatus("SUBMITTED");
         onboarding.setSubmittedAt(java.time.Instant.now());
-        onboarding.setUpdatedOn(java.time.LocalDateTime.now());
+        onboarding.setUpdatedOn(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
         onboardings.saveAndFlush(onboarding);
         publishWorkflow(new NotificationEvents.OnboardingChanged(onboarding));
         notifications.queueOnboardingSubmitted(onboarding, resubmission);

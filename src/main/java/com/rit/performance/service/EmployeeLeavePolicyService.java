@@ -17,6 +17,9 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class EmployeeLeavePolicyService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private static final LocalDate LAST_MYSQL_DATE = LocalDate.of(9999, 12, 31);
 
     private final EmployeeLeavePolicyRepository assignments;
@@ -70,7 +73,7 @@ public class EmployeeLeavePolicyService {
 
     public EmployeeLeavePolicyResponse getCurrent(Long employeeId) {
         findEmployee(employeeId);
-        return assignments.findCurrent(employeeId, LeavePolicyStatus.ACTIVE, LocalDate.now()).stream()
+        return assignments.findCurrent(employeeId, LeavePolicyStatus.ACTIVE, LocalDate.now(businessClock)).stream()
                 .findFirst().map(this::response)
                 .orElseThrow(() -> new ResourceNotFoundException("No current active leave policy assignment for employee: " + employeeId));
     }

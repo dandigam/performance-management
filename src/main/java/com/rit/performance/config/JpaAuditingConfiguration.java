@@ -12,8 +12,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.Optional;
 
 @Configuration
-@EnableJpaAuditing(auditorAwareRef = "auditorAware")
+@EnableJpaAuditing(auditorAwareRef = "auditorAware", dateTimeProviderRef = "utcAuditTime")
 public class JpaAuditingConfiguration {
+
+    @Bean
+    org.springframework.data.auditing.DateTimeProvider utcAuditTime(java.time.Clock clock) {
+        return () -> Optional.of(java.time.LocalDateTime.now(clock.withZone(java.time.ZoneOffset.UTC)));
+    }
 
     @Bean
     AuditorAware<Long> auditorAware() {
