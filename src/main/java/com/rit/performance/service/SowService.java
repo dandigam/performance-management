@@ -50,6 +50,8 @@ public interface SowService {
             Long sowId, Long milestoneId, SowMilestonePositionRequest request);
 
     void deletePosition(Long sowId, Long milestoneId, Long positionId);
+    SowMilestonePositionResponse updatePosition(
+            Long sowId, Long milestoneId, Long positionId, SowMilestonePositionRequest request);
 
     SowAssignmentResponse unassignFromSow(
             Long sowId, Long assignmentId, SowAssignmentUnassignRequest request);

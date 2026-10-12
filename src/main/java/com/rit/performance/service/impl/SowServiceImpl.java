@@ -129,6 +129,11 @@ public class SowServiceImpl implements SowService {
         milestone.setStartDate(request.getStartDate());
         milestone.setEndDate(request.getEndDate());
         milestone.setInvoiceDate(request.getInvoiceDate());
+        if (request.getPositions() != null) {
+            synchronizeMilestonePositions(milestone, SowMilestoneRequest.builder()
+                    .positions(request.getPositions()).build());
+            resourceRequirementService.onPositionCreatedOrUpdated(sowId);
+        }
         BigDecimal amount = request.getInvoiceAmount();
         if (amount == null) {
             amount = BigDecimal.ZERO;
@@ -407,6 +412,7 @@ public class SowServiceImpl implements SowService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Milestone " + milestoneId + " not found for SOW " + sowId));
         RateCard rateCard = resolveRateCard(request.getRateCardId());
+        validatePositionRateCard(rateCard, request.getStartDate(), request.getEndDate());
         LookupValue designation = resolvePlannedDesignation(
                 request.getPositionId(), rateCard);
         LookupValue skill = resolvePlannedSkill(request.getSkillId(), rateCard);
@@ -429,6 +435,7 @@ public class SowServiceImpl implements SowService {
                 .amount(request.getAmount())
                 .build();
         applyPositionRate(milestonePosition, rateCard, request);
+        applyPositionAmount(milestonePosition, request, true);
         milestone.getPositions().add(milestonePosition);
         milestone.setAmount(milestone.getPositions().stream()
                 .map(SowMilestonePosition::getAmount)
@@ -461,6 +468,27 @@ public class SowServiceImpl implements SowService {
                 .amount(milestonePosition.getAmount())
                 .assignments(List.of())
                 .build();
+    }
+
+    @Override
+    public com.rit.performance.dto.response.SowMilestonePositionResponse updatePosition(
+            Long sowId, Long milestoneId, Long positionId,
+            com.rit.performance.dto.request.SowMilestonePositionRequest request) {
+        SowMilestone milestone = milestoneRepository.findByIdAndSow_Id(milestoneId, sowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone not found for SOW: " + milestoneId));
+        SowMilestonePosition position = milestone.getPositions().stream()
+                .filter(candidate -> Objects.equals(candidate.getId(), positionId)).findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Position not found for milestone: " + positionId));
+        if (request.getMilestonePositionId() != null && !Objects.equals(request.getMilestonePositionId(), positionId)) {
+            throw new InvalidOperationException("milestonePositionId must match the position ID in the URL");
+        }
+        applyPositionFields(position, request);
+        milestone.setAmount(milestone.getPositions().stream().map(SowMilestonePosition::getAmount)
+                .filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add));
+        milestoneRepository.saveAndFlush(milestone);
+        resourceRequirementService.onPositionCreatedOrUpdated(sowId);
+        return SowMapper.toMilestoneResponse(milestone).getPositions().stream()
+                .filter(candidate -> Objects.equals(candidate.getMilestonePositionId(), positionId)).findFirst().orElseThrow();
     }
 
     @Override
@@ -876,9 +904,6 @@ public class SowServiceImpl implements SowService {
                             + positionRequest.getMilestonePositionId()
                             + " does not belong to milestone " + milestone.getId());
                 }
-            } else if (index < existing.size() && !retained.contains(existing.get(index))) {
-                // Backward-compatible fallback for clients that have not started sending IDs yet.
-                milestonePosition = existing.get(index);
             } else {
                 milestonePosition = new SowMilestonePosition();
                 newPosition = true;
@@ -887,32 +912,8 @@ public class SowServiceImpl implements SowService {
                 throw new InvalidOperationException("Duplicate milestonePositionId in request: "
                         + positionRequest.getMilestonePositionId());
             }
-            RateCard rateCard = resolveRateCard(positionRequest.getRateCardId());
-            LookupValue designation = resolvePlannedDesignation(
-                    positionRequest.getPositionId(), rateCard);
-            LookupValue skill = resolvePlannedSkill(positionRequest.getSkillId(), rateCard);
-            LookupValue seniority = resolveSeniority(positionRequest.getSeniorityId());
-            String positionName = resolvePositionName(
-                    positionRequest.getPositionName(), designation);
-            validateDateRange(positionRequest.getStartDate(), positionRequest.getEndDate(),
-                    "Milestone position");
-            milestonePosition.setPosition(designation);
-            milestonePosition.setSkill(skill);
-            milestonePosition.setRateCard(rateCard);
-            applyPositionRate(milestonePosition, rateCard, positionRequest);
-            milestonePosition.setPositionName(positionName);
-            milestonePosition.setSeniority(seniority);
-            milestonePosition.setPositionType(normalizePositionType(
-                    positionRequest.getPositionType()));
-            milestonePosition.setLocationType(normalizeLocationType(
-                    positionRequest.getLocationType()));
-            milestonePosition.setStartDate(positionRequest.getStartDate());
-            milestonePosition.setEndDate(positionRequest.getEndDate());
-            milestonePosition.setHours(trimToNull(positionRequest.getHours()));
-            milestonePosition.setAmount(positionRequest.getAmount());
+            applyPositionFields(milestonePosition, positionRequest);
             if (newPosition) {
-                // Attach only after mandatory fields are populated. Repository lookups above can
-                // trigger an automatic flush of managed entities.
                 milestone.addPosition(milestonePosition);
             }
         }
@@ -925,6 +926,69 @@ public class SowServiceImpl implements SowService {
                         "Position can't be removed. Unassign the resource first.");
             }
             milestone.getPositions().remove(position);
+        }
+    }
+
+    private void applyPositionFields(SowMilestonePosition milestonePosition,
+            com.rit.performance.dto.request.SowMilestonePositionRequest positionRequest) {
+        Long savedCardId = milestonePosition.getRateCard() == null
+                ? null : milestonePosition.getRateCard().getId();
+        boolean preservePricing = milestonePosition.getId() != null
+                && (positionRequest.getRateCardId() == null
+                    || Objects.equals(savedCardId, positionRequest.getRateCardId()))
+                && (positionRequest.getHourlyRate() == null
+                    || (milestonePosition.getHourlyRate() != null
+                        && positionRequest.getHourlyRate().compareTo(milestonePosition.getHourlyRate()) == 0));
+        RateCard rateCard = preservePricing ? milestonePosition.getRateCard()
+                : resolveRateCard(positionRequest.getRateCardId() == null
+                        ? savedCardId : positionRequest.getRateCardId());
+        boolean datesChanged = !Objects.equals(milestonePosition.getStartDate(), positionRequest.getStartDate())
+                || !Objects.equals(milestonePosition.getEndDate(), positionRequest.getEndDate());
+        if (!preservePricing) {
+            validatePositionRateCard(rateCard, positionRequest.getStartDate(), positionRequest.getEndDate());
+        } else if (datesChanged) {
+            validatePositionRateDates(rateCard, positionRequest.getStartDate(), positionRequest.getEndDate());
+        }
+        LookupValue designation = resolvePlannedDesignation(
+                positionRequest.getPositionId(), preservePricing ? null : rateCard);
+        LookupValue skill = preservePricing && positionRequest.getSkillId() == null
+                ? milestonePosition.getSkill()
+                : resolvePlannedSkill(positionRequest.getSkillId(), preservePricing ? null : rateCard);
+        LookupValue seniority = resolveSeniority(positionRequest.getSeniorityId());
+        String positionName = resolvePositionName(
+                positionRequest.getPositionName(), designation);
+        validateDateRange(positionRequest.getStartDate(), positionRequest.getEndDate(),
+                "Milestone position");
+        milestonePosition.setPosition(designation);
+        milestonePosition.setSkill(skill);
+        milestonePosition.setRateCard(rateCard);
+        if (!preservePricing) applyPositionRate(milestonePosition, rateCard, positionRequest);
+        applyPositionAmount(milestonePosition, positionRequest, !preservePricing);
+        milestonePosition.setPositionName(positionName);
+        milestonePosition.setSeniority(seniority);
+        milestonePosition.setPositionType(normalizePositionType(
+                positionRequest.getPositionType()));
+        milestonePosition.setLocationType(normalizeLocationType(
+                positionRequest.getLocationType()));
+        milestonePosition.setStartDate(positionRequest.getStartDate());
+        milestonePosition.setEndDate(positionRequest.getEndDate());
+        milestonePosition.setHours(trimToNull(positionRequest.getHours()));
+    }
+
+    private void applyPositionAmount(SowMilestonePosition position,
+            com.rit.performance.dto.request.SowMilestonePositionRequest request, boolean pricingChanged) {
+        String hours = trimToNull(request.getHours());
+        if (position.getHourlyRate() != null && hours != null
+                && (pricingChanged || !Objects.equals(hours, trimToNull(position.getHours())))) {
+            try {
+                BigDecimal numericHours = new BigDecimal(hours);
+                if (numericHours.signum() < 0) throw new NumberFormatException();
+                position.setAmount(position.getHourlyRate().multiply(numericHours));
+            } catch (NumberFormatException ex) {
+                throw new InvalidOperationException("hours must be a non-negative number for position pricing");
+            }
+        } else if (request.getAmount() != null) {
+            position.setAmount(request.getAmount());
         }
     }
 
@@ -963,10 +1027,30 @@ public class SowServiceImpl implements SowService {
         RateCard rateCard = rateCardRepository.findByIdWithDetails(rateCardId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Rate card not found: " + rateCardId));
-        if (!"ACTIVE".equalsIgnoreCase(rateCard.getStatus())) {
-            throw new InvalidOperationException("Rate card is not active: " + rateCardId);
-        }
         return rateCard;
+    }
+
+    private void validatePositionRateCard(RateCard card, LocalDate start, LocalDate end) {
+        if (card == null) return;
+        if (!"ACTIVE".equalsIgnoreCase(card.getStatus()) && !"EXPIRED".equalsIgnoreCase(card.getStatus())) {
+            throw new InvalidOperationException("Rate card " + card.getId()
+                    + " must be ACTIVE or EXPIRED for new position pricing; status is " + card.getStatus());
+        }
+        validatePositionRateDates(card, start, end);
+    }
+
+    private void validatePositionRateDates(RateCard card, LocalDate start, LocalDate end) {
+        validateDateRange(start, end, "Milestone position");
+        if (card == null) return;
+        if (start == null || end == null) {
+            throw new InvalidOperationException("Position startDate and endDate are required for rate-card pricing");
+        }
+        if (card.getEffectiveFrom() == null || start.isBefore(card.getEffectiveFrom())
+                || (card.getEffectiveTo() != null && end.isAfter(card.getEffectiveTo()))) {
+            throw new InvalidOperationException("Rate card " + card.getId()
+                    + " does not cover the entire position work period " + start + " to " + end
+                    + ". Select a card covering the entire period or split the position into periods covered by one card each.");
+        }
     }
 
     private LookupValue resolvePlannedDesignation(Long designationId, RateCard rateCard) {

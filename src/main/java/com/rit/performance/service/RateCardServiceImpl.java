@@ -11,6 +11,7 @@ import com.rit.performance.repository.ClientRepository;
 import com.rit.performance.repository.LookupValueRepository;
 import com.rit.performance.repository.RateCardRepository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -68,8 +69,19 @@ public class RateCardServiceImpl implements RateCardService {
                         ? "RETIRED" : "UPDATED");
         return response;
     }
-    @Override public RateCardResponse getById(Long id) { return toResponse(find(id)); }
-    @Override public List<RateCardResponse> getAll() {
+    // End dates are inclusive. Use the server's local date consistently for saves and expiry.
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "${app.rate-cards.expiry-delay-ms:60000}")
+    @Transactional
+    public void expireRateCards() {
+        rateCardRepository.expireActiveCards(LocalDate.now());
+    }
+
+    @Override @Transactional public RateCardResponse getById(Long id) {
+        expireRateCards();
+        return toResponse(find(id));
+    }
+    @Override @Transactional public List<RateCardResponse> getAll() {
+        expireRateCards();
         return rateCardRepository.findAllWithDetails().stream()
                 .sorted(Comparator.comparing(
                                 RateCard::getEffectiveFrom,
@@ -99,11 +111,19 @@ public class RateCardServiceImpl implements RateCardService {
         if (request.getEffectiveFrom() == null) {
             throw new InvalidOperationException("effectiveFrom is required");
         }
-        status(request.getStatus());
+        String normalizedStatus = status(request.getStatus());
+        if ("EXPIRED".equals(normalizedStatus)
+                && (request.getEffectiveTo() == null || !request.getEffectiveTo().isBefore(LocalDate.now()))) {
+            throw new InvalidOperationException("EXPIRED requires an effectiveTo date before today");
+        }
         if (request.getEffectiveTo() != null
                 && request.getEffectiveTo().isBefore(request.getEffectiveFrom())) {
             throw new InvalidOperationException(
                     "effectiveTo cannot be before effectiveFrom");
+        }
+        if ("INACTIVE".equals(normalizedStatus) && request.getEffectiveTo() == null) {
+            throw new InvalidOperationException(
+                    "effectiveTo is required when status is INACTIVE");
         }
     }
     private void lockClient(RateCardRequest request) {
@@ -117,16 +137,24 @@ public class RateCardServiceImpl implements RateCardService {
     private void rejectDuplicate(RateCardRequest request, Long excludedId) {
         RateCard duplicate = rateCardRepository.findExactDuplicates(
                 request.getClientId(), request.getEffectiveFrom(), request.getPositionTitleId(),
-                request.getMainSkillId(), request.getLocationId(), request.getSeniorityId())
+                request.getMainSkillId(), request.getLocationId(), request.getSeniorityId(),
+                request.getHourlyRate())
                 .stream().filter(existing -> !Objects.equals(existing.getId(), excludedId))
+                .filter(existing -> Objects.equals(existing.getEffectiveTo(), request.getEffectiveTo()))
+                .filter(existing -> Objects.equals(normalizedCurrency(existing.getCurrency()),
+                        normalizedCurrency(request.getCurrency())))
+                .filter(existing -> Objects.equals(trimToNull(existing.getAdditionalSkills()),
+                        trimToNull(request.getAdditionalSkills())))
+                .filter(existing -> Objects.equals(effectiveStatus(existing.getStatus(), existing.getEffectiveTo()),
+                        effectiveStatus(request.getStatus(), request.getEffectiveTo())))
                 .findFirst().orElse(null);
         if (duplicate != null) {
             String position = resolveLookupName(duplicate.getPositionTitleId(), "DESIGNATION");
             if (position == null || position.isBlank()) position = "Position #" + duplicate.getPositionTitleId();
             throw new com.rit.performance.exception.DuplicateResourceException(
                     "Rate card #" + duplicate.getId() + " already exists for " + position
-                            + " with effective date " + duplicate.getEffectiveFrom()
-                            + " and the same client, main skill, location and seniority."
+                            + " with the same client, main skill, additional skills, location, seniority,"
+                            + " effective start and end dates, hourly rate, currency and status."
                             + " Please review the existing rate card.");
         }
     }
@@ -145,7 +173,12 @@ public class RateCardServiceImpl implements RateCardService {
         rateCard.setCurrency(request.getCurrency() == null || request.getCurrency().isBlank() ? "USD" : request.getCurrency().trim().toUpperCase(Locale.ROOT));
         rateCard.setEffectiveFrom(request.getEffectiveFrom());
         rateCard.setEffectiveTo(request.getEffectiveTo());
-        rateCard.setStatus(status(request.getStatus()));
+        rateCard.setStatus(effectiveStatus(request.getStatus(), request.getEffectiveTo()));
+    }
+    private String effectiveStatus(String value, LocalDate effectiveTo) {
+        String requestedStatus = status(value);
+        return "ACTIVE".equals(requestedStatus) && effectiveTo != null
+                && effectiveTo.isBefore(LocalDate.now()) ? "EXPIRED" : requestedStatus;
     }
     private boolean rateDefiningFieldsChanged(RateCard existing, RateCardRequest request) {
         return !Objects.equals(existing.getPositionTitleId(), request.getPositionTitleId())
@@ -208,8 +241,7 @@ public class RateCardServiceImpl implements RateCardService {
                 .trim().toUpperCase(Locale.ROOT);
     }
     private String status(String value) { String normalized = value == null || value.isBlank() ? "ACTIVE" : value.trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("DRAFT", "ACTIVE", "INACTIVE").contains(normalized)) throw new InvalidOperationException("status must be DRAFT, ACTIVE, or INACTIVE"); return normalized; }
-    private String required(String value) { return value == null || value.isBlank() ? "" : value.trim(); }
+        if (!Set.of("DRAFT", "ACTIVE", "INACTIVE", "EXPIRED").contains(normalized)) throw new InvalidOperationException("status must be DRAFT, ACTIVE, INACTIVE, or EXPIRED"); return normalized; }
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }

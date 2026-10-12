@@ -132,6 +132,13 @@ public class SowController {
                 + created.getMilestonePositionId())).body(created);
     }
 
+    @PutMapping("/{sowId}/milestones/{milestoneId}/positions/{positionId}")
+    public ResponseEntity<SowMilestonePositionResponse> updatePosition(
+            @PathVariable Long sowId, @PathVariable Long milestoneId, @PathVariable Long positionId,
+            @Valid @RequestBody SowMilestonePositionRequest request) {
+        return ResponseEntity.ok(sowService.updatePosition(sowId, milestoneId, positionId, request));
+    }
+
     @DeleteMapping("/{sowId}/milestones/{milestoneId}/positions/{positionId}")
     public ResponseEntity<ApiMessageResponse> deletePosition(
             @PathVariable Long sowId,

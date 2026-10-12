@@ -7,6 +7,8 @@ import java.time.LocalDate;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SowMilestoneUpdateRequest {
+    @jakarta.validation.Valid
+    private java.util.List<SowMilestonePositionRequest> positions;
     @NotBlank
     @Size(max = 200)
     private String milestoneName;
