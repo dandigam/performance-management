@@ -36,10 +36,11 @@ public class HolidayController {
 
     @GetMapping
     public ResponseEntity<List<HolidayResponse>> getAll(
+            @RequestParam(required = false) Long clientId,
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) String locationType,
             @RequestParam(required = false) Boolean active) {
-        return ResponseEntity.ok(service.getAll(year, locationType, active));
+        return ResponseEntity.ok(service.getAll(clientId, year, locationType, active));
     }
 
     @DeleteMapping("/{id}")

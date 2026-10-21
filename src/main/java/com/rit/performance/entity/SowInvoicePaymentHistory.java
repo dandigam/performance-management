@@ -21,6 +21,8 @@ public class SowInvoicePaymentHistory {
     @JoinColumn(name = "invoice_id", nullable = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
     private SowInvoice invoice;
+    @Column(name = "csx_invoice_number", length = 100)
+    private String csxInvoiceNumber;
     @Column(name = "payment_id", nullable = false) private Long paymentId;
     @Column(name = "payment_date", nullable = false) private LocalDate paymentDate;
     @Column(name = "received_amount", nullable = false, precision = 15, scale = 2)

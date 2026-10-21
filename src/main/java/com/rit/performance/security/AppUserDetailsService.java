@@ -28,6 +28,7 @@ public class AppUserDetailsService implements UserDetailsService {
                 user.getUsername(),
                 user.getPassword(),
                 active,
+                user.getSessionVersion(),
                 java.util.List.of(new SimpleGrantedAuthority(authority)));
     }
 

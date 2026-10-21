@@ -22,7 +22,9 @@ public class LoginResponse {
     private String username;
     private Long roleId;
     private String roleName;
+    private String roleCode;
     private Long employeeId;
     private String employeeName;
     private String status;
+    private String portalAccess;
 }

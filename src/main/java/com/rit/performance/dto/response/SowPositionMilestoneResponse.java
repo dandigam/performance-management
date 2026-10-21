@@ -16,6 +16,7 @@ import java.time.LocalDate;
 public class SowPositionMilestoneResponse {
     private Long milestoneId;
     private String milestoneName;
+    private Integer displayOrder;
     private LocalDate startDate;
     private LocalDate endDate;
     private String status;

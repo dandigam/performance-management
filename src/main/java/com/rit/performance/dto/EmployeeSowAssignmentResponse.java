@@ -17,10 +17,9 @@ import java.util.List;
 public class EmployeeSowAssignmentResponse {
     private Long employeeAssignmentId;
     private Long sowId;
-    private String sowCode;
     private String sowName;
+    private String sowStatus;
     private Boolean isPrimaryAssignment;
-    private Integer allocationPercentage;
     private LocalDate assignmentStartDate;
     private LocalDate assignmentEndDate;
     private String assignmentStatus;

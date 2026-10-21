@@ -30,6 +30,9 @@ public class SowMilestone extends BaseEntity {
     @Column(name = "milestone_name", nullable = false, length = 200)
     private String milestoneName;
 
+    @Column(name = "display_order")
+    private Integer displayOrder;
+
     @Column(name = "description", length = 2000)
     private String description;
 

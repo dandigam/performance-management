@@ -70,16 +70,12 @@ public class BankAccount extends BaseEntity {
     @Column(name = "routing_number_encrypted", columnDefinition = "TEXT")
     private String routingNumberEncrypted;
 
-    @Column(name = "ifsc_code", length = 20)
     private String ifscCode;
 
-    @Column(name = "branch_name", length = 200)
     private String branchName;
 
-    @Column(name = "remittance_email", length = 150)
     private String remittanceEmail;
 
-    @Column(name = "is_primary", nullable = false)
     @Builder.Default
     private boolean isPrimary = false;
 

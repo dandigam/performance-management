@@ -16,7 +16,6 @@ public class SowAssignmentResponse {
     private String employeeName;
     private String email;
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private Long milestoneId;
     private String milestoneName;
@@ -27,7 +26,6 @@ public class SowAssignmentResponse {
     private String leadName;
     private Long managerId;
     private String managerName;
-    private Integer allocationPercentage;
     private Boolean isPrimaryAssignment;
     private LocalDate assignmentStartDate;
     private LocalDate assignmentEndDate;

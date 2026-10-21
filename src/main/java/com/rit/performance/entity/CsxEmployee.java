@@ -24,6 +24,10 @@ public class CsxEmployee extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "client_id", foreignKey = @ForeignKey(name = "fk_csx_employee_client"))
+    private Client client;
+
     @Column(name = "first_name", nullable = false, length = 50)
     private String firstName;
 

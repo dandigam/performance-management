@@ -17,8 +17,6 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class SowRequest {
-    @Size(max = 50, message = "sowCode must not exceed 50 characters")
-    private String sowCode;
 
     @NotBlank(message = "sowName is required")
     @Size(max = 200, message = "sowName must not exceed 200 characters")
@@ -53,11 +51,19 @@ public class SowRequest {
     private Long csxEscalationEmployeeId;
     private Long ritContactEmployeeId;
     private Long ritEscalationEmployeeId;
+    private Long deliveryOwnerEmployeeId;
+    private Long technicalLeadEmployeeId;
+    @jakarta.validation.constraints.PastOrPresent
+    private LocalDate ownerChangeEffectiveDate;
+    @Size(max = 2000)
+    private String ownerChangeReason;
     private LocalDate startDate;
     private LocalDate endDate;
 
     @Size(max = 30, message = "status must not exceed 30 characters")
     private String status;
+
+    private LocalDate statusEffectiveDate;
 
     @Size(max = 2000, message = "remarks must not exceed 2000 characters")
     private String remarks;

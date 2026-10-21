@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 @Builder
 public class CsxEmployeeResponse {
     private Long id;
+    private Long clientId;
+    private String clientName;
     private String firstName;
     private String lastName;
     private String employeeName;

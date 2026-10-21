@@ -25,10 +25,12 @@ public class EmployeeBankDetailsRequest {
     @Size(max = 200)
     private String bankName;
 
-    @Size(max = 100)
+    @Size(min = 4, max = 100)
     private String accountNumber;
 
-    @NotBlank
     @Size(max = 20)
     private String ifscCode;
+
+    @Size(max = 20)
+    private String routingNumber;
 }

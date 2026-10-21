@@ -11,6 +11,7 @@ public class EmployeeFinanceHistoryResponse {
     private Long id;
     private String payType;
     private BigDecimal hourlyRate;
+    private BigDecimal annualSalary;
     private BigDecimal amount;
     private String currency;
     private LocalDate effectiveDate;

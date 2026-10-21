@@ -13,8 +13,7 @@ import java.util.List;
 @Table(
         name = "sow_invoices",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_sow_invoice_milestone", columnNames = "milestone_id"),
-                @UniqueConstraint(name = "uk_sow_invoice_number", columnNames = "invoice_number")
+                @UniqueConstraint(name = "uk_sow_invoice_milestone", columnNames = "milestone_id")
         },
         indexes = {
                 @Index(name = "idx_sow_invoices_sow_id", columnList = "sow_id"),
@@ -42,6 +41,9 @@ public class SowInvoice extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_sow_invoice_milestone"))
     private SowMilestone milestone;
 
+    @Column(name = "csx_invoice_number", length = 100)
+    private String csxInvoiceNumber;
+
     @Column(name = "milestone_invoice_date")
     private LocalDate milestoneInvoiceDate;
 
@@ -59,9 +61,6 @@ public class SowInvoice extends BaseEntity {
 
     @Column(name = "submitted_date")
     private LocalDate submittedDate;
-
-    @Column(name = "invoice_number", length = 100)
-    private String invoiceNumber;
 
     @Column(length = 500)
     private String notes;

@@ -37,7 +37,7 @@ browser credentials on login, refresh, and logout so the refresh cookie is accep
 - Override the local default with a unique, random `JWT_SECRET` of at least 32 bytes.
 - Override the local default with `SECURE_COOKIE=true` and terminate traffic only over HTTPS.
 - Set `ALLOWED_ORIGINS` to the exact deployed UI origin(s).
-- Run `database/migrations/create_refresh_tokens.sql` through the deployment migration process.
+- Ensure the `refresh_tokens` table exists before production deployment.
 - Move database, mail, JWT, and encryption secrets to a secrets manager.
 - Local Swagger access is public by default. Set `SWAGGER_PUBLIC=false` in production
   to require `ADMIN`, or disable Swagger entirely when it is not needed.

@@ -11,7 +11,10 @@ import com.rit.performance.exception.ResourceNotFoundException;
 import com.rit.performance.repository.*;
 import com.rit.performance.service.SowMilestonePositionAssignmentService;
 import com.rit.performance.service.SowResourceRequirementService;
+import com.rit.performance.service.ApplicationEmail;
+import com.rit.performance.service.ApplicationEmailFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,38 +33,27 @@ public class SowMilestonePositionAssignmentServiceImpl
     private final EmployeeAssignmentRepository employeeAssignmentRepository;
     private final EmployeeRepository employeeRepository;
     private final SowResourceRequirementService resourceRequirementService;
+    private final TimesheetEmployeeProjectRepository timesheetProjectRepository;
+    private final TimesheetAssignmentCompletionService timesheetCompletionService;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
 
     @Override
     public SowMilestonePositionAssignmentResponse create(Long sowId, Long milestoneId,
             Long milestonePositionId, SowMilestonePositionAssignmentRequest request) {
+
         SowMilestonePosition position = findPosition(sowId, milestoneId, milestonePositionId);
-        if ("COMPLETED".equalsIgnoreCase(position.getStatus())) {
-            throw new InvalidOperationException(
-                    "Milestone position " + milestonePositionId + " is completed and cannot be assigned");
-        }
-        if (repository.existsByMilestonePosition_IdAndStatusIgnoreCase(
-                milestonePositionId, "ACTIVE")) {
-            throw new DuplicateResourceException(
-                    "Milestone position " + milestonePositionId + " is already filled");
-        }
-        EmployeeAssignment sowAssignment = requireSowAssignment(
-                request.getEmployeeAssignmentId(), sowId);
-        if (repository
-                .existsByEmployeeAssignment_EmployeeIdAndMilestonePosition_Milestone_IdAndStatusIgnoreCase(
-                        sowAssignment.getEmployeeId(), milestoneId, "ACTIVE")) {
-            throw new DuplicateResourceException(
-                    "The selected employee is already assigned to this milestone. "
-                            + "Choose another employee.");
-        }
-        validateDates(position, request.getAssignmentStartDate(),
-                request.getAssignmentEndDate(), request.getStatus());
+
+
+        EmployeeAssignment sowAssignment = requireSowAssignment(request.getEmployeeAssignmentId(), sowId);
+
         SowMilestonePositionAssignment assignment = new SowMilestonePositionAssignment();
         apply(assignment, position, sowAssignment, request);
         assignment.setCreatedBy(request.getUpdatedBy());
         SowMilestonePositionAssignment saved = repository.saveAndFlush(assignment);
-        position.setStatus("FILLED");
-        positionRepository.saveAndFlush(position);
+        reconcilePositionStatus(position);
         resourceRequirementService.onResourceAssigned(sowId);
+        publishAssignmentEmail(saved, "assigned");
         return toResponse(saved, employeeMap(sowAssignment));
     }
 
@@ -103,7 +95,13 @@ public class SowMilestonePositionAssignmentServiceImpl
         validateDates(position, request.getAssignmentStartDate(),
                 request.getAssignmentEndDate(), request.getStatus());
         apply(assignment, position, sowAssignment, request);
-        return toResponse(repository.saveAndFlush(assignment), employeeMap(sowAssignment));
+        SowMilestonePositionAssignment saved = repository.saveAndFlush(assignment);
+        reconcilePositionStatus(position);
+        reconcileParentStatus(sowAssignment, saved.getAssignmentEndDate(), request.getUpdatedBy());
+        if ("COMPLETED".equalsIgnoreCase(saved.getStatus())) completeTimesheetSetup(saved);
+        reconcileResourceRequirement(sowId, saved.getStatus());
+        publishAssignmentEmail(saved, "updated");
+        return toResponse(saved, employeeMap(sowAssignment));
     }
 
     @Override
@@ -112,17 +110,19 @@ public class SowMilestonePositionAssignmentServiceImpl
             SowMilestonePositionUnassignRequest request) {
         SowMilestonePosition position = findPosition(sowId, milestoneId, milestonePositionId);
         SowMilestonePositionAssignment assignment = findAssignment(id, milestonePositionId);
-        if (!"ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
-            throw new InvalidOperationException("Only an ACTIVE assignment can be unassigned");
+        if (!isAssigned(assignment.getStatus())) {
+            throw new InvalidOperationException("Only an ASSIGNED assignment can be unassigned");
         }
         endAssignment(assignment, request.getAssignmentEndDate(),
                 request.getAssignmentStatus());
         assignment.setUpdatedBy(request.getUpdatedBy());
         SowMilestonePositionAssignment saved = repository.saveAndFlush(assignment);
-        reconcilePositionStatus(saved.getMilestonePosition(), saved.getStatus());
+        completeTimesheetSetup(saved);
+        reconcilePositionStatus(saved.getMilestonePosition());
         reconcileParentStatus(saved.getEmployeeAssignment(),
                 request.getAssignmentEndDate(), request.getUpdatedBy());
         reconcileResourceRequirement(sowId, saved.getStatus());
+        publishAssignmentEmail(saved, "unassigned");
         return toResponse(saved,
                 employeeMap(assignment.getEmployeeAssignment()));
     }
@@ -138,57 +138,96 @@ public class SowMilestonePositionAssignmentServiceImpl
             throw new InvalidOperationException(
                     "Assignment " + id + " does not belong to SOW " + sowId);
         }
-        if (!"ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
-            throw new InvalidOperationException("Only an ACTIVE assignment can be unassigned");
+        if (!isAssigned(assignment.getStatus())) {
+            throw new InvalidOperationException("Only an ASSIGNED assignment can be unassigned");
         }
         endAssignment(assignment, request.getAssignmentEndDate(),
                 request.getAssignmentStatus());
         assignment.setUpdatedBy(request.getUpdatedBy());
         SowMilestonePositionAssignment saved = repository.saveAndFlush(assignment);
-        reconcilePositionStatus(saved.getMilestonePosition(), saved.getStatus());
+        completeTimesheetSetup(saved);
+        reconcilePositionStatus(saved.getMilestonePosition());
         reconcileParentStatus(saved.getEmployeeAssignment(),
                 request.getAssignmentEndDate(), request.getUpdatedBy());
         reconcileResourceRequirement(sowId, saved.getStatus());
+        publishAssignmentEmail(saved, "unassigned");
         return toResponse(saved,
                 employeeMap(assignment.getEmployeeAssignment()));
+    }
+
+    private void completeTimesheetSetup(SowMilestonePositionAssignment assignment) {
+        var position = assignment.getMilestonePosition();
+        Long employeeId = assignment.getEmployeeAssignment().getEmployeeId();
+        var linkedSetup = timesheetProjectRepository.findByMilestonePositionAssignment_Id(assignment.getId());
+        if (linkedSetup.isPresent()) {
+            completeSetup(linkedSetup.get(), assignment);
+            return;
+        }
+        // The current setup is shared by all of this employee's roles in the same milestone.
+        boolean stillAssigned = repository
+                .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(employeeId).stream()
+                .anyMatch(other -> !Objects.equals(other.getId(), assignment.getId())
+                        && isAssigned(other.getStatus())
+                        && Objects.equals(other.getMilestonePosition().getSow().getId(), position.getSow().getId())
+                        && Objects.equals(other.getMilestonePosition().getMilestone().getId(), position.getMilestone().getId()));
+        if (stillAssigned) return;
+        var legacy = timesheetProjectRepository.findAllByEmployeeIdAndSowIdAndMilestoneId(
+                employeeId, position.getSow().getId(), position.getMilestone().getId()).stream()
+                .filter(setup -> setup.getMilestonePositionAssignment() == null).toList();
+        if (!legacy.isEmpty()) throw new InvalidOperationException(
+                "Link the legacy timesheet setup to its milestone position assignment before completing it");
+    }
+
+    private void publishAssignmentEmail(SowMilestonePositionAssignment assignment, String action) {
+        Employee employee = employeeRepository.findById(assignment.getEmployeeAssignment().getEmployeeId())
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found for assignment"));
+        for (ApplicationEmail email : emailFactory.milestoneAssignment(employee, assignment, action)) {
+            events.publishEvent(email);
+        }
+    }
+
+    private void completeSetup(TimesheetEmployeeProject setup, SowMilestonePositionAssignment assignment) {
+        timesheetCompletionService.cancelAfter(setup, assignment.getAssignmentEndDate(), assignment.getUpdatedBy());
+        setup.setAssignmentStartDate(assignment.getAssignmentStartDate());
+        setup.setAssignmentEndDate(assignment.getAssignmentEndDate());
+        setup.setStatus(TimesheetEmployeeProjectStatus.COMPLETED);
+        setup.setUpdatedBy(assignment.getUpdatedBy());
+        timesheetProjectRepository.save(setup);
     }
 
     private void reconcileParentStatus(EmployeeAssignment parent,
             LocalDate endDate, Long updatedBy) {
         if (repository.existsByEmployeeAssignment_IdAndStatusIgnoreCase(
-                parent.getId(), "ACTIVE")) {
+                parent.getId(), "ASSIGNED")) {
             return;
         }
         List<SowMilestonePositionAssignment> childAssignments = repository
                 .findByEmployeeAssignment_IdOrderByAssignmentStartDateDescIdDesc(parent.getId());
-        String parentStatus = childAssignments.stream()
-                .allMatch(child -> "COMPLETED".equalsIgnoreCase(child.getStatus()))
-                ? "COMPLETED" : "UNASSIGNED";
         LocalDate latestEndDate = childAssignments.stream()
                 .map(SowMilestonePositionAssignment::getAssignmentEndDate)
                 .filter(Objects::nonNull)
                 .max(LocalDate::compareTo)
                 .orElse(endDate);
         parent.setEffectiveTo(latestEndDate);
-        parent.setStatus(parentStatus);
-        parent.setIsPrimaryAssignment(false);
+        parent.setStatus("COMPLETED");
+
         parent.setUpdatedBy(updatedBy);
         employeeAssignmentRepository.save(parent);
     }
 
     private void endAssignment(SowMilestonePositionAssignment assignment,
             LocalDate endDate, String assignmentStatus) {
+        if (endDate == null || endDate.isBefore(assignment.getAssignmentStartDate())) {
+            throw new InvalidOperationException("assignmentEndDate must be on or after assignmentStartDate");
+        }
         assignment.setAssignmentEndDate(endDate);
         assignment.setStatus(normalizeTerminalStatus(assignmentStatus));
     }
 
-    private void reconcilePositionStatus(SowMilestonePosition position,
-            String endedAssignmentStatus) {
+    private void reconcilePositionStatus(SowMilestonePosition position) {
         if (repository.existsByMilestonePosition_IdAndStatusIgnoreCase(
-                position.getId(), "ACTIVE")) {
-            position.setStatus("FILLED");
-        } else if ("COMPLETED".equalsIgnoreCase(endedAssignmentStatus)) {
-            position.setStatus("COMPLETED");
+                position.getId(), "ASSIGNED")) {
+            position.setStatus("ASSIGNED");
         } else {
             position.setStatus("OPEN");
         }
@@ -209,15 +248,15 @@ public class SowMilestonePositionAssignmentServiceImpl
             throw new InvalidOperationException(
                     "assignmentStatus must be COMPLETED or UNASSIGNED");
         }
-        return normalized;
+        return "COMPLETED";
     }
 
     private void apply(SowMilestonePositionAssignment assignment,
             SowMilestonePosition position, EmployeeAssignment sowAssignment,
             SowMilestonePositionAssignmentRequest request) {
+        validateDates(position, request.getAssignmentStartDate(), request.getAssignmentEndDate(), request.getStatus());
         assignment.setMilestonePosition(position);
         assignment.setEmployeeAssignment(sowAssignment);
-        assignment.setAllocationPercentage(request.getAllocationPercentage());
         assignment.setPositionType(normalizePositionType(request.getPositionType()));
         assignment.setAssignmentStartDate(request.getAssignmentStartDate());
         assignment.setAssignmentEndDate(request.getAssignmentEndDate());
@@ -251,7 +290,7 @@ public class SowMilestonePositionAssignmentServiceImpl
             throw new InvalidOperationException(
                     "Employee assignment does not belong to SOW " + sowId);
         }
-        if (!"ACTIVE".equalsIgnoreCase(assignment.getStatus())) {
+        if (!isAssigned(assignment.getStatus())) {
             throw new InvalidOperationException("Employee SOW assignment is not active: " + id);
         }
         return assignment;
@@ -273,9 +312,9 @@ public class SowMilestonePositionAssignmentServiceImpl
             throw new InvalidOperationException(
                     "assignmentEndDate cannot be after the milestone position endDate");
         }
-        if ("ACTIVE".equals(normalizedStatus) && endDate != null) {
+        if ("ASSIGNED".equals(normalizedStatus) && endDate != null) {
             throw new InvalidOperationException(
-                    "assignmentEndDate must be null when status is ACTIVE");
+                    "assignmentEndDate must be null when status is ASSIGNED");
         }
         if ("COMPLETED".equals(normalizedStatus) && endDate == null) {
             throw new InvalidOperationException(
@@ -285,8 +324,8 @@ public class SowMilestonePositionAssignmentServiceImpl
 
     private String normalizeStatus(String status) {
         String normalized = status.trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("ACTIVE", "COMPLETED").contains(normalized)) {
-            throw new InvalidOperationException("status must be ACTIVE or COMPLETED");
+        if (!Set.of("ASSIGNED", "COMPLETED").contains(normalized)) {
+            throw new InvalidOperationException("status must be ASSIGNED or COMPLETED");
         }
         return normalized;
     }
@@ -300,6 +339,10 @@ public class SowMilestonePositionAssignmentServiceImpl
                     "positionType must be BILLABLE or NON_BILLABLE");
         }
         return normalized;
+    }
+
+    private static boolean isAssigned(String status) {
+        return "ASSIGNED".equalsIgnoreCase(status);
     }
 
     private Map<Long, Employee> employeeMap(EmployeeAssignment assignment) {
@@ -336,7 +379,6 @@ public class SowMilestonePositionAssignmentServiceImpl
                 .seniority(position.getSeniority() == null
                         ? null : position.getSeniority().getName())
                 .rateCardId(position.getRateCard() == null ? null : position.getRateCard().getId())
-                .allocationPercentage(assignment.getAllocationPercentage())
                 .positionType(assignment.getPositionType())
                 .assignmentStartDate(assignment.getAssignmentStartDate())
                 .assignmentEndDate(assignment.getAssignmentEndDate())

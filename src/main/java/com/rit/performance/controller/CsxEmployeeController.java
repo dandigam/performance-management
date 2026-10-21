@@ -29,8 +29,8 @@ public class CsxEmployeeController {
     }
 
     @GetMapping
-    public ResponseEntity<List<CsxEmployeeResponse>> getAll() {
-        return ResponseEntity.ok(service.getAll());
+    public ResponseEntity<List<CsxEmployeeResponse>> getAll(@RequestParam(required = false) Long clientId) {
+        return ResponseEntity.ok(service.getAll(clientId));
     }
 
     @PutMapping("/{id}")

@@ -15,7 +15,6 @@ import java.util.List;
 @Builder
 public class SowResponse {
     private Long id;
-    private String sowCode;
     private String sowName;
     private Integer year;
     private Long clientId;
@@ -41,9 +40,15 @@ public class SowResponse {
     private Long ritEscalationEmployeeId;
     private String ritEscalationEmployeeName;
     private String ritEscalationEmployeeEmail;
+    private Long deliveryOwnerEmployeeId;
+    private String deliveryOwnerEmployeeName;
+    private Long technicalLeadEmployeeId;
+    private String technicalLeadEmployeeName;
     private LocalDate startDate;
+    private LocalDate actualStartDate;
     private LocalDate endDate;
     private String status;
+    private LocalDate statusEffectiveDate;
     private String remarks;
     private String signedStatus;
     private LocalDate signedDate;

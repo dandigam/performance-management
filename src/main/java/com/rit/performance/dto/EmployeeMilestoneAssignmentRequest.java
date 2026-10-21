@@ -14,10 +14,6 @@ public class EmployeeMilestoneAssignmentRequest {
     @Positive(message = "milestonePositionId must be positive")
     private Long milestonePositionId;
 
-    @Min(value = 1, message = "allocationPercentage must be at least 1")
-    @Max(value = 100, message = "allocationPercentage must not exceed 100")
-    private Integer allocationPercentage;
-
     @NotNull(message = "assignmentStartDate is required")
     private LocalDate assignmentStartDate;
     private LocalDate assignmentEndDate;

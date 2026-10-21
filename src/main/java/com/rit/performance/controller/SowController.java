@@ -1,8 +1,13 @@
 package com.rit.performance.controller;
 
 import com.rit.performance.dto.request.SowRequest;
+import com.rit.performance.dto.request.SowMilestoneUpdateRequest;
+import com.rit.performance.dto.response.SowMilestoneResponse;
 import com.rit.performance.dto.request.SowAssignmentUpdateRequest;
 import com.rit.performance.dto.response.SowResponse;
+import com.rit.performance.dto.response.SowSummaryPageResponse;
+import com.rit.performance.dto.response.SowPositionSummaryPageResponse;
+import com.rit.performance.dto.response.SowMilestoneSummaryPageResponse;
 import com.rit.performance.dto.response.SowAssignmentResponse;
 import com.rit.performance.dto.request.SowMilestonePositionRequest;
 import com.rit.performance.dto.response.SowMilestonePositionResponse;
@@ -10,7 +15,10 @@ import com.rit.performance.dto.SowRequirementMilestonesResponse;
 import com.rit.performance.dto.request.SowAssignmentUnassignRequest;
 import com.rit.performance.dto.request.SowMilestonePositionAssignmentRequest;
 import com.rit.performance.dto.request.SowMilestonePositionUnassignRequest;
+import com.rit.performance.dto.request.SowSignatureUpdateRequest;
+import com.rit.performance.dto.request.SowStatusUpdateRequest;
 import com.rit.performance.dto.response.SowMilestonePositionAssignmentResponse;
+import com.rit.performance.dto.ApiMessageResponse;
 import com.rit.performance.service.SowService;
 import com.rit.performance.service.SowMilestonePositionAssignmentService;
 import jakarta.validation.Valid;
@@ -27,6 +35,55 @@ import java.util.List;
 public class SowController {
     private final SowService sowService;
     private final SowMilestonePositionAssignmentService positionAssignmentService;
+    private final com.rit.performance.service.SowPdfEmailService sowPdfEmailService;
+
+    @PostMapping(value = "/{sowId}/email", consumes = "multipart/form-data")
+    public ResponseEntity<ApiMessageResponse> emailPdf(
+            @PathVariable Long sowId,
+            @RequestParam("sowId") Long submittedSowId,
+            @RequestParam String toEmail,
+            @RequestPart("attachment") org.springframework.web.multipart.MultipartFile attachment) {
+        sowPdfEmailService.send(sowId, submittedSowId, toEmail, attachment);
+        return ResponseEntity.accepted().body(ApiMessageResponse.success(
+                "SOW email queued for sending. Delivery is not yet confirmed."));
+    }
+
+    @DeleteMapping("/{sowId}/milestones/{milestoneId}")
+    public ResponseEntity<ApiMessageResponse> deleteMilestone(
+            @PathVariable Long sowId, @PathVariable Long milestoneId) {
+        sowService.deleteMilestone(sowId, milestoneId);
+        return ResponseEntity.ok(ApiMessageResponse.success("Milestone deleted successfully."));
+    }
+
+    @PutMapping("/{sowId}/milestones/{milestoneId}")
+    public ResponseEntity<SowMilestoneResponse> updateMilestone(
+            @PathVariable Long sowId, @PathVariable Long milestoneId,
+            @Valid @RequestBody SowMilestoneUpdateRequest request) {
+        return ResponseEntity.ok(sowService.updateMilestone(sowId, milestoneId, request));
+    }
+
+    @GetMapping("/{sowId}/milestones/{milestoneId}/positions/summaries")
+    public ResponseEntity<SowPositionSummaryPageResponse> getPositionSummaries(
+            @PathVariable Long sowId, @PathVariable Long milestoneId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(sowService.getPositionSummaries(sowId, milestoneId, page, size));
+    }
+
+    @GetMapping("/{sowId}/milestones/summaries")
+    public ResponseEntity<SowMilestoneSummaryPageResponse> getMilestoneSummaries(
+            @PathVariable Long sowId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(sowService.getMilestoneSummaries(sowId, page, size));
+    }
+
+    @GetMapping("/summaries")
+    public ResponseEntity<SowSummaryPageResponse> getSummaries(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(sowService.getSummaries(page, size));
+    }
 
     @PostMapping
     public ResponseEntity<SowResponse> create(@Valid @RequestBody SowRequest request) {
@@ -87,13 +144,20 @@ public class SowController {
                 + created.getMilestonePositionId())).body(created);
     }
 
+    @PutMapping("/{sowId}/milestones/{milestoneId}/positions/{positionId}")
+    public ResponseEntity<SowMilestonePositionResponse> updatePosition(
+            @PathVariable Long sowId, @PathVariable Long milestoneId, @PathVariable Long positionId,
+            @Valid @RequestBody SowMilestonePositionRequest request) {
+        return ResponseEntity.ok(sowService.updatePosition(sowId, milestoneId, positionId, request));
+    }
+
     @DeleteMapping("/{sowId}/milestones/{milestoneId}/positions/{positionId}")
-    public ResponseEntity<Void> deletePosition(
+    public ResponseEntity<ApiMessageResponse> deletePosition(
             @PathVariable Long sowId,
             @PathVariable Long milestoneId,
             @PathVariable Long positionId) {
         sowService.deletePosition(sowId, milestoneId, positionId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiMessageResponse.success("Position removed successfully."));
     }
 
     @PostMapping("/{sowId}/milestones/{milestoneId}/positions/"
@@ -151,6 +215,20 @@ public class SowController {
     public ResponseEntity<SowResponse> update(@PathVariable Long id,
                                               @Valid @RequestBody SowRequest request) {
         return ResponseEntity.ok(sowService.update(id, request));
+    }
+
+    @PatchMapping("/{sowId}/status")
+    public ResponseEntity<SowResponse> updateStatus(
+            @PathVariable Long sowId,
+            @Valid @RequestBody SowStatusUpdateRequest request) {
+        return ResponseEntity.ok(sowService.updateStatus(sowId, request));
+    }
+
+    @PatchMapping("/{sowId}/signature")
+    public ResponseEntity<SowResponse> updateSignature(
+            @PathVariable Long sowId,
+            @Valid @RequestBody SowSignatureUpdateRequest request) {
+        return ResponseEntity.ok(sowService.updateSignature(sowId, request));
     }
 
     @DeleteMapping("/{id}")

@@ -8,9 +8,9 @@ import java.time.LocalDateTime;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SowInvoiceHistoryResponse {
     private Long id;
+    private String csxInvoiceNumber;
     private Long invoiceId;
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private Long milestoneId;
     private String milestoneName;
@@ -18,11 +18,13 @@ public class SowInvoiceHistoryResponse {
     private BigDecimal milestoneInvoiceAmount;
     private LocalDate invoiceRaisedDate;
     private BigDecimal invoiceRaisedAmount;
-    private String invoiceNumber;
     private String invoiceStatus;
     private LocalDate submittedDate;
     private String notes;
     private String action;
+    private LocalDate actionDate;
+    private String reason;
+    private String previousStatus;
     private Long changedBy;
     private String changedByName;
     private LocalDateTime changedOn;

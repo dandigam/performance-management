@@ -17,6 +17,8 @@ import com.rit.performance.dto.DocumentResponse;
 import java.util.List;
 
 public interface EmployeeService {
+    void checkContactAvailability(String email, String phoneNumber, Long excludeEmployeeId);
+
     EmployeeCreateResponse create(EmployeeCreateRequest request);
 
     List<EmployeeBasicInfoResponse> getBasicInfo();
@@ -32,7 +34,7 @@ public interface EmployeeService {
 
     EmployeeBasicInfoResponse update(Long employeeId, EmployeeUpdateRequest request);
 
-    EmployeeBasicInfoResponse assign(EmployeeAssignmentRequest request);
+    com.rit.performance.dto.ApiMessageResponse assign(EmployeeAssignmentRequest request);
 
     List<ReportingManagerResponse> getReportingManagers(
             Long sowId, Long departmentId, Long designationId, Long excludeEmployeeId);

@@ -32,7 +32,6 @@ public final class SowMapper {
                 csxEmployees, sow.getCsxEscalationEmployeeId());
         return SowResponse.builder()
                 .id(sow.getId())
-                .sowCode(sow.getSowCode())
                 .sowName(sow.getSowName())
                 .year(sow.getYear())
                 .clientId(sow.getClient() == null ? null : sow.getClient().getId())
@@ -60,8 +59,14 @@ public final class SowMapper {
                 .ritEscalationEmployeeEmail(ritEscalation == null
                         ? null : ritEscalation.getEmail())
                 .startDate(sow.getStartDate())
+                .actualStartDate(sow.getActualStartDate())
+                .deliveryOwnerEmployeeId(sow.getDeliveryOwnerEmployee() == null ? null : sow.getDeliveryOwnerEmployee().getId())
+                .deliveryOwnerEmployeeName(employeeName(sow.getDeliveryOwnerEmployee()))
+                .technicalLeadEmployeeId(sow.getTechnicalLeadEmployee() == null ? null : sow.getTechnicalLeadEmployee().getId())
+                .technicalLeadEmployeeName(employeeName(sow.getTechnicalLeadEmployee()))
                 .endDate(sow.getEndDate())
                 .status(sow.getStatus() == null ? null : sow.getStatus().getCode())
+                .statusEffectiveDate(sow.getStatusEffectiveDate())
                 .remarks(sow.getRemarks())
                 .signedStatus(sow.getSignedStatus() == null ? "UNSIGNED" : sow.getSignedStatus())
                 .signedDate(sow.getSignedDate())
@@ -93,10 +98,11 @@ public final class SowMapper {
                 .build();
     }
 
-    private static SowMilestoneResponse toMilestoneResponse(SowMilestone milestone) {
+    public static SowMilestoneResponse toMilestoneResponse(SowMilestone milestone) {
         return SowMilestoneResponse.builder()
                 .id(milestone.getId())
                 .milestoneName(milestone.getMilestoneName())
+                .displayOrder(milestone.getDisplayOrder())
                 .description(milestone.getDescription())
                 .deliverables(milestone.getDeliverables())
                 .estimatedHours(milestone.getEstimatedHours())

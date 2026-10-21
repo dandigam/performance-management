@@ -1,10 +1,23 @@
 package com.rit.performance.service.impl;
 
 import com.rit.performance.dto.request.SowMilestoneRequest;
+import com.rit.performance.dto.request.SowMilestoneUpdateRequest;
+import com.rit.performance.dto.response.SowMilestoneResponse;
 import com.rit.performance.dto.request.SowDocumentRequest;
 import com.rit.performance.dto.request.SowRequest;
 import com.rit.performance.dto.request.SowAssignmentUpdateRequest;
+import com.rit.performance.dto.request.SowSignatureUpdateRequest;
+import com.rit.performance.dto.request.SowStatusUpdateRequest;
 import com.rit.performance.dto.response.SowResponse;
+import com.rit.performance.dto.response.SowSummaryResponse;
+import com.rit.performance.dto.response.SowSummaryPageResponse;
+import com.rit.performance.dto.response.SowPositionSummaryResponse;
+import com.rit.performance.dto.response.SowPositionSummaryPageResponse;
+import com.rit.performance.dto.response.SowMilestoneSummaryResponse;
+import com.rit.performance.dto.response.SowMilestoneSummaryPageResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import com.rit.performance.dto.response.SowAssignmentResponse;
 import com.rit.performance.dto.SowRequirementMilestonesResponse;
 import com.rit.performance.entity.*;
@@ -16,7 +29,9 @@ import com.rit.performance.repository.*;
 import com.rit.performance.service.SowInvoiceService;
 import com.rit.performance.service.SowResourceRequirementService;
 import com.rit.performance.service.SowService;
+import com.rit.performance.service.ApplicationEmailFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,10 +45,23 @@ import java.util.stream.Collectors;
 @Transactional
 @RequiredArgsConstructor
 public class SowServiceImpl implements SowService {
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private static final String SOW_STATUS_LOOKUP = "SOW_STATUS";
+    private static final Map<String, Set<String>> VALID_SOW_STATUS_TRANSITIONS = Map.of(
+            "DRAFT", Set.of("WAITING_FOR_APPROVAL"),
+            "WAITING_FOR_APPROVAL", Set.of("DRAFT", "APPROVED", "ACTIVE"),
+            "APPROVED", Set.of("ACTIVE", "CANCELLED"),
+            "ACTIVE", Set.of("ON_HOLD", "COMPLETED", "CANCELLED"),
+            "ON_HOLD", Set.of("ACTIVE", "CANCELLED"));
     private final SowRepository sowRepository;
+    private final SowMilestonePositionRepository positionRepository;
     private final EmployeeAssignmentRepository assignmentRepository;
     private final SowMilestoneRepository milestoneRepository;
+    private final SowInvoiceRepository invoiceRepository;
+    private final TimesheetEmployeeProjectRepository timesheetProjectRepository;
+    private final TimesheetEmployeeProjectDayRepository timesheetDayRepository;
     private final SowInvoiceService sowInvoiceService;
     private final SowFeatureRepository featureRepository;
     private final LookupValueRepository lookupValueRepository;
@@ -45,16 +73,212 @@ public class SowServiceImpl implements SowService {
     private final UserRepository userRepository;
     private final ClientRepository clientRepository;
     private final SowResourceRequirementService resourceRequirementService;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
+    private final com.rit.performance.service.SowStatusHistoryService statusHistory;
+    private final com.rit.performance.service.SowOwnerHistoryService ownerHistory;
+
+    @Override
+    public void deleteMilestone(Long sowId, Long milestoneId) {
+        SowMilestone milestone = milestoneRepository.findByIdAndSow_Id(milestoneId, sowId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Milestone " + milestoneId + " not found for SOW " + sowId));
+        if (!positionAssignmentRepository
+                .findByMilestonePosition_Milestone_IdAndStatusIgnoreCase(milestoneId, "ASSIGNED").isEmpty()
+                || milestone.getPositions().stream()
+                        .anyMatch(position -> "ASSIGNED".equalsIgnoreCase(position.getStatus()))) {
+            throw new InvalidOperationException("MILESTONE_HAS_ASSIGNED_POSITIONS",
+                    "Milestone cannot be deleted. Please unassign all assigned positions first.");
+        }
+        if (featureRepository.existsByMilestone_Id(milestoneId)) {
+            throw new InvalidOperationException("MILESTONE_HAS_FEATURES",
+                    "Milestone cannot be deleted while it has linked features.");
+        }
+        if (invoiceRepository.existsByMilestone_Id(milestoneId)) {
+            throw new InvalidOperationException("MILESTONE_HAS_INVOICE",
+                    "Milestone cannot be deleted while it has a linked invoice.");
+        }
+        if (timesheetProjectRepository
+                .existsByMilestone_IdOrMilestonePositionAssignment_MilestonePosition_Milestone_Id(
+                        milestoneId, milestoneId)
+                || timesheetDayRepository.existsByMilestone_Id(milestoneId)) {
+            throw new InvalidOperationException("MILESTONE_HAS_TIMESHEETS",
+                    "Milestone cannot be deleted while it has linked timesheet records.");
+        }
+
+        // Remove inactive assignment rows before cascading deletion to their positions.
+        positionAssignmentRepository.deleteByMilestonePosition_Milestone_Id(milestoneId);
+        positionAssignmentRepository.flush();
+        Sow sow = milestone.getSow();
+        sow.removeMilestone(milestone);
+        sowRepository.saveAndFlush(sow);
+        resourceRequirementService.onPositionRemoved(sowId);
+    }
+
+    @Override
+    public SowMilestoneResponse updateMilestone(Long sowId, Long milestoneId, SowMilestoneUpdateRequest request) {
+        SowMilestone milestone = milestoneRepository.findByIdAndSow_Id(milestoneId, sowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone not found for SOW: " + milestoneId));
+        validateDateRange(request.getStartDate(), request.getEndDate(), "Milestone");
+        milestone.setMilestoneName(request.getMilestoneName().trim());
+        if (request.getDisplayOrder() != null) {
+            milestone.setDisplayOrder(request.getDisplayOrder());
+        }
+        milestone.setDescription(normalizeDescription(request.getDescription()));
+        milestone.setDeliverables(normalizeDescription(request.getDeliverables()));
+        milestone.setStartDate(request.getStartDate());
+        milestone.setEndDate(request.getEndDate());
+        milestone.setInvoiceDate(request.getInvoiceDate());
+        if (request.getPositions() != null) {
+            synchronizeMilestonePositions(milestone, SowMilestoneRequest.builder()
+                    .positions(request.getPositions()).build());
+            resourceRequirementService.onPositionCreatedOrUpdated(sowId);
+        }
+        BigDecimal amount = request.getInvoiceAmount();
+        if (amount == null) {
+            amount = BigDecimal.ZERO;
+            for (SowMilestonePosition position : milestone.getPositions()) {
+                if (position.getAmount() != null) amount = amount.add(position.getAmount());
+            }
+        }
+        milestone.setAmount(amount);
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            milestone.setStatus(normalizeMilestoneStatus(request.getStatus()));
+        }
+        return SowMapper.toMilestoneResponse(milestoneRepository.saveAndFlush(milestone));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SowPositionSummaryPageResponse getPositionSummaries(Long sowId, Long milestoneId, int page, int size) {
+        if (page < 0 || size < 1) {
+            throw new InvalidOperationException("page must be at least 0 and size must be at least 1");
+        }
+        milestoneRepository.findByIdAndSow_Id(milestoneId, sowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone not found for SOW: " + milestoneId));
+        Page<SowMilestonePosition> positions = positionRepository.findBySow_IdAndMilestone_Id(
+                sowId, milestoneId, PageRequest.of(page, size, Sort.by("id")));
+        List<SowPositionSummaryResponse> content = new ArrayList<>();
+        for (SowMilestonePosition position : positions) {
+            SowMilestonePositionAssignment activeAssignment = null;
+            // The repository orders newest first, making selection deterministic if multiple are active.
+            for (SowMilestonePositionAssignment assignment : positionAssignmentRepository
+                    .findByMilestonePosition_IdOrderByAssignmentStartDateDescIdDesc(position.getId())) {
+                if ("ASSIGNED".equalsIgnoreCase(assignment.getStatus())) {
+                    activeAssignment = assignment;
+                    break;
+                }
+            }
+            Long employeeId = activeAssignment == null ? null
+                    : activeAssignment.getEmployeeAssignment().getEmployeeId();
+            Employee employee = employeeId == null ? null : employeeRepository.findById(employeeId).orElse(null);
+            BigDecimal estimatedHours = null;
+            if (position.getHours() != null && !position.getHours().isBlank()) {
+                try {
+                    estimatedHours = new BigDecimal(position.getHours().trim());
+                } catch (NumberFormatException ignored) {
+                    // Legacy free-text hours cannot be represented as a numeric estimate.
+                }
+            }
+            content.add(new SowPositionSummaryResponse(position.getId(), position.getPositionName(),
+                    position.getLocationType(), estimatedHours, position.getStartDate(), position.getEndDate(),
+                    activeAssignment == null ? position.getStatus() : "ASSIGNED", position.getPositionType(),
+                    activeAssignment == null ? null : activeAssignment.getId(), employeeId,
+                    employee == null ? null : employeeName(employee)));
+        }
+        return new SowPositionSummaryPageResponse(content, positions.getNumber(), positions.getSize(),
+                positions.getTotalElements(), positions.getTotalPages(), positions.isFirst(), positions.isLast());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SowMilestoneSummaryPageResponse getMilestoneSummaries(Long sowId, int page, int size) {
+        if (page < 0 || size < 1) {
+            throw new InvalidOperationException("page must be at least 0 and size must be at least 1");
+        }
+        if (!sowRepository.existsById(sowId)) {
+            throw new ResourceNotFoundException("SOW not found: " + sowId);
+        }
+        Page<SowMilestone> milestones = milestoneRepository.findBySow_Id(
+                sowId, PageRequest.of(page, size, Sort.by("id")));
+        List<SowMilestoneSummaryResponse> content = new ArrayList<>();
+        for (SowMilestone milestone : milestones) {
+            Set<Long> assignedPositionIds = new HashSet<>();
+            for (SowMilestonePositionAssignment assignment : positionAssignmentRepository
+                    .findByMilestonePosition_Milestone_IdAndStatusIgnoreCase(milestone.getId(), "ASSIGNED")) {
+                assignedPositionIds.add(assignment.getMilestonePosition().getId());
+            }
+            int openCount = 0;
+            for (SowMilestonePosition position : milestone.getPositions()) {
+                if ("OPEN".equalsIgnoreCase(position.getStatus())
+                        && !assignedPositionIds.contains(position.getId())) {
+                    openCount++;
+                }
+            }
+            content.add(new SowMilestoneSummaryResponse(milestone.getId(), milestone.getMilestoneName(),
+                    milestone.getStartDate(), milestone.getEndDate(), milestone.getPositions().size(), openCount,
+                    milestone.getDisplayOrder()));
+        }
+        return new SowMilestoneSummaryPageResponse(content, milestones.getNumber(), milestones.getSize(),
+                milestones.getTotalElements(), milestones.getTotalPages(), milestones.isFirst(), milestones.isLast());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SowSummaryPageResponse getSummaries(int page, int size) {
+        if (page < 0 || size < 1) {
+            throw new InvalidOperationException("page must be at least 0 and size must be at least 1");
+        }
+        Page<Sow> sows = sowRepository.findSummaryPage(
+                PageRequest.of(page, size, Sort.by("id")));
+        Map<Long, CsxEmployee> csxContacts = csxEmployeesFor(sows.getContent());
+        List<SowSummaryResponse> content = new ArrayList<>();
+        for (Sow sow : sows) {
+            List<SowMilestonePosition> positions = positionRepository.findBySowId(sow.getId());
+            Set<Long> assignedPositionIds = new HashSet<>();
+            for (SowMilestonePositionAssignment assignment : positionAssignmentRepository
+                    .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(sow.getId(), "ASSIGNED")) {
+                assignedPositionIds.add(assignment.getMilestonePosition().getId());
+            }
+            int openCount = 0;
+            for (SowMilestonePosition position : positions) {
+                if ("OPEN".equalsIgnoreCase(position.getStatus())
+                        && !assignedPositionIds.contains(position.getId())) {
+                    openCount++;
+                }
+            }
+            LookupValue businessUnit = sow.getBusinessUnit();
+            CsxEmployee poc = sow.getCsxContactEmployeeId() == null ? null
+                    : csxContacts.get(sow.getCsxContactEmployeeId());
+            String pocName = poc == null ? null
+                    : (Objects.toString(poc.getFirstName(), "").trim() + " "
+                    + Objects.toString(poc.getLastName(), "").trim()).trim();
+            content.add(SowSummaryResponse.builder()
+                    .sowId(sow.getId()).sowName(sow.getSowName())
+                    .clientId(sow.getClient() == null ? null : sow.getClient().getId())
+                    .clientName(sow.getClient() == null ? null : sow.getClient().getClientName())
+                    .businessUnitId(businessUnit == null ? null : businessUnit.getId())
+                    .businessUnitName(businessUnit == null ? null : businessUnit.getName())
+                    .pocEmployeeId(poc == null ? null : poc.getId()).pocEmployeeName(pocName)
+                    .deliveryOwnerEmployeeId(sow.getDeliveryOwnerEmployee() == null ? null : sow.getDeliveryOwnerEmployee().getId())
+                    .deliveryOwnerEmployeeName(employeeName(sow.getDeliveryOwnerEmployee()))
+                    .technicalLeadEmployeeId(sow.getTechnicalLeadEmployee() == null ? null : sow.getTechnicalLeadEmployee().getId())
+                    .technicalLeadEmployeeName(employeeName(sow.getTechnicalLeadEmployee()))
+                    .startDate(sow.getStartDate()).endDate(sow.getEndDate())
+                    .actualStartDate(sow.getActualStartDate())
+                    .status(sow.getStatus() == null ? null : sow.getStatus().getCode())
+                    .totalPositionCount(positions.size()).openPositionCount(openCount).build());
+        }
+        return new SowSummaryPageResponse(content, sows.getNumber(), sows.getSize(),
+                sows.getTotalElements(), sows.getTotalPages(), sows.isFirst(), sows.isLast());
+    }
 
     @Override
     public SowResponse create(SowRequest request) {
         validateRequest(request);
-        String code = normalizeCode(request.getSowCode());
-        validateUniqueCode(code, null);
 
         Sow sow = new Sow();
-        sow.setSowCode(code);
-        applySowFields(sow, request);
+        applySowFields(sow, request, true);
         sowRepository.saveAndFlush(sow);
 
         MilestoneSync milestoneSync = synchronizeMilestones(sow, request.getMilestones());
@@ -63,6 +287,9 @@ public class SowServiceImpl implements SowService {
         createDraftInvoicesWhenEligible(sow, milestoneSync.retained());
         Sow saved = sowRepository.saveAndFlush(sow);
         resourceRequirementService.onPositionCreatedOrUpdated(saved.getId());
+        events.publishEvent(emailFactory.sowCreated(saved));
+        statusHistory.record(saved, null);
+        ownerHistory.record(saved, null, null, request.getOwnerChangeEffectiveDate(), request.getOwnerChangeReason());
         return toResponse(saved);
     }
 
@@ -110,7 +337,7 @@ public class SowServiceImpl implements SowService {
         Map<Long, Sow> sows = sowRepository.findAllWithDetails().stream()
                 .collect(Collectors.toMap(Sow::getId, Function.identity()));
         List<EmployeeAssignment> assignments = assignmentRepository
-                .findByStatusIgnoreCaseOrderByIsPrimaryAssignmentDescEffectiveFromDesc("ACTIVE").stream()
+                .findByStatusIgnoreCaseOrderByEffectiveFromDesc("ACTIVE").stream()
                 .filter(assignment -> assignment.getSowId() != null
                         && sows.containsKey(assignment.getSowId()))
                 .toList();
@@ -122,7 +349,7 @@ public class SowServiceImpl implements SowService {
     public List<SowAssignmentResponse> getAssignments(Long sowId) {
         Sow sow = findSow(sowId);
         List<EmployeeAssignment> assignments = assignmentRepository
-                .findBySowIdAndStatusIgnoreCaseOrderByIsPrimaryAssignmentDescEffectiveFromDescIdDesc(
+                .findBySowIdAndStatusIgnoreCaseOrderByEffectiveFromDescIdDesc(
                         sowId, "ACTIVE");
         return assignmentResponses(assignments, Map.of(sowId, sow));
     }
@@ -138,15 +365,11 @@ public class SowServiceImpl implements SowService {
         }
         Sow sow = findSow(assignment.getSowId());
         Employee employee = requireEmployee(assignment.getEmployeeId(), "Employee");
-        if (request.getMilestoneId() != null) {
-            milestoneRepository.findByIdAndSow_Id(request.getMilestoneId(), sow.getId())
-                    .orElseThrow(() -> new InvalidOperationException(
-                            "Milestone " + request.getMilestoneId()
-                                    + " does not belong to SOW " + sow.getId()));
+        if (request.getDesignationId() != null || request.getPositionType() != null
+                || request.getMilestoneId() != null) {
+            throw new InvalidOperationException(
+                    "Update milestone, designation and position type through the milestone position assignment");
         }
-        lookupValueRepository.findById(request.getDesignationId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Designation not found: " + request.getDesignationId()));
         validateSupervisor(request.getLeadId(), employee.getId(), "Team Lead");
         validateSupervisor(request.getManagerId(), employee.getId(), "Manager");
         validateAssignmentDates(request.getAssignmentStartDate(), request.getAssignmentEndDate());
@@ -165,19 +388,12 @@ public class SowServiceImpl implements SowService {
                         "Employee " + employee.getId() + " already has an active assignment for SOW "
                                 + sow.getId());
             }
-            if (Boolean.TRUE.equals(request.getIsPrimaryAssignment())) {
-                clearPrimaryAssignment(employee.getId(), assignmentId, request.getUpdatedBy());
-            }
         }
 
-        assignment.setMilestoneId(request.getMilestoneId());
-        assignment.setDesignationId(request.getDesignationId());
-        assignment.setPositionType(normalizePositionType(request.getPositionType()));
         assignment.setLeadId(request.getLeadId());
         assignment.setManagerId(request.getManagerId());
-        assignment.setAllocationPercentage(request.getAllocationPercentage());
-        assignment.setIsPrimaryAssignment("ACTIVE".equals(status)
-                && Boolean.TRUE.equals(request.getIsPrimaryAssignment()));
+
+
         assignment.setEffectiveFrom(request.getAssignmentStartDate());
         assignment.setEffectiveTo(request.getAssignmentEndDate());
         assignment.setStatus(status);
@@ -196,6 +412,7 @@ public class SowServiceImpl implements SowService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Milestone " + milestoneId + " not found for SOW " + sowId));
         RateCard rateCard = resolveRateCard(request.getRateCardId());
+        validatePositionRateCard(rateCard, request.getStartDate(), request.getEndDate());
         LookupValue designation = resolvePlannedDesignation(
                 request.getPositionId(), rateCard);
         LookupValue skill = resolvePlannedSkill(request.getSkillId(), rateCard);
@@ -218,6 +435,7 @@ public class SowServiceImpl implements SowService {
                 .amount(request.getAmount())
                 .build();
         applyPositionRate(milestonePosition, rateCard, request);
+        applyPositionAmount(milestonePosition, request, true);
         milestone.getPositions().add(milestonePosition);
         milestone.setAmount(milestone.getPositions().stream()
                 .map(SowMilestonePosition::getAmount)
@@ -253,6 +471,27 @@ public class SowServiceImpl implements SowService {
     }
 
     @Override
+    public com.rit.performance.dto.response.SowMilestonePositionResponse updatePosition(
+            Long sowId, Long milestoneId, Long positionId,
+            com.rit.performance.dto.request.SowMilestonePositionRequest request) {
+        SowMilestone milestone = milestoneRepository.findByIdAndSow_Id(milestoneId, sowId)
+                .orElseThrow(() -> new ResourceNotFoundException("Milestone not found for SOW: " + milestoneId));
+        SowMilestonePosition position = milestone.getPositions().stream()
+                .filter(candidate -> Objects.equals(candidate.getId(), positionId)).findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Position not found for milestone: " + positionId));
+        if (request.getMilestonePositionId() != null && !Objects.equals(request.getMilestonePositionId(), positionId)) {
+            throw new InvalidOperationException("milestonePositionId must match the position ID in the URL");
+        }
+        applyPositionFields(position, request);
+        milestone.setAmount(milestone.getPositions().stream().map(SowMilestonePosition::getAmount)
+                .filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add));
+        milestoneRepository.saveAndFlush(milestone);
+        resourceRequirementService.onPositionCreatedOrUpdated(sowId);
+        return SowMapper.toMilestoneResponse(milestone).getPositions().stream()
+                .filter(candidate -> Objects.equals(candidate.getMilestonePositionId(), positionId)).findFirst().orElseThrow();
+    }
+
+    @Override
     public void deletePosition(Long sowId, Long milestoneId, Long positionId) {
         SowMilestone milestone = milestoneRepository.findByIdAndSow_Id(milestoneId, sowId)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -264,8 +503,8 @@ public class SowServiceImpl implements SowService {
                         "Milestone position " + positionId + " not found for milestone "
                                 + milestoneId + " and SOW " + sowId));
         if (positionAssignmentRepository.existsByMilestonePosition_Id(positionId)) {
-            throw new InvalidOperationException("Milestone position " + positionId
-                    + " has assignment history and cannot be removed; unassign it instead");
+            throw new InvalidOperationException("POSITION_HAS_RESOURCE",
+                    "Position can't be removed. Unassign the resource first.");
         }
 
         milestone.getPositions().remove(position);
@@ -298,7 +537,7 @@ public class SowServiceImpl implements SowService {
         }
         assignment.setEffectiveTo(request.getAssignmentEndDate());
         assignment.setStatus("COMPLETED");
-        assignment.setIsPrimaryAssignment(false);
+
         assignment.setUpdatedBy(request.getUpdatedBy());
         EmployeeAssignment saved = assignmentRepository.save(assignment);
         return assignmentResponses(List.of(saved), Map.of(sowId, sow)).get(0);
@@ -314,10 +553,14 @@ public class SowServiceImpl implements SowService {
         Map<Long, Employee> employees = employeeIds.isEmpty() ? Map.of()
                 : employeeRepository.findByIdIn(List.copyOf(employeeIds)).stream()
                         .collect(Collectors.toMap(Employee::getId, Function.identity()));
-        Set<Long> designationIds = assignments.stream()
-                .map(EmployeeAssignment::getDesignationId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        Map<Long, List<SowMilestonePositionAssignment>> details = assignments.isEmpty() ? Map.of()
+                : positionAssignmentRepository.findByEmployeeAssignment_IdIn(
+                        assignments.stream().map(EmployeeAssignment::getId).toList()).stream()
+                        .collect(Collectors.groupingBy(item -> item.getEmployeeAssignment().getId()));
+        Set<Long> designationIds = details.values().stream().flatMap(List::stream)
+                .map(SowMilestonePositionAssignment::getMilestonePosition)
+                .filter(Objects::nonNull).map(SowMilestonePosition::getPosition)
+                .filter(Objects::nonNull).map(LookupValue::getId).collect(Collectors.toSet());
         Map<Long, LookupValue> designations = designationIds.isEmpty() ? Map.of()
                 : lookupValueRepository.findAllById(designationIds).stream()
                         .collect(Collectors.toMap(LookupValue::getId, Function.identity()));
@@ -329,31 +572,37 @@ public class SowServiceImpl implements SowService {
         return assignments.stream()
                 .map(assignment -> {
                     Sow sow = sows.get(assignment.getSowId());
-                    Employee employee = employees.get(assignment.getEmployeeId());
-                    Employee lead = employees.get(assignment.getLeadId());
-                    Employee manager = employees.get(assignment.getManagerId());
-                    LookupValue designation = designations.get(assignment.getDesignationId());
-                    SowMilestone milestone = milestones.get(assignment.getMilestoneId());
+                    var summary = com.rit.performance.service.EmployeeAssignmentSummary.from(sow,
+                            details.getOrDefault(assignment.getId(), List.of()));
+                    Employee employee = assignment.getEmployeeId() == null
+                            ? null : employees.get(assignment.getEmployeeId());
+                    Employee lead = assignment.getLeadId() == null
+                            ? null : employees.get(assignment.getLeadId());
+                    Employee manager = assignment.getManagerId() == null
+                            ? null : employees.get(assignment.getManagerId());
+                    LookupValue designation = summary.getDesignationId() == null
+                            ? null : designations.get(summary.getDesignationId());
+                    SowMilestone milestone = summary.getMilestoneId() == null
+                            ? null : milestones.get(summary.getMilestoneId());
                     return SowAssignmentResponse.builder()
                             .assignmentId(assignment.getId())
                             .employeeId(assignment.getEmployeeId())
                             .employeeNumber(employee == null ? null : employee.getRitId())
                             .employeeName(employee == null ? null : employeeName(employee))
                             .email(employee == null ? null : employee.getEmail())
-                            .sowId(sow.getId()).sowCode(sow.getSowCode()).sowName(sow.getSowName())
-                            .milestoneId(assignment.getMilestoneId())
-                            .milestoneName(assignment.getMilestoneId() == null
+                            .sowId(sow.getId()).sowName(sow.getSowName())
+                            .milestoneId(summary.getMilestoneId())
+                            .milestoneName(summary.getMilestoneId() == null
                                     ? "All milestones"
                                     : milestone == null ? null : milestone.getMilestoneName())
-                            .designationId(assignment.getDesignationId())
+                            .designationId(summary.getDesignationId())
                             .designationName(designation == null ? null : designation.getName())
-                            .positionType(assignment.getPositionType())
+                            .positionType(summary.getPositionType())
                             .leadId(assignment.getLeadId())
                             .leadName(lead == null ? null : employeeName(lead))
                             .managerId(assignment.getManagerId())
                             .managerName(manager == null ? null : employeeName(manager))
-                            .allocationPercentage(assignment.getAllocationPercentage())
-                            .isPrimaryAssignment(assignment.getIsPrimaryAssignment())
+                            .isPrimaryAssignment(null)
                             .assignmentStartDate(assignment.getEffectiveFrom())
                             .assignmentEndDate(assignment.getEffectiveTo())
                             .assignmentStatus(assignment.getStatus())
@@ -365,11 +614,11 @@ public class SowServiceImpl implements SowService {
     @Override
     public SowResponse update(Long id, SowRequest request) {
         validateRequest(request);
-        Sow sow = findSow(id);
-        String code = normalizeCode(request.getSowCode());
-        validateUniqueCode(code, id);
-        sow.setSowCode(code);
-        applySowFields(sow, request);
+        Sow sow = sowRepository.findForStatusUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("SOW not found: " + id));
+        Employee previousDeliveryOwner = sow.getDeliveryOwnerEmployee();
+        Employee previousTechnicalLead = sow.getTechnicalLeadEmployee();
+        applySowFields(sow, request, false);
 
         MilestoneSync milestoneSync = synchronizeMilestones(sow, request.getMilestones());
         milestoneRepository.saveAll(milestoneSync.retained());
@@ -386,6 +635,81 @@ public class SowServiceImpl implements SowService {
         }
         Sow saved = sowRepository.saveAndFlush(sow);
         resourceRequirementService.onPositionCreatedOrUpdated(saved.getId());
+        events.publishEvent(emailFactory.sowUpdated(saved, "updated"));
+        ownerHistory.record(saved, previousDeliveryOwner, previousTechnicalLead,
+                request.getOwnerChangeEffectiveDate(), request.getOwnerChangeReason());
+        return toResponse(saved);
+    }
+
+    @Override
+    public SowResponse updateOwners(Long id, com.rit.performance.dto.request.SowOwnersUpdateRequest request) {
+        if (request.effectiveDate() == null) throw new InvalidOperationException("effectiveDate is required");
+        Sow sow = sowRepository.findForStatusUpdate(id)
+                .orElseThrow(() -> new ResourceNotFoundException("SOW not found: " + id));
+        Employee previousDeliveryOwner = sow.getDeliveryOwnerEmployee();
+        Employee previousTechnicalLead = sow.getTechnicalLeadEmployee();
+        sow.setDeliveryOwnerEmployee(findRitEmployee(request.deliveryOwnerEmployeeId(), "Delivery owner"));
+        sow.setTechnicalLeadEmployee(findRitEmployee(request.technicalLeadEmployeeId(), "Technical lead"));
+        ownerHistory.record(sow, previousDeliveryOwner, previousTechnicalLead, request.effectiveDate(), request.reason());
+        return toResponse(sowRepository.saveAndFlush(sow));
+    }
+
+    @Override
+    public SowResponse updateStatus(Long sowId, SowStatusUpdateRequest request) {
+        Sow sow = sowRepository.findForStatusUpdate(sowId)
+                .orElseThrow(() -> new ResourceNotFoundException("SOW not found: " + sowId));
+        LookupValue newStatus = resolveSowStatus(request.getStatus());
+        String currentCode = sow.getStatus().getCode().toUpperCase(Locale.ROOT);
+        String newCode = newStatus.getCode().toUpperCase(Locale.ROOT);
+        String reason = request.getReason() == null ? null : request.getReason().strip();
+        if (reason != null && reason.isBlank()) reason = null;
+        if (Set.of("ON_HOLD", "CANCELLED").contains(newCode) && reason == null)
+            throw new InvalidOperationException("reason is required when status is " + newCode);
+        if (request.getReason() != null && request.getReason().length() > 2000)
+            throw new InvalidOperationException("reason must not exceed 2000 characters");
+
+        if (!VALID_SOW_STATUS_TRANSITIONS
+                .getOrDefault(currentCode, Set.of()).contains(newCode)) {
+            throw new InvalidOperationException(
+                    "Invalid SOW status transition: " + currentCode + " -> " + newCode);
+        }
+
+        // Status changes take effect today, independently of the browser's date.
+        LocalDate effectiveDate = LocalDate.now(businessClock);
+        if ("WAITING_FOR_APPROVAL".equals(newCode)) sow.setSubmittedDate(effectiveDate);
+        sow.setStatus(newStatus);
+        sow.setStatusEffectiveDate(effectiveDate);
+        if ("ACTIVE".equals(newCode) && sow.getActualStartDate() == null) {
+            // The UI's date is the selected work start, which may be in the future.
+            sow.setActualStartDate(request.getStatusEffectiveDate() == null
+                    ? effectiveDate : request.getStatusEffectiveDate());
+        }
+        Sow saved = sowRepository.save(sow);
+        statusHistory.record(saved, currentCode, reason);
+        events.publishEvent(emailFactory.sowUpdated(saved, "status updated"));
+        return toResponse(saved);
+    }
+
+    @Override
+    public SowResponse updateSignature(Long sowId, SowSignatureUpdateRequest request) {
+        Sow sow = findSow(sowId);
+        String signedStatus = request.getSignedStatus().trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("SIGNED", "UNSIGNED").contains(signedStatus)) {
+            throw new InvalidOperationException(
+                    "signedStatus must be SIGNED or UNSIGNED");
+        }
+        if ("SIGNED".equals(signedStatus) && request.getSignedDate() == null) {
+            throw new InvalidOperationException(
+                    "signedDate is required when signedStatus is SIGNED");
+        }
+        if (request.getSignedDate() != null && request.getSignedDate().isAfter(LocalDate.now(businessClock))) {
+            throw new InvalidOperationException("signedDate cannot be in the future");
+        }
+
+        sow.setSignedStatus(signedStatus);
+        sow.setSignedDate("SIGNED".equals(signedStatus) ? request.getSignedDate() : null);
+        Sow saved = sowRepository.save(sow);
+        events.publishEvent(emailFactory.sowUpdated(saved, "signature updated"));
         return toResponse(saved);
     }
 
@@ -477,7 +801,7 @@ public class SowServiceImpl implements SowService {
         }
     }
 
-    private void applySowFields(Sow sow, SowRequest request) {
+    private void applySowFields(Sow sow, SowRequest request, boolean applyWorkflowFields) {
         sow.setSowName(request.getSowName().trim());
         sow.setYear(request.getYear());
         sow.setClient(clientRepository.findById(request.getClientId())
@@ -488,7 +812,9 @@ public class SowServiceImpl implements SowService {
         sow.setBusinessUnit(lookupValueRepository.findById(request.getBusinessUnitId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Business unit not found: " + request.getBusinessUnitId())));
-        sow.setSubmittedDate(request.getSubmittedDate());
+        if (request.getSubmittedDate() != null) {
+            sow.setSubmittedDate(request.getSubmittedDate());
+        }
         sow.setCsxProjectId(trimToNull(request.getCsxProjectId()));
         validateCsxEmployee(request.getProjectOwnerEmployeeId(), "Project owner");
         validateCsxEmployee(request.getCsxContactEmployeeId(), "CSX contact");
@@ -500,24 +826,38 @@ public class SowServiceImpl implements SowService {
                 request.getRitContactEmployeeId(), "RIT contact"));
         sow.setRitEscalationEmployee(findRitEmployee(
                 request.getRitEscalationEmployeeId(), "RIT escalation person"));
+        sow.setDeliveryOwnerEmployee(findRitEmployee(request.getDeliveryOwnerEmployeeId(), "Delivery owner"));
+        sow.setTechnicalLeadEmployee(findRitEmployee(request.getTechnicalLeadEmployeeId(), "Technical lead"));
         sow.setStartDate(request.getStartDate());
         sow.setEndDate(request.getEndDate());
-        sow.setStatus(resolveSowStatus(request.getStatus()));
+        if (applyWorkflowFields) {
+            LookupValue resolvedStatus = resolveSowStatus(request.getStatus());
+            sow.setStatus(resolvedStatus);
+            sow.setStatusEffectiveDate(request.getStatusEffectiveDate() == null
+                    ? LocalDate.now(businessClock) : request.getStatusEffectiveDate());
+            if ("WAITING_FOR_APPROVAL".equalsIgnoreCase(resolvedStatus.getCode())) {
+                sow.setSubmittedDate(LocalDate.now(businessClock));
+                sow.setStatusEffectiveDate(sow.getSubmittedDate());
+            }
+            captureActualStartDate(sow);
+        }
         sow.setRemarks(normalizeDescription(request.getRemarks()));
-        String signedStatus = request.getSignedStatus() == null
-                || request.getSignedStatus().isBlank()
-                ? "UNSIGNED"
-                : request.getSignedStatus().trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("SIGNED", "UNSIGNED").contains(signedStatus)) {
-            throw new InvalidOperationException(
-                    "signedStatus must be SIGNED or UNSIGNED");
+        if (applyWorkflowFields) {
+            String signedStatus = request.getSignedStatus() == null
+                    || request.getSignedStatus().isBlank()
+                    ? "UNSIGNED"
+                    : request.getSignedStatus().trim().toUpperCase(Locale.ROOT);
+            if (!Set.of("SIGNED", "UNSIGNED").contains(signedStatus)) {
+                throw new InvalidOperationException(
+                        "signedStatus must be SIGNED or UNSIGNED");
+            }
+            if ("SIGNED".equals(signedStatus) && request.getSignedDate() == null) {
+                throw new InvalidOperationException(
+                        "signedDate is required when signedStatus is SIGNED");
+            }
+            sow.setSignedStatus(signedStatus);
+            sow.setSignedDate("SIGNED".equals(signedStatus) ? request.getSignedDate() : null);
         }
-        if ("SIGNED".equals(signedStatus) && request.getSignedDate() == null) {
-            throw new InvalidOperationException(
-                    "signedDate is required when signedStatus is SIGNED");
-        }
-        sow.setSignedStatus(signedStatus);
-        sow.setSignedDate("SIGNED".equals(signedStatus) ? request.getSignedDate() : null);
         if (request.getDocumentList() != null) {
             synchronizeDocuments(sow, request.getDocumentList());
         }
@@ -525,6 +865,9 @@ public class SowServiceImpl implements SowService {
 
     private void applyMilestoneFields(SowMilestone milestone, SowMilestoneRequest request) {
         milestone.setMilestoneName(request.getMilestoneName().trim());
+        if (request.getDisplayOrder() != null) {
+            milestone.setDisplayOrder(request.getDisplayOrder());
+        }
         milestone.setDescription(normalizeDescription(request.getDescription()));
         milestone.setDeliverables(normalizeDescription(request.getDeliverables()));
         milestone.setEstimatedHours(request.getEstimatedHours());
@@ -534,6 +877,14 @@ public class SowServiceImpl implements SowService {
         milestone.setAmount(request.getAmount());
         milestone.setStatus(normalizeMilestoneStatus(request.getStatus()));
         synchronizeMilestonePositions(milestone, request);
+    }
+
+    private void captureActualStartDate(Sow sow) {
+        if (sow.getActualStartDate() != null || !"ACTIVE".equalsIgnoreCase(sow.getStatus().getCode())) return;
+        LocalDate workStartDate = sow.getStatusEffectiveDate();
+        if (workStartDate == null || workStartDate.isAfter(LocalDate.now(businessClock)))
+            throw new InvalidOperationException("Work start date is required and cannot be in the future");
+        sow.setActualStartDate(workStartDate);
     }
 
     private void synchronizeMilestonePositions(SowMilestone milestone, SowMilestoneRequest request) {
@@ -555,9 +906,6 @@ public class SowServiceImpl implements SowService {
                             + positionRequest.getMilestonePositionId()
                             + " does not belong to milestone " + milestone.getId());
                 }
-            } else if (index < existing.size() && !retained.contains(existing.get(index))) {
-                // Backward-compatible fallback for clients that have not started sending IDs yet.
-                milestonePosition = existing.get(index);
             } else {
                 milestonePosition = new SowMilestonePosition();
                 newPosition = true;
@@ -566,32 +914,8 @@ public class SowServiceImpl implements SowService {
                 throw new InvalidOperationException("Duplicate milestonePositionId in request: "
                         + positionRequest.getMilestonePositionId());
             }
-            RateCard rateCard = resolveRateCard(positionRequest.getRateCardId());
-            LookupValue designation = resolvePlannedDesignation(
-                    positionRequest.getPositionId(), rateCard);
-            LookupValue skill = resolvePlannedSkill(positionRequest.getSkillId(), rateCard);
-            LookupValue seniority = resolveSeniority(positionRequest.getSeniorityId());
-            String positionName = resolvePositionName(
-                    positionRequest.getPositionName(), designation);
-            validateDateRange(positionRequest.getStartDate(), positionRequest.getEndDate(),
-                    "Milestone position");
-            milestonePosition.setPosition(designation);
-            milestonePosition.setSkill(skill);
-            milestonePosition.setRateCard(rateCard);
-            applyPositionRate(milestonePosition, rateCard, positionRequest);
-            milestonePosition.setPositionName(positionName);
-            milestonePosition.setSeniority(seniority);
-            milestonePosition.setPositionType(normalizePositionType(
-                    positionRequest.getPositionType()));
-            milestonePosition.setLocationType(normalizeLocationType(
-                    positionRequest.getLocationType()));
-            milestonePosition.setStartDate(positionRequest.getStartDate());
-            milestonePosition.setEndDate(positionRequest.getEndDate());
-            milestonePosition.setHours(trimToNull(positionRequest.getHours()));
-            milestonePosition.setAmount(positionRequest.getAmount());
+            applyPositionFields(milestonePosition, positionRequest);
             if (newPosition) {
-                // Attach only after mandatory fields are populated. Repository lookups above can
-                // trigger an automatic flush of managed entities.
                 milestone.addPosition(milestonePosition);
             }
         }
@@ -600,10 +924,73 @@ public class SowServiceImpl implements SowService {
                 .filter(position -> !retained.contains(position)).toList();
         for (SowMilestonePosition position : removed) {
             if (positionAssignmentRepository.existsByMilestonePosition_Id(position.getId())) {
-                throw new InvalidOperationException("Milestone position " + position.getId()
-                        + " has assignment history and cannot be removed; unassign it instead");
+                throw new InvalidOperationException("POSITION_HAS_RESOURCE",
+                        "Position can't be removed. Unassign the resource first.");
             }
             milestone.getPositions().remove(position);
+        }
+    }
+
+    private void applyPositionFields(SowMilestonePosition milestonePosition,
+            com.rit.performance.dto.request.SowMilestonePositionRequest positionRequest) {
+        Long savedCardId = milestonePosition.getRateCard() == null
+                ? null : milestonePosition.getRateCard().getId();
+        boolean preservePricing = milestonePosition.getId() != null
+                && (positionRequest.getRateCardId() == null
+                    || Objects.equals(savedCardId, positionRequest.getRateCardId()))
+                && (positionRequest.getHourlyRate() == null
+                    || (milestonePosition.getHourlyRate() != null
+                        && positionRequest.getHourlyRate().compareTo(milestonePosition.getHourlyRate()) == 0));
+        RateCard rateCard = preservePricing ? milestonePosition.getRateCard()
+                : resolveRateCard(positionRequest.getRateCardId() == null
+                        ? savedCardId : positionRequest.getRateCardId());
+        boolean datesChanged = !Objects.equals(milestonePosition.getStartDate(), positionRequest.getStartDate())
+                || !Objects.equals(milestonePosition.getEndDate(), positionRequest.getEndDate());
+        if (!preservePricing) {
+            validatePositionRateCard(rateCard, positionRequest.getStartDate(), positionRequest.getEndDate());
+        } else if (datesChanged) {
+            validatePositionRateDates(rateCard, positionRequest.getStartDate(), positionRequest.getEndDate());
+        }
+        LookupValue designation = resolvePlannedDesignation(
+                positionRequest.getPositionId(), preservePricing ? null : rateCard);
+        LookupValue skill = preservePricing && positionRequest.getSkillId() == null
+                ? milestonePosition.getSkill()
+                : resolvePlannedSkill(positionRequest.getSkillId(), preservePricing ? null : rateCard);
+        LookupValue seniority = resolveSeniority(positionRequest.getSeniorityId());
+        String positionName = resolvePositionName(
+                positionRequest.getPositionName(), designation);
+        validateDateRange(positionRequest.getStartDate(), positionRequest.getEndDate(),
+                "Milestone position");
+        milestonePosition.setPosition(designation);
+        milestonePosition.setSkill(skill);
+        milestonePosition.setRateCard(rateCard);
+        if (!preservePricing) applyPositionRate(milestonePosition, rateCard, positionRequest);
+        applyPositionAmount(milestonePosition, positionRequest, !preservePricing);
+        milestonePosition.setPositionName(positionName);
+        milestonePosition.setSeniority(seniority);
+        milestonePosition.setPositionType(normalizePositionType(
+                positionRequest.getPositionType()));
+        milestonePosition.setLocationType(normalizeLocationType(
+                positionRequest.getLocationType()));
+        milestonePosition.setStartDate(positionRequest.getStartDate());
+        milestonePosition.setEndDate(positionRequest.getEndDate());
+        milestonePosition.setHours(trimToNull(positionRequest.getHours()));
+    }
+
+    private void applyPositionAmount(SowMilestonePosition position,
+            com.rit.performance.dto.request.SowMilestonePositionRequest request, boolean pricingChanged) {
+        String hours = trimToNull(request.getHours());
+        if (position.getHourlyRate() != null && hours != null
+                && (pricingChanged || !Objects.equals(hours, trimToNull(position.getHours())))) {
+            try {
+                BigDecimal numericHours = new BigDecimal(hours);
+                if (numericHours.signum() < 0) throw new NumberFormatException();
+                position.setAmount(position.getHourlyRate().multiply(numericHours));
+            } catch (NumberFormatException ex) {
+                throw new InvalidOperationException("hours must be a non-negative number for position pricing");
+            }
+        } else if (request.getAmount() != null) {
+            position.setAmount(request.getAmount());
         }
     }
 
@@ -628,7 +1015,7 @@ public class SowServiceImpl implements SowService {
             }
             position.setRateOverrideReason(reason);
             position.setRateUpdatedBy(request.getRateUpdatedBy());
-            position.setRateUpdatedDate(java.time.LocalDateTime.now());
+            position.setRateUpdatedDate(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
         } else {
             position.setRateOverrideReason(null);
             position.setRateUpdatedBy(null);
@@ -642,10 +1029,30 @@ public class SowServiceImpl implements SowService {
         RateCard rateCard = rateCardRepository.findByIdWithDetails(rateCardId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Rate card not found: " + rateCardId));
-        if (!"ACTIVE".equalsIgnoreCase(rateCard.getStatus())) {
-            throw new InvalidOperationException("Rate card is not active: " + rateCardId);
-        }
         return rateCard;
+    }
+
+    private void validatePositionRateCard(RateCard card, LocalDate start, LocalDate end) {
+        if (card == null) return;
+        if (!"ACTIVE".equalsIgnoreCase(card.getStatus()) && !"EXPIRED".equalsIgnoreCase(card.getStatus())) {
+            throw new InvalidOperationException("Rate card " + card.getId()
+                    + " must be ACTIVE or EXPIRED for new position pricing; status is " + card.getStatus());
+        }
+        validatePositionRateDates(card, start, end);
+    }
+
+    private void validatePositionRateDates(RateCard card, LocalDate start, LocalDate end) {
+        validateDateRange(start, end, "Milestone position");
+        if (card == null) return;
+        if (start == null || end == null) {
+            throw new InvalidOperationException("Position startDate and endDate are required for rate-card pricing");
+        }
+        if (card.getEffectiveFrom() == null || start.isBefore(card.getEffectiveFrom())
+                || (card.getEffectiveTo() != null && end.isAfter(card.getEffectiveTo()))) {
+            throw new InvalidOperationException("Rate card " + card.getId()
+                    + " does not cover the entire position work period " + start + " to " + end
+                    + ". Select a card covering the entire period or split the position into periods covered by one card each.");
+        }
     }
 
     private LookupValue resolvePlannedDesignation(Long designationId, RateCard rateCard) {
@@ -785,7 +1192,7 @@ public class SowServiceImpl implements SowService {
                 .filter(Objects::nonNull).collect(Collectors.toSet());
         List<SowMilestonePositionAssignment> assignments = sowIds.stream()
                 .flatMap(sowId -> positionAssignmentRepository
-                        .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(sowId, "ACTIVE")
+                        .findByMilestonePosition_Sow_IdAndStatusIgnoreCase(sowId, "ASSIGNED")
                         .stream())
                 .toList();
         Set<Long> employeeIds = assignments.stream()
@@ -833,19 +1240,6 @@ public class SowServiceImpl implements SowService {
         if (employeeIds.isEmpty()) return Map.of();
         return csxEmployeeRepository.findAllById(employeeIds).stream()
                 .collect(Collectors.toMap(CsxEmployee::getId, Function.identity()));
-    }
-
-    private void validateUniqueCode(String code, Long currentId) {
-        if (code == null) return;
-        boolean exists = currentId == null
-                ? sowRepository.existsBySowCodeIgnoreCase(code)
-                : sowRepository.existsBySowCodeIgnoreCaseAndIdNot(code, currentId);
-        if (exists) throw new DuplicateResourceException("SOW code already exists: " + code);
-    }
-
-    private String normalizeCode(String value) {
-        String normalized = trimToNull(value);
-        return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
     }
 
     private Map<Long, String> auditorNamesFor(List<Sow> sows) {
@@ -897,6 +1291,7 @@ public class SowServiceImpl implements SowService {
     }
 
     private String employeeName(Employee employee) {
+        if (employee == null) return null;
         return (employee.getFirstName() + " "
                 + (employee.getLastName() == null ? "" : employee.getLastName())).trim();
     }
@@ -954,21 +1349,7 @@ public class SowServiceImpl implements SowService {
         return normalized;
     }
 
-    private void clearPrimaryAssignment(Long employeeId, Long currentAssignmentId, Long updatedBy) {
-        List<EmployeeAssignment> activeAssignments =
-                assignmentRepository.findAllByEmployeeIdAndStatusIgnoreCase(employeeId, "ACTIVE");
-        List<EmployeeAssignment> changedAssignments = activeAssignments.stream()
-                .filter(other -> !Objects.equals(other.getId(), currentAssignmentId))
-                .filter(other -> Boolean.TRUE.equals(other.getIsPrimaryAssignment()))
-                .peek(other -> {
-                    other.setIsPrimaryAssignment(false);
-                    other.setUpdatedBy(updatedBy);
-                })
-                .toList();
-        if (!changedAssignments.isEmpty()) {
-            assignmentRepository.saveAll(changedAssignments);
-        }
-    }
+
 
     private record MilestoneSync(
             Set<SowMilestone> retained,

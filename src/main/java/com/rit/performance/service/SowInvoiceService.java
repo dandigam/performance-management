@@ -1,6 +1,7 @@
 package com.rit.performance.service;
 
 import com.rit.performance.dto.request.SowInvoiceRequest;
+import com.rit.performance.dto.request.SowInvoiceStatusRequest;
 import com.rit.performance.dto.response.SowInvoiceResponse;
 import com.rit.performance.dto.request.SowInvoicePaymentRequest;
 import com.rit.performance.dto.response.SowInvoicePaymentResponse;
@@ -18,6 +19,7 @@ public interface SowInvoiceService {
     SowInvoiceResponse getById(Long id);
     SowInvoiceResponse create(SowInvoiceRequest request);
     SowInvoiceResponse update(Long id, SowInvoiceRequest request);
+    SowInvoiceResponse updateStatus(Long invoiceId, SowInvoiceStatusRequest request);
     List<SowInvoicePaymentResponse> getPayments(Long invoiceId);
     SowInvoicePaymentResponse createPayment(Long invoiceId, SowInvoicePaymentRequest request);
     SowInvoicePaymentResponse updatePayment(

@@ -1,38 +1,6 @@
 package com.rit.performance.service;
 
-import com.rit.performance.dto.EmployeeBasicInfoResponse;
-import com.rit.performance.dto.EmployeeUpdateRequest;
-import com.rit.performance.dto.EmployeeCreateRequest;
-import com.rit.performance.dto.EmployeeCreateResponse;
-import com.rit.performance.dto.EmployeeCurrentProjectResponse;
-import com.rit.performance.dto.EmployeeMilestoneAssignmentResponse;
-import com.rit.performance.dto.EmployeeSowAssignmentResponse;
-import com.rit.performance.dto.EmployeeReviewSummaryResponse;
-import com.rit.performance.dto.ReportingManagerResponse;
-import com.rit.performance.dto.DirectReportsResponse;
-import com.rit.performance.dto.EmployeeHierarchyMemberResponse;
-import com.rit.performance.dto.EmployeeHierarchyResponse;
-import com.rit.performance.dto.EmployeeInformationResponse;
-import com.rit.performance.dto.EmployeeAddressRequest;
-import com.rit.performance.dto.EmployeeAddressResponse;
-import com.rit.performance.dto.EmployeeCompensationRequest;
-import com.rit.performance.dto.EmployeeCompensationResponse;
-import com.rit.performance.dto.EmployeeFinanceHistoryResponse;
-import com.rit.performance.dto.EmployeeAuditHistoryResponse;
-import com.rit.performance.dto.EmployeeProfessionalDetailsRequest;
-import com.rit.performance.dto.EmployeeProfessionalDetailsResponse;
-import com.rit.performance.dto.EmployeeEducationRequest;
-import com.rit.performance.dto.EmployeeEducationResponse;
-import com.rit.performance.dto.EmployeeExperienceRequest;
-import com.rit.performance.dto.EmployeeExperienceResponse;
-import com.rit.performance.dto.EmployeeBankDetailsRequest;
-import com.rit.performance.dto.EmployeeBankDetailsResponse;
-import com.rit.performance.dto.DocumentResponse;
-import com.rit.performance.dto.EmployeeDocumentRequest;
-import com.rit.performance.dto.EmployeeAssignmentRequest;
-import com.rit.performance.dto.EmployeeAssignmentResponse;
-import com.rit.performance.dto.EmployeeAssignmentsResponse;
-import com.rit.performance.dto.ProjectAssignmentRequest;
+import com.rit.performance.dto.*;
 import com.rit.performance.dto.response.SowMilestonePositionAssignmentResponse;
 import com.rit.performance.dto.request.SowMilestonePositionAssignmentRequest;
 import com.rit.performance.entity.*;
@@ -61,16 +29,20 @@ import com.rit.performance.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.time.LocalDate;
@@ -78,9 +50,15 @@ import java.time.LocalDate;
 @Service
 @RequiredArgsConstructor
 public class EmployeeServiceImpl implements EmployeeService {
-    private static final String DEFAULT_PASSWORD = "admin123";
+    @org.springframework.beans.factory.annotation.Autowired
+    private java.time.Clock businessClock;
+
     private static final String DEFAULT_ROLE = "EMPLOYEE";
     private static final String SYSTEM_ROLE_LOOKUP = "SYSTEM_ROLE";
+    private static final String WORK_MODE_LOOKUP = "WORK_MODE";
+    private static final String WORK_LOCATION_LOOKUP = "WORK_LOCATION";
+    private static final String EMPLOYEE_STATUS_LOOKUP = "EMPLOYEE_STATUS";
+    private static final String EMPLOYMENT_TYPE_LOOKUP = "EMPLOYMENT_TYPE";
     private static final Set<String> ALLOWED_GENDERS = Set.of(
             "MALE", "FEMALE", "NON_BINARY", "OTHER", "PREFER_NOT_TO_SAY");
 
@@ -107,6 +85,33 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final AssessmentAssigneeResolver assigneeResolver;
     private final SowMilestonePositionAssignmentService positionAssignmentService;
     private final EmployeeAuditService employeeAuditService;
+    private final ApplicationEventPublisher events;
+    private final ApplicationEmailFactory emailFactory;
+    private final PasswordEncoder passwordEncoder;
+    private final UserInvitationService invitationService;
+
+    @Override
+    @Transactional(readOnly = true)
+    public void checkContactAvailability(String email, String phoneNumber, Long excludeEmployeeId) {
+        String normalizedEmail = email == null || email.isBlank() ? null : email.trim().toLowerCase(Locale.ROOT);
+        String normalizedPhone = normalizePhoneNumber(phoneNumber);
+        if (normalizedEmail == null && normalizedPhone == null) {
+            throw new InvalidOperationException("Provide an employee email or phone number to check");
+        }
+        if (excludeEmployeeId != null && excludeEmployeeId <= 0) {
+            throw new InvalidOperationException("excludeEmployeeId must be positive");
+        }
+        if (normalizedEmail != null && (excludeEmployeeId == null
+                ? employeeRepository.existsByEmailIgnoreCase(normalizedEmail)
+                : employeeRepository.existsByEmailIgnoreCaseAndIdNot(normalizedEmail, excludeEmployeeId))) {
+            throw new InvalidOperationException("Employee email already exists: " + normalizedEmail);
+        }
+        if (normalizedPhone != null && (excludeEmployeeId == null
+                ? employeeRepository.existsByPhoneNumber(normalizedPhone)
+                : employeeRepository.existsByPhoneNumberAndIdNot(normalizedPhone, excludeEmployeeId))) {
+            throw new InvalidOperationException("Employee phone number already exists: " + normalizedPhone);
+        }
+    }
 
     @Override
     @Transactional
@@ -114,22 +119,27 @@ public class EmployeeServiceImpl implements EmployeeService {
         String email = request.getEmail().trim().toLowerCase();
         if (employeeRepository.existsByEmailIgnoreCase(email) || userRepository.existsByUsernameIgnoreCase(email))
             throw new InvalidOperationException("Employee email or username already exists: " + email);
+        String phoneNumber = normalizePhoneNumber(request.getPhoneNumber());
+        if (phoneNumber != null && employeeRepository.existsByPhoneNumber(phoneNumber)) {
+            throw new InvalidOperationException("Employee phone number already exists: " + phoneNumber);
+        }
         String csxRacfId = normalizeIdentifier(request.getCsxRacfId());
         validateIdentifiersAvailable(null, csxRacfId, null);
         Employee employee = new Employee();
         employee.setFirstName(request.getFirstName().trim());
         employee.setLastName(request.getLastName() == null ? null : request.getLastName().trim());
         employee.setEmail(email);
-        employee.setPhoneNumber(request.getPhoneNumber() == null ? null : request.getPhoneNumber().trim());
+        employee.setPhoneNumber(phoneNumber);
         employee.setGender(normalizeGender(request.getGender()));
         employee.setDateOfBirth(request.getDateOfBirth());
         employee.setCsxRacfId(csxRacfId);
-        employee.setEmploymentType(normalizeRequiredValue(request.getEmploymentType(), "employmentType"));
+        employee.setEmploymentType(normalizeEmploymentType(request.getEmploymentType()));
         employee.setJoiningDate(request.getJoiningDate());
-        employee.setWorkMode(normalizeRequiredValue(request.getWorkMode(), "workMode"));
+        employee.setWorkMode(normalizeWorkMode(request.getWorkMode()));
+        employee.setWorkLocation(normalizeWorkLocation(request.getWorkLocation()));
         employee.setVendor(resolveVendor(request.getVendorId(), employee.getEmploymentType()));
         employee.setDesignationId(resolveProfileDesignationId(request));
-        employee.setStatus(request.getStatus() == null ? "ACTIVE" : request.getStatus().trim().toUpperCase());
+        employee.setStatus(normalizeEmployeeStatus(request.getStatus(), "ACTIVE"));
         employee.setCreatedBy(request.getCreatedBy());
         employee.setUpdatedBy(request.getCreatedBy());
         employee = employeeRepository.save(employee);
@@ -143,11 +153,11 @@ public class EmployeeServiceImpl implements EmployeeService {
         synchronizeDocuments(employee, request.getDocumentList());
         EmployeeAssignment assignment = createInitialAssignment(employee.getId(), request);
         LookupValue role = requestedEmployeeRole(request.getRoleId());
-        createEmployeeRole(employee, role, LocalDate.now(), request.getCreatedBy());
+        createEmployeeRole(employee, role, LocalDate.now(businessClock), request.getCreatedBy());
         User user = new User();
         user.setUsername(email);
-        user.setPassword(DEFAULT_PASSWORD);
-        user.setStatus("ACTIVE");
+        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        user.setStatus("ACTIVE".equals(userStatusFor(employee)) ? "INVITED" : "INACTIVE");
         user.setRole(role);
         user.setEmployee(employee);
         user = userRepository.save(user);
@@ -158,10 +168,14 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeCreateResponse response = EmployeeCreateResponse.builder()
                 .employee(currentEmployeeResponse(employee, assignment))
-                .userId(user.getId()).username(user.getUsername()).password(DEFAULT_PASSWORD)
+                .userId(user.getId()).username(user.getUsername())
                 .roleName(role.getName()).build();
         employeeAuditService.record(employee.getId(), "EMPLOYEE", "CREATED",
                 null, response.getEmployee(), request.getCreatedBy());
+        if ("INVITED".equals(user.getStatus())) {
+            invitationService.send(user, employee.getEmail());
+        }
+        events.publishEvent(emailFactory.employeeAdminNotification(employee, true));
         return response;
     }
 
@@ -243,9 +257,17 @@ public class EmployeeServiceImpl implements EmployeeService {
     private EmployeeAssignment createInitialAssignment(Long employeeId, EmployeeCreateRequest request) {
         ProjectAssignmentRequest nested = request.getProjectAssignment();
         if (nested == null) return null;
+        if (nested.getDesignationId() != null || nested.getPositionType() != null) {
+            throw new InvalidOperationException(
+                    "Assign designation and position type through a milestone position assignment");
+        }
         Long designationId = nested.getDesignationId() == null
                 ? request.getDesignationId() : nested.getDesignationId();
         Long sowId = nested.getSowId();
+        if (nested.getDepartmentId() != null
+                && (sowId == null || !nested.getDepartmentId().equals(departmentIdForSow(sowId)))) {
+            throw new InvalidOperationException("Department is derived from the SOW business unit");
+        }
         Long departmentId = sowId == null ? nested.getDepartmentId() : departmentIdForSow(sowId);
         Long leadId = nested.getLeadId();
         Long managerId = nested.getManagerId();
@@ -255,20 +277,16 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeAssignment assignment = new EmployeeAssignment();
         assignment.setEmployeeId(employeeId);
-        assignment.setDepartmentId(departmentId);
-        assignment.setDesignationId(designationId);
         assignment.setLeadId(leadId);
         assignment.setManagerId(managerId);
         assignment.setSowId(sowId);
-        assignment.setMilestoneId(nested.getMilestoneId());
-        assignment.setPositionType(normalizePositionType(nested.getPositionType()));
-        assignment.setEffectiveFrom(effectiveFrom == null ? LocalDate.now() : effectiveFrom);
+
+        assignment.setEffectiveFrom(effectiveFrom == null ? LocalDate.now(businessClock) : effectiveFrom);
         assignment.setEffectiveTo(nested.getAssignmentEndDate());
         validateAssignmentDates(assignment.getEffectiveFrom(), assignment.getEffectiveTo());
-        assignment.setAllocationPercentage(nested.getAllocationPercentage() == null
-                ? 100 : nested.getAllocationPercentage());
+
         assignment.setStatus(normalizeAssignmentStatus(nested.getStatus()));
-        assignment.setIsPrimaryAssignment(true);
+
         assignment.setCreatedBy(request.getCreatedBy());
         assignment.setUpdatedBy(request.getCreatedBy());
         return assignmentRepository.save(assignment);
@@ -276,63 +294,28 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Override
     @Transactional
-    public EmployeeBasicInfoResponse assign(EmployeeAssignmentRequest request) {
+    public ApiMessageResponse assign(EmployeeAssignmentRequest request) {
         Employee employee = employeeRepository.findById(request.getEmployeeId())
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Employee not found: " + request.getEmployeeId()));
-        Long departmentId = departmentIdForSow(request.getSowId());
-        validateAssignmentValues(employee.getId(), departmentId, null,
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found: " + request.getEmployeeId()));
+
+        validateAssignmentValues(employee.getId(), null, null,
                 request.getSowId(), null, request.getLeadId(), request.getManagerId());
-        Optional<EmployeeAssignment> existingAssignment = assignmentRepository
-                .findFirstBySowIdAndEmployeeIdAndStatusIgnoreCaseOrderByEffectiveFromDescIdDesc(
-                        request.getSowId(), employee.getId(), "ACTIVE");
 
-        EmployeeAssignment assignment;
-        boolean primary;
-        if (existingAssignment.isPresent()) {
-            assignment = existingAssignment.get();
-            primary = Boolean.TRUE.equals(assignment.getIsPrimaryAssignment())
-                    || Boolean.TRUE.equals(request.getIsPrimaryAssignment());
-            if (Boolean.TRUE.equals(request.getIsPrimaryAssignment())
-                    && !Boolean.TRUE.equals(assignment.getIsPrimaryAssignment())) {
-                clearPrimaryAssignment(employee.getId(), request.getUpdatedBy());
-            }
-            if (request.getLeadId() != null) assignment.setLeadId(request.getLeadId());
-            if (request.getManagerId() != null) assignment.setManagerId(request.getManagerId());
-            assignment.setIsPrimaryAssignment(primary);
-            assignment.setUpdatedBy(request.getUpdatedBy());
-            assignment = assignmentRepository.save(assignment);
-        } else {
-            primary = Boolean.TRUE.equals(request.getIsPrimaryAssignment())
-                    || !assignmentRepository
-                            .existsByEmployeeIdAndStatusIgnoreCaseAndIsPrimaryAssignmentTrue(
-                                    employee.getId(), "ACTIVE");
-            if (primary) clearPrimaryAssignment(employee.getId(), request.getUpdatedBy());
+        EmployeeAssignment assignment = new EmployeeAssignment();
+        assignment.setEmployeeId(employee.getId());
+        assignment.setSowId(request.getSowId());
+        assignment.setLeadId(request.getLeadId());
+        assignment.setManagerId(request.getManagerId());
 
-            assignment = new EmployeeAssignment();
-            assignment.setEmployeeId(employee.getId());
-            assignment.setSowId(request.getSowId());
-            assignment.setMilestoneId(null);
-            assignment.setDepartmentId(departmentId);
-            assignment.setDesignationId(null);
-            assignment.setLeadId(request.getLeadId());
-            assignment.setManagerId(request.getManagerId());
-            assignment.setPositionType(null);
-            assignment.setAllocationPercentage(100);
-            LocalDate firstMilestoneStart = request.getMilestoneAssignments().stream()
-                    .map(com.rit.performance.dto.EmployeeMilestoneAssignmentRequest
-                            ::getAssignmentStartDate)
-                    .min(LocalDate::compareTo)
-                    .orElse(LocalDate.now());
-            assignment.setEffectiveFrom(request.getEffectiveFrom() == null
-                    ? firstMilestoneStart : request.getEffectiveFrom());
-            assignment.setStatus("ACTIVE");
-            assignment.setIsPrimaryAssignment(primary);
-            assignment.setCreatedBy(request.getUpdatedBy());
-            assignment.setUpdatedBy(request.getUpdatedBy());
-            assignment = assignmentRepository.save(assignment);
-            seedReviewsForNewEmployee(employee, request.getUpdatedBy(), assignment);
-        }
+        assignment.setEffectiveFrom( request.getEffectiveFrom());
+        assignment.setStatus("ASSIGNED");
+
+        assignment.setCreatedBy(request.getUpdatedBy());
+        assignment.setUpdatedBy(request.getUpdatedBy());
+
+        assignment = assignmentRepository.save(assignment);
+
+        seedReviewsForNewEmployee(employee, request.getUpdatedBy(), assignment);
         Long employeeAssignmentId = assignment.getId();
         List<SowMilestonePositionAssignmentResponse> milestoneAssignments = request
                 .getMilestoneAssignments().stream()
@@ -340,24 +323,18 @@ public class EmployeeServiceImpl implements EmployeeService {
                         item.getMilestoneId(), item.getMilestonePositionId(),
                         SowMilestonePositionAssignmentRequest.builder()
                                 .employeeAssignmentId(employeeAssignmentId)
-                                .allocationPercentage(item.getAllocationPercentage() == null
-                                        ? 100 : item.getAllocationPercentage())
                                 .positionType(item.getPositionType())
                                 .assignmentStartDate(item.getAssignmentStartDate())
                                 .assignmentEndDate(item.getAssignmentEndDate())
-                                .status(item.getStatus() == null || item.getStatus().isBlank()
-                                        ? "ACTIVE" : item.getStatus())
+                                .status("ASSIGNED")
                                 .updatedBy(request.getUpdatedBy())
                                 .build()))
                 .toList();
-        EmployeeBasicInfoResponse response = currentEmployeeResponse(employee, primary
-                ? assignment : assignmentRepository.findActiveByEmployeeId(employee.getId())
-                        .orElse(assignment));
-        response.setMilestoneAssignments(milestoneAssignments);
         employeeAuditService.record(employee.getId(), "EMPLOYEE_ASSIGNMENT",
-                existingAssignment.isPresent() ? "UPDATED" : "CREATED",
-                null, response, request.getUpdatedBy());
-        return response;
+                "CREATED",
+                null, Map.of("assignment", assignment, "milestoneAssignments", milestoneAssignments),
+                request.getUpdatedBy());
+        return ApiMessageResponse.success("Assigned successfully.");
     }
 
     @Override
@@ -415,35 +392,57 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional(readOnly = true)
     public EmployeeAssignmentsResponse getAssignmentsByEmployeeId(Long employeeId) {
         EmployeeBasicInfoResponse response = getById(employeeId);
+        List<Sow> employeeSows = sowRepository.findAllById(response.getAssignmentList().stream()
+                        .map(EmployeeAssignmentResponse::getSowId)
+                        .filter(Objects::nonNull).collect(Collectors.toSet()));
+        Map<Long, String> sowStatuses = employeeSows.stream()
+                .filter(sow -> sow.getStatus() != null)
+                .collect(Collectors.toMap(Sow::getId,
+                        sow -> sow.getStatus().getCode()));
+        Set<Long> eligibleSowIds = employeeSows.stream()
+                .filter(sow -> sow.getStatus() != null
+                        && Set.of("DRAFT","ACTIVE", "COMPLETED", "HOLD", "ON_HOLD")
+                                .contains(sow.getStatus().getCode().trim().toUpperCase(Locale.ROOT)))
+                .map(Sow::getId).collect(Collectors.toSet());
         Map<Long, List<SowMilestonePositionAssignment>> detailsByParent =
                 milestonePositionAssignmentRepository
                         .findByEmployeeAssignment_EmployeeIdOrderByAssignmentStartDateDescIdDesc(employeeId)
-                        .stream().collect(Collectors.groupingBy(
+                        .stream()
+                        .collect(Collectors.groupingBy(
                                 item -> item.getEmployeeAssignment().getId()));
+        Map<Long, String> assignerNames = userRepository.findAllById(detailsByParent.values()
+                        .stream().flatMap(List::stream)
+                        .map(SowMilestonePositionAssignment::getCreatedBy)
+                        .filter(Objects::nonNull).collect(Collectors.toSet()))
+                .stream().collect(Collectors.toMap(User::getId, this::assignmentActorName));
         return EmployeeAssignmentsResponse.builder()
                 .employeeId(response.getEmployeeId())
                 .employeeName(response.getEmployeeName())
                 .assignmentList(response.getAssignmentList().stream()
+                        .filter(parent -> eligibleSowIds.contains(parent.getSowId()))
                         .map(parent -> employeeSowAssignment(
                                 parent, detailsByParent.getOrDefault(
-                                        parent.getAssignmentId(), List.of())))
+                                        parent.getAssignmentId(), List.of()), assignerNames,
+                                sowStatuses.get(parent.getSowId())))
                         .toList())
                 .build();
     }
 
     private EmployeeSowAssignmentResponse employeeSowAssignment(
             EmployeeAssignmentResponse parent,
-            List<SowMilestonePositionAssignment> details) {
+            List<SowMilestonePositionAssignment> details,
+            Map<Long, String> assignerNames,
+            String sowStatus) {
         List<EmployeeMilestoneAssignmentResponse> milestoneAssignments = details.isEmpty()
-                ? legacyMilestoneAssignment(parent)
-                : details.stream().map(this::employeeMilestoneAssignment).toList();
+                ? List.of()
+                : details.stream().map(detail -> employeeMilestoneAssignment(
+                        detail, assignerNames)).toList();
         return EmployeeSowAssignmentResponse.builder()
                 .employeeAssignmentId(parent.getAssignmentId())
                 .sowId(parent.getSowId())
-                .sowCode(parent.getSowCode())
                 .sowName(parent.getSowName())
+                .sowStatus(sowStatus)
                 .isPrimaryAssignment(parent.getIsPrimaryAssignment())
-                .allocationPercentage(parent.getAllocationPercentage())
                 .assignmentStartDate(parent.getAssignmentStartDate())
                 .assignmentEndDate(parent.getAssignmentEndDate())
                 .assignmentStatus(parent.getAssignmentStatus())
@@ -458,50 +457,59 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private EmployeeMilestoneAssignmentResponse employeeMilestoneAssignment(
-            SowMilestonePositionAssignment detail) {
+            SowMilestonePositionAssignment detail, Map<Long, String> assignerNames) {
         SowMilestonePosition position = detail.getMilestonePosition();
         SowMilestone milestone = position.getMilestone();
         LookupValue designation = position.getPosition();
+        LookupValue skill = position.getSkill();
         return EmployeeMilestoneAssignmentResponse.builder()
                 .assignmentId(detail.getId())
+                .milestonePositionAssignmentId(detail.getId())
                 .milestoneId(milestone.getId())
                 .milestoneName(milestone.getMilestoneName())
+                .milestoneStartDate(milestone.getStartDate())
+                .milestoneEndDate(milestone.getEndDate())
+                .milestoneDurationDays(inclusiveDays(milestone.getStartDate(), milestone.getEndDate()))
                 .milestonePositionId(position.getId())
+                .positionStartDate(position.getStartDate())
+                .positionEndDate(position.getEndDate())
+                .positionDurationDays(inclusiveDays(position.getStartDate(), position.getEndDate()))
+                .hours(position.getHours())
                 .designationId(designation == null ? null : designation.getId())
                 .designationName(designation == null
                         ? position.getPositionName() : designation.getName())
+                .skillId(skill == null ? null : skill.getId())
+                .skillName(skill == null ? null : skill.getName())
                 .seniorityId(position.getSeniority() == null
                         ? null : position.getSeniority().getId())
                 .seniority(position.getSeniority() == null
                         ? null : position.getSeniority().getName())
                 .location(position.getLocationType())
                 .positionType(detail.getPositionType())
-                .allocationPercentage(detail.getAllocationPercentage())
                 .assignmentStartDate(detail.getAssignmentStartDate())
                 .assignmentEndDate(detail.getAssignmentEndDate())
+                .assignmentDurationDays(inclusiveDays(
+                        detail.getAssignmentStartDate(), detail.getAssignmentEndDate()))
                 .assignmentStatus(detail.getStatus())
+                .assignedByUserId(detail.getCreatedBy())
+                .assignedByName(detail.getCreatedBy() == null ? "System"
+                        : assignerNames.getOrDefault(detail.getCreatedBy(), "System"))
+                .assignedAt(detail.getCreatedOn())
                 .build();
     }
 
-    private List<EmployeeMilestoneAssignmentResponse> legacyMilestoneAssignment(
-            EmployeeAssignmentResponse parent) {
-        if (parent.getMilestoneId() == null && parent.getDesignationId() == null
-                && parent.getPositionType() == null) {
-            return List.of();
-        }
-        return List.of(EmployeeMilestoneAssignmentResponse.builder()
-                .assignmentId(parent.getAssignmentId())
-                .milestoneId(parent.getMilestoneId())
-                .milestoneName(parent.getMilestoneName())
-                .designationId(parent.getDesignationId())
-                .designationName(parent.getDesignationName())
-                .positionType(parent.getPositionType())
-                .allocationPercentage(parent.getAllocationPercentage())
-                .assignmentStartDate(parent.getAssignmentStartDate())
-                .assignmentEndDate(parent.getAssignmentEndDate())
-                .assignmentStatus(parent.getAssignmentStatus())
-                .build());
+    private Long inclusiveDays(LocalDate startDate, LocalDate endDate) {
+        return startDate == null || endDate == null ? null
+                : java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1;
     }
+
+    private String assignmentActorName(User user) {
+        if (user.getEmployee() != null) return employeeName(user.getEmployee());
+        return user.getUsername() == null || user.getUsername().isBlank()
+                ? "System" : user.getUsername();
+    }
+
+
 
     @Override
     @Transactional(readOnly = true)
@@ -518,9 +526,11 @@ public class EmployeeServiceImpl implements EmployeeService {
                             : history.get(index - 1).getEffectiveDate().minusDays(1);
                     return EmployeeFinanceHistoryResponse.builder()
                         .id(compensation.getId())
-                        .payType(compensation.getPayType())
+                        .payType(canonicalPayType(compensation.getPayType()))
                         .hourlyRate(compensation.getHourlyRate())
-                        .amount(compensation.getHourlyRate())
+                        .annualSalary(compensation.getAnnualSalary())
+                        .amount(compensation.getAnnualSalary() == null
+                                ? compensation.getHourlyRate() : compensation.getAnnualSalary())
                         .currency(compensation.getCurrency())
                         .effectiveDate(compensation.getEffectiveDate())
                         .endDate(endDate)
@@ -569,6 +579,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .csxRacfId(employee.getCsxRacfId())
                         .employmentType(employee.getEmploymentType())
                         .workMode(employee.getWorkMode())
+                        .workLocation(employee.getWorkLocation())
                         .vendorId(employee.getVendor() == null ? null : employee.getVendor().getId())
                         .vendorCompanyName(employee.getVendor() == null ? null : employee.getVendor().getCompanyName())
                         .designationId(employee.getDesignationId())
@@ -598,7 +609,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         Map<Long, Employee> employees = allEmployees.stream()
                 .collect(Collectors.toMap(Employee::getId, Function.identity()));
         Map<Long, EmployeeAssignment> assignments = assignmentRepository
-                .findByStatusIgnoreCaseOrderByIsPrimaryAssignmentDescEffectiveFromDesc("ACTIVE").stream()
+                .findByStatusIgnoreCaseOrderByEffectiveFromDesc("ACTIVE").stream()
                 .collect(Collectors.toMap(EmployeeAssignment::getEmployeeId, Function.identity(),
                         (first, ignored) -> first));
         Map<Long, EmployeeRole> roles = employeeRoleRepository.findByIsCurrentTrue().stream()
@@ -646,16 +657,17 @@ public class EmployeeServiceImpl implements EmployeeService {
             Map<Long, EmployeeReview> reviews) {
         if (employee == null) return null;
         EmployeeAssignment assignment = assignments.get(employee.getId());
+        var summary = assignmentSummary(assignment);
         EmployeeRole employeeRole = roles.get(employee.getId());
         LookupValue role = employeeRole == null ? null : lookups.get(employeeRole.getRoleId());
-        LookupValue department = assignment == null ? null : lookups.get(assignment.getDepartmentId());
+        LookupValue department = assignment == null ? null : lookups.get(summary.getDepartmentId());
         Long profileDesignationId = employee.getDesignationId() != null
                 ? employee.getDesignationId()
-                : assignment == null ? null : assignment.getDesignationId();
+                : assignment == null ? null : summary.getDesignationId();
         LookupValue designation = lookups.get(profileDesignationId);
         Sow sow = assignment == null ? null : sows.get(assignment.getSowId());
-        SowMilestone milestone = assignment == null || assignment.getMilestoneId() == null
-                ? null : sowMilestoneRepository.findById(assignment.getMilestoneId()).orElse(null);
+        SowMilestone milestone = assignment == null || summary.getMilestoneId() == null
+                ? null : sowMilestoneRepository.findById(summary.getMilestoneId()).orElse(null);
         Employee manager = assignment == null ? null : employees.get(assignment.getManagerId());
         Employee lead = assignment == null ? null : employees.get(assignment.getLeadId());
         EmployeeReview review = reviews.get(employee.getId());
@@ -679,17 +691,17 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .ritId(employee.getRitId()).csxRacfId(employee.getCsxRacfId())
                 .roleId(employeeRole == null ? null : employeeRole.getRoleId())
                 .roleName(role == null ? null : role.getName())
-                .departmentId(assignment == null ? null : assignment.getDepartmentId())
+                .departmentId(assignment == null ? null : summary.getDepartmentId())
                 .departmentName(department == null ? null : department.getName())
                 .designationId(profileDesignationId)
                 .designationName(designation == null ? null : designation.getName())
                 .sowId(assignment == null ? null : assignment.getSowId())
                 .sowName(sow == null ? null : sow.getSowName())
-                .milestoneId(assignment == null ? null : assignment.getMilestoneId())
+                .milestoneId(assignment == null ? null : summary.getMilestoneId())
                 .milestoneName(assignment == null ? null
                         : milestone == null ? "All milestones" : milestone.getMilestoneName())
-                .positionType(assignment == null ? null : assignment.getPositionType())
-                .isPrimaryAssignment(assignment == null ? null : assignment.getIsPrimaryAssignment())
+                .positionType(assignment == null ? null : summary.getPositionType())
+                .isPrimaryAssignment(null)
                 .managerId(assignment == null ? null : assignment.getManagerId())
                 .managerName(manager == null ? null : employeeName(manager))
                 .leadId(assignment == null ? null : assignment.getLeadId())
@@ -760,11 +772,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional(readOnly = true)
     public List<ReportingManagerResponse> getReportingManagers(Long sowId, Long departmentId,
             Long designationId, Long excludeEmployeeId) {
-        List<Long> employeeIds = assignmentRepository.findByStatusIgnoreCase("ACTIVE").stream()
-                .filter(assignment -> sowId == null || sowId.equals(assignment.getSowId()))
-                .filter(assignment -> departmentId == null || departmentId.equals(assignment.getDepartmentId()))
-                .filter(assignment -> designationId == null || designationId.equals(assignment.getDesignationId()))
-                .map(EmployeeAssignment::getEmployeeId)
+        List<Long> employeeIds = assignmentRepository.findReportingEmployeeIds(sowId, departmentId, designationId).stream()
                 .filter(id -> excludeEmployeeId == null || !excludeEmployeeId.equals(id))
                 .distinct().toList();
         if (employeeIds.isEmpty()) return List.of();
@@ -872,19 +880,24 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeBasicInfoResponse response = currentEmployeeResponse(employee, assignment);
         employeeAuditService.record(employeeId, "EMPLOYEE", "UPDATED",
                 oldSnapshot, response, request.getUpdatedBy());
+        ApplicationEmail employeeEmail = emailFactory.employeeUpdated(employee);
+        events.publishEvent(employeeEmail);
+        events.publishEvent(emailFactory.employeeAdminNotification(employee, false)
+                .withBellAlert(employeeEmail.bellAlert()));
         return response;
     }
 
     private void ensureEmployeeUser(Employee employee, LookupValue role) {
         String username = employee.getEmail().trim().toLowerCase();
         User user = userRepository.findByEmployeeId(employee.getId()).orElse(null);
+        boolean newAccount = user == null;
         if (user == null) {
             if (userRepository.existsByUsernameIgnoreCase(username))
                 throw new InvalidOperationException("Username already exists: " + username);
             user = new User();
             user.setUsername(username);
-            user.setPassword(DEFAULT_PASSWORD);
-            user.setStatus("ACTIVE");
+            user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+            user.setStatus("INVITED");
             user.setRole(role);
             user.setEmployee(employee);
         } else if (!user.getUsername().equalsIgnoreCase(username)) {
@@ -893,8 +906,19 @@ public class EmployeeServiceImpl implements EmployeeService {
             user.setUsername(username);
         }
         user.setRole(role);
-        userRepository.save(user);
+        // Profile edits must not activate an account still waiting for password setup.
+        if (!"INVITED".equalsIgnoreCase(user.getStatus()) || !"ACTIVE".equals(userStatusFor(employee))) {
+            user.setStatus(userStatusFor(employee));
+        }
+        user = userRepository.save(user);
+        if (newAccount && "INVITED".equals(user.getStatus())) {
+            invitationService.send(user, employee.getEmail());
+        }
     }
+
+        private String userStatusFor(Employee employee) {
+                return "ACTIVE".equalsIgnoreCase(employee.getStatus()) ? "ACTIVE" : "INACTIVE";
+        }
 
     private LookupValue employeeRoleLookup() {
         return lookupValueRepository
@@ -924,7 +948,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         EmployeeRole mapping = new EmployeeRole();
         mapping.setEmployeeId(employee.getId());
         mapping.setRoleId(role.getId());
-        mapping.setEffectiveFrom(effectiveFrom == null ? LocalDate.now() : effectiveFrom);
+        mapping.setEffectiveFrom(effectiveFrom == null ? LocalDate.now(businessClock) : effectiveFrom);
         mapping.setIsCurrent(true);
         mapping.setCreatedBy(actorId);
         mapping.setUpdatedBy(actorId);
@@ -938,7 +962,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (!request.isRoleIdPresent()) {
             if (current != null) return requireLookup(current.getRoleId(), SYSTEM_ROLE_LOOKUP);
             LookupValue defaultRole = employeeRoleLookup();
-            createEmployeeRole(employee, defaultRole, LocalDate.now(), request.getUpdatedBy());
+            createEmployeeRole(employee, defaultRole, LocalDate.now(businessClock), request.getUpdatedBy());
             return defaultRole;
         }
         if (request.getRoleId() == null)
@@ -949,7 +973,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         LocalDate effectiveFrom = request.getProjectAssignment() != null
                 && request.getProjectAssignment().getEffectiveFrom() != null
                 ? request.getProjectAssignment().getEffectiveFrom()
-                : LocalDate.now();
+                : LocalDate.now(businessClock);
         if (current != null) {
             validateEffectiveDate(effectiveFrom, current.getEffectiveFrom(), "role");
             current.setEffectiveTo(effectiveFrom);
@@ -969,12 +993,19 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         if (request.getLastName() != null) employee.setLastName(request.getLastName().trim());
         if (request.getEmail() != null) {
-            String email = request.getEmail().trim();
+            String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
             if (employeeRepository.existsByEmailIgnoreCaseAndIdNot(email, employee.getId()))
                 throw new InvalidOperationException("Employee email already exists: " + email);
             employee.setEmail(email);
         }
-        if (request.getPhoneNumber() != null) employee.setPhoneNumber(request.getPhoneNumber().trim());
+        if (request.getPhoneNumber() != null) {
+            String phoneNumber = normalizePhoneNumber(request.getPhoneNumber());
+            if (phoneNumber != null
+                    && employeeRepository.existsByPhoneNumberAndIdNot(phoneNumber, employee.getId())) {
+                throw new InvalidOperationException("Employee phone number already exists: " + phoneNumber);
+            }
+            employee.setPhoneNumber(phoneNumber);
+        }
         if (request.getGender() != null) employee.setGender(normalizeGender(request.getGender()));
         if (request.getDateOfBirth() != null) employee.setDateOfBirth(request.getDateOfBirth());
         if (request.getRitId() != null) {
@@ -988,11 +1019,13 @@ public class EmployeeServiceImpl implements EmployeeService {
             employee.setCsxRacfId(csxRacfId);
         }
         if (request.getEmploymentType() != null)
-            employee.setEmploymentType(normalizeRequiredValue(request.getEmploymentType(), "employmentType"));
+            employee.setEmploymentType(normalizeEmploymentType(request.getEmploymentType()));
         if (request.getJoiningDate() != null)
             employee.setJoiningDate(request.getJoiningDate());
         if (request.getWorkMode() != null)
-            employee.setWorkMode(normalizeRequiredValue(request.getWorkMode(), "workMode"));
+            employee.setWorkMode(normalizeWorkMode(request.getWorkMode()));
+        if (request.getWorkLocation() != null)
+            employee.setWorkLocation(normalizeWorkLocation(request.getWorkLocation()));
         if (request.isVendorIdPresent() || request.getEmploymentType() != null) {
             Long vendorId = request.isVendorIdPresent() ? request.getVendorId()
                     : employee.getVendor() == null ? null : employee.getVendor().getId();
@@ -1004,32 +1037,29 @@ public class EmployeeServiceImpl implements EmployeeService {
             }
             employee.setDesignationId(requireLookup(request.getDesignationId(), "DESIGNATION").getId());
         }
-        if (request.getStatus() != null) employee.setStatus(request.getStatus().trim().toUpperCase());
+        if (request.getStatus() != null) {
+            employee.setStatus(normalizeEmployeeStatus(request.getStatus(), null));
+        }
         employee.setUpdatedBy(request.getUpdatedBy());
     }
 
     private EmployeeAssignment replaceAssignmentWhenChanged(Long employeeId, EmployeeAssignment current,
             EmployeeUpdateRequest request, boolean reactivating) {
         ProjectAssignmentRequest nested = request.getProjectAssignment();
-        Long designationId = nested.isDesignationIdPresent() ? nested.getDesignationId()
-                : current == null ? null : current.getDesignationId();
+        if (nested.isDesignationIdPresent() || nested.isPositionTypePresent() || nested.isMilestoneIdPresent()) {
+            throw new InvalidOperationException(
+                    "Update milestone, designation and position type through the milestone position assignment");
+        }
+        if (nested.isDepartmentIdPresent()) {
+            throw new InvalidOperationException("Department is derived from the SOW business unit");
+        }
         Long leadId = nested.isLeadIdPresent() ? nested.getLeadId()
                 : current == null ? null : current.getLeadId();
         Long managerId = nested.isManagerIdPresent() ? nested.getManagerId()
                 : current == null ? null : current.getManagerId();
         Long sowId = nested.isSowIdPresent() ? nested.getSowId()
                 : current == null ? null : current.getSowId();
-        Long departmentId = sowId == null
-                ? nested.isDepartmentIdPresent() ? nested.getDepartmentId()
-                        : current == null ? null : current.getDepartmentId()
-                : departmentIdForSow(sowId);
-        Long milestoneId = nested.isMilestoneIdPresent() ? nested.getMilestoneId()
-                : current == null ? null : current.getMilestoneId();
-        String positionType = nested.isPositionTypePresent() ? normalizePositionType(nested.getPositionType())
-                : current == null ? null : current.getPositionType();
-        Integer allocationPercentage = nested.getAllocationPercentage() != null
-                ? nested.getAllocationPercentage()
-                : current == null || current.getAllocationPercentage() == null ? 100 : current.getAllocationPercentage();
+        Long departmentId = sowId == null ? null : departmentIdForSow(sowId);
         LocalDate assignmentEndDate = nested.getAssignmentEndDate() != null
                 ? nested.getAssignmentEndDate() : current == null ? null : current.getEffectiveTo();
         String assignmentStatus = nested.getStatus() != null
@@ -1039,39 +1069,31 @@ public class EmployeeServiceImpl implements EmployeeService {
             assignmentEndDate = null;
             assignmentStatus = "ACTIVE";
         }
-        validateAssignmentValues(employeeId, departmentId, designationId, sowId, milestoneId,
+        validateAssignmentValues(employeeId, departmentId, null, sowId, null,
                 leadId, managerId);
 
         LocalDate effectiveFrom = nested.getEffectiveFrom() != null
                 ? nested.getEffectiveFrom()
-                : LocalDate.now();
+                : LocalDate.now(businessClock);
         validateAssignmentDates(effectiveFrom, assignmentEndDate);
         if (reactivating) {
-            current.setDepartmentId(departmentId);
-            current.setDesignationId(designationId);
             current.setLeadId(leadId);
             current.setManagerId(managerId);
             current.setSowId(sowId);
-            current.setMilestoneId(milestoneId);
-            current.setPositionType(positionType);
-            current.setAllocationPercentage(allocationPercentage);
+
+
             current.setEffectiveFrom(effectiveFrom);
             current.setEffectiveTo(null);
             current.setStatus("ACTIVE");
-            current.setIsPrimaryAssignment(Boolean.TRUE.equals(current.getIsPrimaryAssignment()));
+
             current.setUpdatedBy(request.getUpdatedBy());
             return assignmentRepository.save(current);
         }
 
         boolean changed = current == null
-                || !Objects.equals(current.getDepartmentId(), departmentId)
-                || !Objects.equals(current.getDesignationId(), designationId)
                 || !Objects.equals(current.getLeadId(), leadId)
                 || !Objects.equals(current.getManagerId(), managerId)
                 || !Objects.equals(current.getSowId(), sowId)
-                || !Objects.equals(current.getMilestoneId(), milestoneId)
-                || !Objects.equals(current.getPositionType(), positionType)
-                || !Objects.equals(current.getAllocationPercentage(), allocationPercentage)
                 || !Objects.equals(current.getEffectiveTo(), assignmentEndDate)
                 || !Objects.equals(current.getStatus(), assignmentStatus);
         if (!changed) return current;
@@ -1086,19 +1108,15 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         EmployeeAssignment replacement = new EmployeeAssignment();
         replacement.setEmployeeId(employeeId);
-        replacement.setDepartmentId(departmentId);
-        replacement.setDesignationId(designationId);
         replacement.setLeadId(leadId);
         replacement.setManagerId(managerId);
         replacement.setSowId(sowId);
-        replacement.setMilestoneId(milestoneId);
-        replacement.setPositionType(positionType);
+
         replacement.setEffectiveFrom(effectiveFrom);
         replacement.setEffectiveTo(assignmentEndDate);
-        replacement.setAllocationPercentage(allocationPercentage);
+
         replacement.setStatus(assignmentStatus);
-        replacement.setIsPrimaryAssignment(current == null
-                || Boolean.TRUE.equals(current.getIsPrimaryAssignment()));
+
         replacement.setCreatedBy(request.getUpdatedBy());
         replacement.setUpdatedBy(request.getUpdatedBy());
         return assignmentRepository.save(replacement);
@@ -1194,18 +1212,21 @@ public class EmployeeServiceImpl implements EmployeeService {
         List<EmployeeAssignment> assignments = assignmentRepository.findByEmployeeId(employee.getId()).stream()
                 .sorted(assignmentDisplayOrder()).toList();
         Map<Long, SowMilestone> milestones = sowMilestoneRepository.findAllById(assignments.stream()
-                        .map(EmployeeAssignment::getMilestoneId).filter(Objects::nonNull).distinct().toList())
+                        .map(item -> assignmentSummary(item).getMilestoneId()).filter(Objects::nonNull).distinct().toList())
                 .stream().collect(Collectors.toMap(SowMilestone::getId, Function.identity()));
         EmployeeRole role = employeeRoleRepository
                 .findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDesc(employee.getId()).orElse(null);
         EmployeeBasicInfoResponse response = toResponse(
                 employee, assignment, role, employees, lookupValues, sows, null,
                 assignments, milestones);
+        LocalDate today = LocalDate.now(businessClock);
         response.setCurrentProjects(currentProjects(
                 assignments.stream()
-                        .filter(item -> "ACTIVE".equalsIgnoreCase(item.getStatus()))
+                        .filter(item -> item.getEffectiveFrom() != null
+                                && !item.getEffectiveFrom().isAfter(today)
+                                && (item.getEffectiveTo() == null || !item.getEffectiveTo().isBefore(today)))
                         .toList(),
-                lookupValues, sows));
+                lookupValues, sows, "ASSIGNED"));
         return response;
     }
 
@@ -1217,9 +1238,10 @@ public class EmployeeServiceImpl implements EmployeeService {
     private EmployeeBasicInfoResponse toResponse(Employee employee, EmployeeAssignment assignment, EmployeeRole role,
             Map<Long, Employee> employees, Map<Long, LookupValue> lookupValues, Map<Long, Sow> sows,
             EmployeeReviewAssessment review) {
-        Map<Long, SowMilestone> milestones = assignment == null || assignment.getMilestoneId() == null
+        var summary = assignmentSummary(assignment);
+        Map<Long, SowMilestone> milestones = assignment == null || summary.getMilestoneId() == null
                 ? Map.of()
-                : sowMilestoneRepository.findById(assignment.getMilestoneId()).stream()
+                : sowMilestoneRepository.findById(summary.getMilestoneId()).stream()
                         .collect(Collectors.toMap(SowMilestone::getId, Function.identity()));
         return toResponse(employee, assignment, role, employees, lookupValues, sows, review,
                 assignment == null ? List.of() : List.of(assignment), milestones);
@@ -1229,15 +1251,16 @@ public class EmployeeServiceImpl implements EmployeeService {
             Map<Long, Employee> employees, Map<Long, LookupValue> lookupValues, Map<Long, Sow> sows,
             EmployeeReviewAssessment review, List<EmployeeAssignment> assignments,
         Map<Long, SowMilestone> milestones) {
+        var summary = assignmentSummary(assignment);
         Long profileDesignationId = employee.getDesignationId() != null
                 ? employee.getDesignationId()
-                : assignment == null ? null : assignment.getDesignationId();
+                : assignment == null ? null : summary.getDesignationId();
         LookupValue designation = lookupValues.get(profileDesignationId);
-        LookupValue department = assignment == null ? null : lookupValues.get(assignment.getDepartmentId());
+        LookupValue department = assignment == null ? null : lookupValues.get(summary.getDepartmentId());
         LookupValue roleLookup = role == null ? null : lookupValues.get(role.getRoleId());
         Sow sow = assignment == null ? null : sows.get(assignment.getSowId());
-        SowMilestone milestone = assignment == null || assignment.getMilestoneId() == null
-                ? null : milestones.get(assignment.getMilestoneId());
+        SowMilestone milestone = assignment == null || summary.getMilestoneId() == null
+                ? null : milestones.get(summary.getMilestoneId());
         Employee manager = assignment == null ? null : employees.get(assignment.getManagerId());
         Employee lead = assignment == null ? null : employees.get(assignment.getLeadId());
 
@@ -1251,6 +1274,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .employmentType(employee.getEmploymentType())
                 .joiningDate(employee.getJoiningDate())
                 .workMode(employee.getWorkMode())
+                .workLocation(employee.getWorkLocation())
                 .vendorId(employee.getVendor() == null ? null : employee.getVendor().getId())
                 .vendorCompanyName(employee.getVendor() == null ? null : employee.getVendor().getCompanyName())
                 .roleId(role == null ? null : role.getRoleId())
@@ -1260,21 +1284,20 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .designationName(designation == null ? null : designation.getName())
                 .assignmentId(assignment == null ? null : assignment.getId())
                 .sowId(assignment == null ? null : assignment.getSowId())
-                .sowCode(sow == null ? null : sow.getSowCode())
+                
                 .sowName(sow == null ? null : sow.getSowName())
-                .milestoneId(assignment == null ? null : assignment.getMilestoneId())
+                .milestoneId(assignment == null ? null : summary.getMilestoneId())
                 .milestoneName(assignment == null ? null
                         : milestone == null ? "All milestones" : milestone.getMilestoneName())
-                .positionType(assignment == null ? null : assignment.getPositionType())
-                .isPrimaryAssignment(assignment == null ? null : assignment.getIsPrimaryAssignment())
-                .allocationPercentage(assignment == null ? null : assignment.getAllocationPercentage())
+                .positionType(assignment == null ? null : summary.getPositionType())
+                .isPrimaryAssignment(null)
                 .assignmentStartDate(assignment == null ? null : assignment.getEffectiveFrom())
                 .assignmentEndDate(assignment == null ? null : assignment.getEffectiveTo())
                 .assignmentStatus(assignment == null ? null
                         : assignment.getStatus() == null
                         ? "INACTIVE"
                         : assignment.getStatus())
-                .departmentId(assignment == null ? null : assignment.getDepartmentId())
+                .departmentId(assignment == null ? null : summary.getDepartmentId())
                 .departmentName(department == null ? null : department.getName())
                 .managerId(assignment == null ? null : assignment.getManagerId())
                 .managerName(manager == null ? null : employeeName(manager))
@@ -1301,30 +1324,30 @@ public class EmployeeServiceImpl implements EmployeeService {
     private EmployeeAssignmentResponse assignmentResponse(EmployeeAssignment assignment,
             Map<Long, Employee> employees, Map<Long, LookupValue> lookupValues, Map<Long, Sow> sows,
             Map<Long, SowMilestone> milestones) {
-        LookupValue designation = lookupValues.get(assignment.getDesignationId());
-        LookupValue department = lookupValues.get(assignment.getDepartmentId());
+        var summary = assignmentSummary(assignment);
+        LookupValue designation = lookupValues.get(summary.getDesignationId());
+        LookupValue department = lookupValues.get(summary.getDepartmentId());
         Sow sow = sows.get(assignment.getSowId());
-        SowMilestone milestone = assignment.getMilestoneId() == null
-                ? null : milestones.get(assignment.getMilestoneId());
+        SowMilestone milestone = summary.getMilestoneId() == null
+                ? null : milestones.get(summary.getMilestoneId());
         Employee manager = employees.get(assignment.getManagerId());
         Employee lead = employees.get(assignment.getLeadId());
         return EmployeeAssignmentResponse.builder()
                 .assignmentId(assignment.getId())
                 .sowId(assignment.getSowId())
-                .sowCode(sow == null ? null : sow.getSowCode())
+                
                 .sowName(sow == null ? null : sow.getSowName())
-                .milestoneId(assignment.getMilestoneId())
-                .milestoneName(assignment.getMilestoneId() == null
+                .milestoneId(summary.getMilestoneId())
+                .milestoneName(summary.getMilestoneId() == null
                         ? "All milestones" : milestone == null ? null : milestone.getMilestoneName())
-                .designationId(assignment.getDesignationId())
+                .designationId(summary.getDesignationId())
                 .designationName(designation == null ? null : designation.getName())
-                .positionType(assignment.getPositionType())
-                .isPrimaryAssignment(assignment.getIsPrimaryAssignment())
-                .allocationPercentage(assignment.getAllocationPercentage())
+                .positionType(summary.getPositionType())
+                .isPrimaryAssignment(null)
                 .assignmentStartDate(assignment.getEffectiveFrom())
                 .assignmentEndDate(assignment.getEffectiveTo())
                 .assignmentStatus(assignment.getStatus() == null ? "INACTIVE" : assignment.getStatus())
-                .departmentId(assignment.getDepartmentId())
+                .departmentId(summary.getDepartmentId())
                 .departmentName(department == null ? null : department.getName())
                 .managerId(assignment.getManagerId())
                 .managerName(manager == null ? null : employeeName(manager))
@@ -1337,13 +1360,22 @@ public class EmployeeServiceImpl implements EmployeeService {
             List<EmployeeAssignment> assignments,
             Map<Long, LookupValue> lookupValues,
             Map<Long, Sow> sows) {
+        // Preserve the existing employee list endpoint's behavior.
+        return currentProjects(assignments, lookupValues, sows, "ACTIVE");
+    }
+
+    private List<EmployeeCurrentProjectResponse> currentProjects(
+            List<EmployeeAssignment> assignments,
+            Map<Long, LookupValue> lookupValues,
+            Map<Long, Sow> sows, String assignmentStatus) {
         Map<String, EmployeeCurrentProjectResponse> uniqueProjects = new LinkedHashMap<>();
         assignments.stream()
-                .filter(assignment -> "ACTIVE".equalsIgnoreCase(assignment.getStatus()))
+                .filter(assignment -> assignmentStatus.equalsIgnoreCase(assignment.getStatus()))
                 .forEach(assignment -> {
+                    var assignmentDetails = assignmentSummary(assignment);
                     Sow assignmentSow = sows.get(assignment.getSowId());
                     LookupValue assignmentDesignation =
-                            lookupValues.get(assignment.getDesignationId());
+                            lookupValues.get(assignmentDetails.getDesignationId());
                     EmployeeCurrentProjectResponse summary =
                             EmployeeCurrentProjectResponse.builder()
                                     .projectId(assignmentSow == null
@@ -1365,9 +1397,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private static Comparator<EmployeeAssignment> assignmentDisplayOrder() {
         return Comparator
-                .comparing((EmployeeAssignment assignment) ->
-                        Boolean.TRUE.equals(assignment.getIsPrimaryAssignment())).reversed()
-                .thenComparing(assignment -> "ACTIVE".equalsIgnoreCase(assignment.getStatus()),
+                .comparing((EmployeeAssignment assignment) -> "ACTIVE".equalsIgnoreCase(assignment.getStatus()),
                         Comparator.reverseOrder())
                 .thenComparing(EmployeeAssignment::getEffectiveFrom,
                         Comparator.nullsLast(Comparator.reverseOrder()))
@@ -1389,6 +1419,54 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (value == null || value.isBlank())
             throw new InvalidOperationException(fieldName + " cannot be blank");
         return value.trim().toUpperCase().replace(' ', '_');
+    }
+
+    private String normalizeWorkMode(String value) {
+        String normalized = normalizeRequiredValue(value, "workMode");
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        WORK_MODE_LOOKUP, normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "workMode must be an active WORK_MODE lookup value"));
+    }
+
+    private String normalizeEmploymentType(String value) {
+        String normalized = normalizeRequiredValue(value, "employmentType");
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        EMPLOYMENT_TYPE_LOOKUP, normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "employmentType must be an active EMPLOYMENT_TYPE lookup value"));
+    }
+
+    private String normalizeWorkLocation(String value) {
+        if (value == null) return null;
+        if (value.isBlank()) {
+            throw new InvalidOperationException("workLocation cannot be blank");
+        }
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        WORK_LOCATION_LOOKUP, normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "workLocation must be an active WORK_LOCATION lookup value"));
+    }
+
+    private String normalizeEmployeeStatus(String value, String defaultValue) {
+        if (value != null && value.isBlank()) {
+            throw new InvalidOperationException("status cannot be blank");
+        }
+        String normalized = value == null ? defaultValue : value.trim().toUpperCase(Locale.ROOT);
+        if (normalized == null) return null;
+        return lookupValueRepository
+                .findByLookupTypeCodeIgnoreCaseAndCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrue(
+                        EMPLOYEE_STATUS_LOOKUP, normalized)
+                .map(LookupValue::getCode)
+                .orElseThrow(() -> new InvalidOperationException(
+                        "status must be an active EMPLOYEE_STATUS lookup value"));
     }
 
     private static String normalizeAssignmentStatus(String value) {
@@ -1431,6 +1509,13 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new InvalidOperationException("CSX RACF ID already exists: " + csxRacfId);
     }
 
+    private String normalizePhoneNumber(String phoneNumber) {
+        if (phoneNumber == null || phoneNumber.isBlank()) {
+            return null;
+        }
+        return phoneNumber.trim();
+    }
+
     private String formatRitEmployeeId(Long employeeId) {
         return String.format("RIT%02d", employeeId);
     }
@@ -1464,9 +1549,26 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private void saveCompensation(Employee employee, EmployeeCompensationRequest request) {
         if (request == null) return;
-        String payType = request.getPayType().trim().toUpperCase();
-        if (!Set.of("HOURLY", "SALARY").contains(payType)) {
-            throw new InvalidOperationException("payType must be HOURLY or SALARY");
+        boolean hasPayType = request.getPayType() != null && !request.getPayType().isBlank();
+        boolean hasCurrency = request.getCurrency() != null && !request.getCurrency().isBlank();
+        if (!hasPayType && !hasCurrency && request.getHourlyRate() == null
+                && request.getAnnualSalary() == null
+                && request.getEffectiveDate() == null
+                && (request.getReason() == null || request.getReason().isBlank())) return;
+        if (!hasPayType || !hasCurrency || request.getEffectiveDate() == null) {
+            throw new InvalidOperationException(
+                    "compensationDetails requires payType, currency, and effectiveDate");
+        }
+        if (!request.getCurrency().trim().matches("[A-Za-z]{3}")) {
+            throw new InvalidOperationException("currency must be a 3-letter ISO code");
+        }
+        String payType = normalizePayType(request.getPayType());
+        boolean salary = "W2_SALARY".equals(payType) || "SALARY".equals(payType);
+        if (salary && (request.getAnnualSalary() == null || request.getHourlyRate() != null)) {
+            throw new InvalidOperationException("Salary pay requires annualSalary and no hourlyRate");
+        }
+        if (!salary && (request.getHourlyRate() == null || request.getAnnualSalary() != null)) {
+            throw new InvalidOperationException("Hourly pay requires hourlyRate and no annualSalary");
         }
         String currency = request.getCurrency().trim().toUpperCase();
         String reason = trimToNull(request.getReason());
@@ -1474,11 +1576,13 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .findFirstByEmployeeIdAndCurrentTrueOrderByEffectiveDateDescIdDesc(employee.getId())
                 .orElse(null);
         if (current != null
-                && payType.equals(current.getPayType())
-                && request.getHourlyRate().compareTo(current.getHourlyRate()) == 0
+                && payType.equals(canonicalPayType(current.getPayType()))
+                && sameAmount(request.getHourlyRate(), current.getHourlyRate())
+                && sameAmount(request.getAnnualSalary(), current.getAnnualSalary())
                 && currency.equals(current.getCurrency())
                 && request.getEffectiveDate().equals(current.getEffectiveDate())) {
-            if (!Objects.equals(current.getReason(), reason)) {
+            if (!payType.equals(current.getPayType()) || !Objects.equals(current.getReason(), reason)) {
+                current.setPayType(payType);
                 current.setReason(reason);
                 employeeCompensationRepository.save(current);
             }
@@ -1492,6 +1596,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .employee(employee)
                 .payType(payType)
                 .hourlyRate(request.getHourlyRate())
+                .annualSalary(request.getAnnualSalary())
                 .currency(currency)
                 .effectiveDate(request.getEffectiveDate())
                 .reason(reason)
@@ -1499,13 +1604,38 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .build());
     }
 
+    private static boolean sameAmount(BigDecimal left, BigDecimal right) {
+        return left == null ? right == null : right != null && left.compareTo(right) == 0;
+    }
+
+    private String normalizePayType(String payType) {
+        String normalized = canonicalPayType(payType);
+        if (!Set.of("W2_SALARY", "W2_HOURLY", "1099", "C2C", "CONTRACT")
+                .contains(normalized)) {
+            throw new InvalidOperationException(
+                    "payType must be W2 Salary, W2 Hourly, 1099, C2C, or Contract");
+        }
+        return normalized;
+    }
+
+    private static String canonicalPayType(String payType) {
+        if (payType == null) return null;
+        String normalized = payType.trim().toUpperCase(Locale.ROOT).replaceAll("\\s+", "_");
+        return switch (normalized) {
+            case "SALARY" -> "W2_SALARY";
+            case "HOURLY" -> "W2_HOURLY";
+            default -> normalized;
+        };
+    }
+
     private EmployeeCompensationResponse compensationResponse(Long employeeId) {
         return employeeCompensationRepository
                 .findFirstByEmployeeIdAndCurrentTrueOrderByEffectiveDateDescIdDesc(employeeId)
                 .map(compensation -> EmployeeCompensationResponse.builder()
                         .id(compensation.getId())
-                        .payType(compensation.getPayType())
+                        .payType(canonicalPayType(compensation.getPayType()))
                         .hourlyRate(compensation.getHourlyRate())
+                        .annualSalary(compensation.getAnnualSalary())
                         .currency(compensation.getCurrency())
                         .effectiveDate(compensation.getEffectiveDate())
                         .build())
@@ -1538,8 +1668,8 @@ public class EmployeeServiceImpl implements EmployeeService {
         List<EmployeeEducation> educations = requests.stream()
                 .<EmployeeEducation>map(request -> EmployeeEducation.builder()
                         .employee(employee)
-                        .educationType(request.getEducationType().trim())
-                        .collegeUniversity(request.getCollegeUniversity().trim())
+                        .educationType(trimToNull(request.getEducationType()))
+                        .collegeUniversity(trimToNull(request.getCollegeUniversity()))
                         .passingYear(request.getPassingYear())
                         .percentage(request.getPercentage())
                         .build())
@@ -1566,9 +1696,9 @@ public class EmployeeServiceImpl implements EmployeeService {
         List<EmployeeExperience> experiences = requests.stream()
                 .<EmployeeExperience>map(request -> EmployeeExperience.builder()
                         .employee(employee)
-                        .companyName(request.getCompanyName().trim())
-                        .position(request.getPosition().trim())
-                        .location(request.getLocation().trim())
+                        .companyName(trimToNull(request.getCompanyName()))
+                        .position(trimToNull(request.getPosition()))
+                        .location(trimToNull(request.getLocation()))
                         .fromDate(request.getFromDate())
                         .endDate(request.getEndDate())
                         .build())
@@ -1592,6 +1722,24 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     private void saveBankDetails(Employee employee, EmployeeBankDetailsRequest request) {
         if (request == null) return;
+        String bankCountry = request.getBankCountry().trim().toUpperCase(Locale.ROOT);
+        boolean usaBank = Set.of("US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA")
+                .contains(bankCountry);
+        boolean indiaBank = Set.of("IN", "INDIA").contains(bankCountry);
+        if (!usaBank && !indiaBank) {
+            throw new InvalidOperationException("bankDetails.bankCountry must be USA or INDIA");
+        }
+
+        String routingNumber = trimToNull(request.getRoutingNumber());
+        String ifscCode = trimToNull(request.getIfscCode());
+        if (usaBank && (routingNumber == null || !routingNumber.matches("\\d{9}"))) {
+            throw new InvalidOperationException(
+                    "bankDetails.routingNumber must contain exactly 9 digits for USA banks");
+        }
+        if (indiaBank && ifscCode == null) {
+            throw new InvalidOperationException("bankDetails.ifscCode is required for INDIA banks");
+        }
+
         BankAccount account = bankAccountRepository
                 .findFirstByOwnerTypeAndOwnerIdAndIsPrimaryTrueAndActiveTrue(
                         BankAccountOwnerType.EMPLOYEE, employee.getId())
@@ -1601,11 +1749,12 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .isPrimary(true)
                         .active(true)
                         .build());
-        account.setBankCountry(request.getBankCountry().trim());
+        account.setBankCountry(usaBank ? "USA" : "INDIA");
         account.setCurrency(request.getCurrency().trim().toUpperCase());
         account.setAccountHolderName(request.getAccountHolderName().trim());
         account.setBankName(request.getBankName().trim());
-        account.setIfscCode(request.getIfscCode().trim().toUpperCase());
+        account.setRoutingNumberEncrypted(usaBank ? routingNumber : null);
+        account.setIfscCode(indiaBank ? ifscCode.toUpperCase(Locale.ROOT) : null);
         account.setPaymentMethod("BANK_TRANSFER");
         String accountNumber = trimToNull(request.getAccountNumber());
         if (account.getId() == null && accountNumber == null) {
@@ -1628,8 +1777,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                         .currency(account.getCurrency())
                         .accountHolderName(account.getAccountHolderName())
                         .bankName(account.getBankName())
+                        .accountNumber(account.getAccountNumberEncrypted())
                         .accountNumberLast4(account.getAccountNumberLast4())
                         .ifscCode(account.getIfscCode())
+                        .routingNumber(account.getRoutingNumberEncrypted())
                         .build())
                 .orElse(null);
     }
@@ -1726,25 +1877,16 @@ public class EmployeeServiceImpl implements EmployeeService {
         return normalized;
     }
 
-    private String normalizePositionType(String positionType) {
-        if (positionType == null || positionType.isBlank()) return null;
-        String normalized = positionType.trim().toUpperCase().replace(' ', '_');
-        if ("NONBILLABLE".equals(normalized)) normalized = "NON_BILLABLE";
-        if (!Set.of("BILLABLE", "NON_BILLABLE").contains(normalized)) {
-            throw new InvalidOperationException("positionType must be BILLABLE or NON_BILLABLE");
-        }
-        return normalized;
+
+
+
+    private EmployeeAssignmentSummary assignmentSummary(EmployeeAssignment assignment) {
+        if (assignment == null) return EmployeeAssignmentSummary.from(null, List.of());
+        Sow sow = assignment.getSowId() == null ? null
+                : sowRepository.findById(assignment.getSowId()).orElse(null);
+        return EmployeeAssignmentSummary.from(sow, assignment.getId() == null ? List.of()
+                : milestonePositionAssignmentRepository
+                        .findByEmployeeAssignment_IdOrderByAssignmentStartDateDescIdDesc(assignment.getId()));
     }
 
-    private void clearPrimaryAssignment(Long employeeId, Long updatedBy) {
-        List<EmployeeAssignment> activeAssignments =
-                assignmentRepository.findAllByEmployeeIdAndStatusIgnoreCase(employeeId, "ACTIVE");
-        activeAssignments.stream()
-                .filter(assignment -> Boolean.TRUE.equals(assignment.getIsPrimaryAssignment()))
-                .forEach(assignment -> {
-                    assignment.setIsPrimaryAssignment(false);
-                    assignment.setUpdatedBy(updatedBy);
-                });
-        assignmentRepository.saveAll(activeAssignments);
-    }
 }

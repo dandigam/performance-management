@@ -24,7 +24,7 @@ import java.util.Map;
 
 @Service
 @Transactional
-public class FinalRatingServiceImpl implements FinalRatingService {
+public class FinalRatingServiceImpl extends WorkflowEventSource implements FinalRatingService {
 
     private final FinalRatingRepository finalRatingRepository;
     private final EmployeeReviewRepository employeeReviewRepository;
@@ -124,8 +124,12 @@ public class FinalRatingServiceImpl implements FinalRatingService {
         rating.setFinalRating(finalAssessment.getOverallRating());
         rating.setPublished(true);
         rating.setPublishedBy(publisher);
-        rating.setPublishedDate(LocalDateTime.now());
+        rating.setPublishedDate(LocalDateTime.now(java.time.ZoneOffset.UTC));
         rating = finalRatingRepository.save(rating);
+        publishWorkflow(new NotificationEvents.ReviewAlert(rating.getEmployeeReview().getEmployee(),
+                rating.getEmployeeReview().getId(), "RESULT_PUBLISHED", "Review results published",
+                "Your performance review results are available. Open the review to read your feedback.",
+                String.valueOf(rating.getId())));
         emailNotificationService.queueResultPublished(rating);
         return rating;
     }

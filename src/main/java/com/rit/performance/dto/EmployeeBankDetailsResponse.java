@@ -17,6 +17,8 @@ public class EmployeeBankDetailsResponse {
     private String currency;
     private String accountHolderName;
     private String bankName;
+    private String accountNumber;
     private String accountNumberLast4;
     private String ifscCode;
+    private String routingNumber;
 }

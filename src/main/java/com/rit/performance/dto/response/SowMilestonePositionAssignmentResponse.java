@@ -18,7 +18,6 @@ public class SowMilestonePositionAssignmentResponse {
     private Long seniorityId;
     private String seniority;
     private Long rateCardId;
-    private Integer allocationPercentage;
     private String positionType;
     private LocalDate assignmentStartDate;
     private LocalDate assignmentEndDate;

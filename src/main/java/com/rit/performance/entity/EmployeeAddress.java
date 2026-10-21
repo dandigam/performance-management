@@ -24,16 +24,16 @@ public class EmployeeAddress extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_employee_addresses_employee"))
     private Employee employee;
 
-    @Column(name = "address_line_1", length = 200)
+    @Column(name = "address_line_1")
     private String addressLine1;
-    @Column(name = "address_line_2", length = 200)
+    @Column(name = "address_line_2")
     private String addressLine2;
-    @Column(length = 100)
+    @Column
     private String city;
-    @Column(length = 100)
+    @Column
     private String state;
-    @Column(name = "postal_code", length = 20)
+    @Column(name = "postal_code")
     private String postalCode;
-    @Column(length = 100)
+    @Column
     private String country;
 }

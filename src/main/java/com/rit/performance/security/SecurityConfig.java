@@ -59,8 +59,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> {
                     auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/auth/change-password").authenticated()
                         .requestMatchers(HttpMethod.POST,
-                                "/api/auth/login", "/api/auth/refresh", "/api/auth/logout")
+                                "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
+                                "/api/auth/forgot-password", "/api/auth/reset-password", "/api/auth/password-otp")
                                 .permitAll()
                         .requestMatchers(
                                 "/",
@@ -75,7 +77,11 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
                                 .permitAll();
                     if (authenticationRequired) {
-                        auth.requestMatchers("/api/v1/bank-accounts/**", "/api/v1/vendors/**")
+                        auth.requestMatchers(HttpMethod.GET, "/api/v1/settings/**").authenticated()
+                                .requestMatchers("/api/v1/settings/**").hasRole("ADMIN")
+                                .requestMatchers("/api/v1/user-management/**")
+                                .hasRole("ADMIN")
+                                .requestMatchers("/api/v1/bank-accounts/**", "/api/v1/vendors/**")
                                 .hasAnyRole("ADMIN", "FINANCE")
                                 .requestMatchers("/api/**").authenticated();
                     } else {
@@ -100,7 +106,7 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(Arrays.stream(originPatterns.split(","))
                 .map(String::trim).filter(value -> !value.isBlank()).toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Idempotency-Key"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

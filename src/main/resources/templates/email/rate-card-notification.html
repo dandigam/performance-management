@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${subject}">Rate card notification</title>
+</head>
+<body style="margin:0;padding:0;background:#f3f6fa;font-family:Arial,Helvetica,sans-serif;color:#172033;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px;">
+  <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:white;border:1px solid #dce3ed;border-radius:10px;">
+    <tr th:replace="~{fragments/header :: header('Rate Cards')}"></tr>
+    <tr><td style="padding:32px;">
+      <p>Hello Team,</p>
+      <h1 style="font-size:24px;" th:text="${heading}">Rate card updated</h1>
+      <p style="color:#475569;line-height:1.6;">Rate card #<span th:text="${card.id}"></span>
+        for <strong th:text="${card.positionTitleName}"></strong> at <span th:text="${card.clientName}"></span>
+        has been <span th:text="${action}"></span> by <span th:text="${actor}"></span>.</p>
+      <p th:unless="${retired}" style="color:#475569;line-height:1.6;">Please review the rate and effective dates below and use this rate card when adding the position to a SOW, where applicable.</p>
+      <p th:if="${retired}" style="color:#475569;line-height:1.6;">This rate card has been retired. Please review the details below and select an applicable active rate card when adding the position to a SOW.</p>
+      <table width="100%" cellspacing="0" cellpadding="10" style="border:1px solid #dce3ed;font-size:14px;line-height:1.5;" aria-label="Rate card details">
+        <tr><th align="left">Client</th><td th:text="${card.clientName}"></td></tr>
+        <tr><th align="left">Position</th><td th:text="${card.positionTitleName}"></td></tr>
+        <tr><th align="left">Main skill</th><td th:text="${card.mainSkillName}"></td></tr>
+        <tr><th align="left">Additional skills</th><td th:text="${card.additionalSkills ?: 'None'}"></td></tr>
+        <tr><th align="left">Location</th><td th:text="${card.locationName ?: 'Not specified'}"></td></tr>
+        <tr><th align="left">Seniority</th><td th:text="${card.seniorityName ?: 'Not specified'}"></td></tr>
+        <tr><th align="left">Hourly rate</th><td><strong th:text="${card.hourlyRate}"></strong> <span th:text="${card.currency}"></span>/hour</td></tr>
+        <tr th:if="${previous != null}"><th align="left">Previous card / rate</th><td>#<span th:text="${previous.id}"></span>: <span th:text="${previous.hourlyRate}"></span> <span th:text="${previous.currency}"></span>/hour</td></tr>
+        <tr><th align="left">Effective from</th><td th:text="${card.effectiveFrom}"></td></tr>
+        <tr><th align="left">Effective to</th><td th:text="${card.effectiveTo ?: 'Open-ended'}"></td></tr>
+        <tr><th align="left">Status</th><td th:text="${card.status}"></td></tr>
+      </table>
+      <p style="color:#64748b;font-size:13px;">Open Rate Cards in the portal and search for the card ID to review its details.</p>
+    </td></tr>
+    <tr th:replace="~{fragments/footer :: footer}"></tr>
+  </table>
+</td></tr></table>
+</body>
+</html>

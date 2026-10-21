@@ -8,10 +8,9 @@ import java.time.LocalDateTime;
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class SowInvoicePaymentHistoryResponse {
     private Long id;
+    private String csxInvoiceNumber;
     private Long invoiceId;
-    private String invoiceNumber;
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private Long milestoneId;
     private String milestoneName;

@@ -137,7 +137,7 @@ public class WorkOrderServiceImpl implements WorkOrderService {
                 .startDate(workOrder.getStartDate())
                 .endDate(workOrder.getEndDate())
                 .location(workOrder.getLocation())
-                .sowId(sow.getId()).sowCode(sow.getSowCode()).sowName(sow.getSowName())
+                .sowId(sow.getId()).sowName(sow.getSowName())
                 .amount(workOrder.getAmount()).hourlyRate(workOrder.getHourlyRate())
                 .salary(workOrder.getSalary()).commission(workOrder.getCommission())
                 .employeeId(employee.getId()).employeeName(employeeName)

@@ -1,5 +1,6 @@
 package com.rit.performance.dto;
 
+
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -30,6 +31,7 @@ public class EmployeeBasicInfoResponse {
     private String employmentType;
     private LocalDate joiningDate;
     private String workMode;
+    private String workLocation;
     private Long vendorId;
     private String vendorCompanyName;
     private Long roleId;
@@ -42,8 +44,6 @@ public class EmployeeBasicInfoResponse {
     @JsonIgnore
     private Long sowId;
     @JsonIgnore
-    private String sowCode;
-    @JsonIgnore
     private String sowName;
     @JsonIgnore
     private Long milestoneId;
@@ -53,8 +53,6 @@ public class EmployeeBasicInfoResponse {
     private String positionType;
     @JsonIgnore
     private Boolean isPrimaryAssignment;
-    @JsonIgnore
-    private Integer allocationPercentage;
     @JsonIgnore
     private LocalDate assignmentStartDate;
     @JsonIgnore

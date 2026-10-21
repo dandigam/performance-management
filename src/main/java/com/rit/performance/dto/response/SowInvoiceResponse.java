@@ -15,10 +15,10 @@ import java.util.List;
 @Builder
 public class SowInvoiceResponse {
     private Long id;
+    private String csxInvoiceNumber;
     private Long departmentId;
     private String departmentName;
     private Long sowId;
-    private String sowCode;
     private String sowName;
     private Long milestoneId;
     private String milestoneName;
@@ -27,7 +27,6 @@ public class SowInvoiceResponse {
     private BigDecimal milestoneInvoiceAmount;
     private LocalDate invoiceRaisedDate;
     private BigDecimal invoiceRaisedAmount;
-    private String invoiceNumber;
     private String invoiceStatus;
     private LocalDate submittedDate;
     private String notes;

@@ -16,6 +16,10 @@ import lombok.Setter;
 @AllArgsConstructor
 @Builder
 public class CsxEmployeeUpdateRequest {
+    @jakarta.validation.constraints.NotNull(message = "clientId is required")
+    @Positive(message = "clientId must be positive")
+    private Long clientId;
+
     @Positive(message = "id must be positive")
     private Long id;
 

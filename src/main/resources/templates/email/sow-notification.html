@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${subject}"></title>
+  <style>
+    @media only screen and (max-width: 620px) {
+      .email-content { padding:24px 20px !important; }
+      .detail-label, .detail-value { padding:12px 10px !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#f3f6fa;font-family:Arial,Helvetica,sans-serif;color:#172033;">
+  <div th:text="${heading + ': ' + sowName}" style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;"></div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+          style="width:100%;max-width:600px;background:#ffffff;border:1px solid #dce3ed;border-radius:10px;">
+
+          <!-- Brand -->
+          <tr th:replace="~{fragments/header :: header('Statement of Work')}"></tr>
+
+          <!-- Message -->
+          <tr>
+            <td class="email-content" style="padding:32px;">
+              <p style="margin:0 0 24px;font-size:15px;">
+                Hello <th:block th:text="${recipientName}"/>,
+              </p>
+
+              <h1 style="margin:0 0 14px;font-size:24px;line-height:1.3;" th:text="${heading}">
+              </h1>
+
+              <div th:if="${completed}" style="margin:0 0 24px;padding:24px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;text-align:center;">
+                <p style="margin:0 0 12px;color:#166534;font-size:30px;line-height:1.3;font-weight:bold;">Congratulations to the whole team!</p>
+                <p style="margin:0;color:#166534;font-size:16px;line-height:1.6;">Celebrating your shared effort, dedication, and teamwork.</p>
+                <p style="margin:14px 0 0;color:#166534;font-size:16px;line-height:1.6;">Thank you to everyone who contributed their time, skills, and support throughout this engagement.</p>
+                <p style="margin:14px 0 0;color:#166534;font-size:16px;line-height:1.6;">From planning through delivery, your commitment and willingness to support one another helped bring this SOW to completion.</p>
+                <p style="margin:14px 0 0;color:#166534;font-size:16px;line-height:1.6;">This milestone belongs to the whole team. Take a moment to celebrate what you have accomplished together.</p>
+                <p style="margin:14px 0 0;color:#166534;font-size:16px;line-height:1.6;font-weight:bold;">Well done, Team, and thank you for all your hard work!</p>
+              </div>
+
+              <p style="margin:0 0 24px;color:#475569;font-size:15px;line-height:1.6;">
+                <span th:text="${actionMessage}"></span>
+              </p>
+
+              <!-- SOW details -->
+              <p style="margin:0 0 12px;color:#64748b;font-size:11px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;">SOW details</p>
+              <table width="100%" cellspacing="0" cellpadding="0"
+                aria-label="SOW details"
+                style="border:1px solid #dce3ed;border-radius:8px;border-collapse:separate;font-size:14px;line-height:21px;">
+                <tr>
+                  <th class="detail-label" scope="row" align="left"
+                    style="padding:14px 16px;color:#64748b;background:#f8fafc;font-weight:normal;border-bottom:1px solid #dce3ed;">
+                    SOW Name
+                  </th>
+                  <td class="detail-value" align="right"
+                    style="padding:14px 16px;font-weight:bold;overflow-wrap:anywhere;border-bottom:1px solid #dce3ed;" th:text="${sowName}">
+                  </td>
+                </tr>
+                <tr>
+                  <th class="detail-label" scope="row" align="left"
+                    style="padding:14px 16px;color:#64748b;background:#f8fafc;font-weight:normal;border-bottom:1px solid #dce3ed;">
+                    SOW ID
+                  </th>
+                  <td class="detail-value" align="right"
+                    style="padding:14px 16px;font-weight:bold;border-bottom:1px solid #dce3ed;" th:text="${sowId}">
+                  </td>
+                </tr>
+                <tr>
+                  <th class="detail-label" scope="row" align="left"
+                    style="padding:14px 16px;color:#64748b;background:#f8fafc;font-weight:normal;border-bottom:1px solid #dce3ed;">
+                    Client
+                  </th>
+                  <td class="detail-value" align="right"
+                    style="padding:14px 16px;border-bottom:1px solid #dce3ed;" th:text="${clientName}">
+                  </td>
+                </tr>
+                <tr>
+                  <th class="detail-label" scope="row" align="left"
+                    style="padding:14px 16px;color:#64748b;background:#f8fafc;font-weight:normal;border-bottom:1px solid #dce3ed;">
+                    Status
+                  </th>
+                  <td class="detail-value" align="right"
+                    style="padding:14px 16px;border-bottom:1px solid #dce3ed;">
+                    <span th:text="${status}" style="display:inline-block;padding:4px 12px;border:1px solid #dce3ed;border-radius:20px;background:#f1f5f9;color:#334155;font-size:12px;font-weight:bold;line-height:18px;"></span>
+                  </td>
+                </tr>
+                <tr>
+                  <th class="detail-label" scope="row" align="left"
+                    style="padding:14px 16px;color:#64748b;background:#f8fafc;font-weight:normal;">
+                    Contract period
+                  </th>
+                  <td class="detail-value" align="right" style="padding:14px 16px;line-height:1.5;">
+                    <th:block th:text="${startDate}"/> &ndash; <th:block th:text="${endDate}"/>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Action -->
+              <table role="presentation" cellspacing="0" cellpadding="0"
+                style="margin-top:28px;">
+                <tr>
+                  <td bgcolor="#0875d1" style="border-radius:6px;">
+                    <a th:href="${sowUrl}"
+                      style="display:inline-block;padding:14px 22px;border:1px solid #0875d1;border-radius:6px;color:#ffffff;font-size:14px;font-weight:bold;text-decoration:none;">
+                      View statement of work
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:24px 0 0;padding-top:16px;border-top:1px solid #edf1f7;color:#64748b;font-size:12px;line-height:1.6;">
+                <th:block th:text="${timestampLabel}"/> <th:block th:text="${formattedTimestamp}"/>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr th:replace="~{fragments/footer :: footer}"></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

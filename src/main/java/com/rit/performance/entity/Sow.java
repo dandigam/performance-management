@@ -10,7 +10,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "sows", uniqueConstraints = @UniqueConstraint(name = "uk_sow_code", columnNames = "sow_code"))
+@org.hibernate.annotations.DynamicUpdate
+@Table(name = "sows")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -22,8 +23,6 @@ public class Sow extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "sow_code", length = 50)
-    private String sowCode;
 
     @Column(name = "sow_name", nullable = false, length = 200)
     private String sowName;
@@ -69,8 +68,19 @@ public class Sow extends BaseEntity {
             foreignKey = @ForeignKey(name = "fk_sow_rit_escalation"))
     private Employee ritEscalationEmployee;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "delivery_owner_employee_id", foreignKey = @ForeignKey(name = "fk_sow_delivery_owner"))
+    private Employee deliveryOwnerEmployee;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "technical_lead_employee_id", foreignKey = @ForeignKey(name = "fk_sow_technical_lead"))
+    private Employee technicalLeadEmployee;
+
     @Column(name = "start_date")
     private LocalDate startDate;
+
+    @Column(name = "actual_start_date")
+    private LocalDate actualStartDate;
 
     @Column(name = "end_date")
     private LocalDate endDate;
@@ -79,6 +89,9 @@ public class Sow extends BaseEntity {
     @JoinColumn(name = "status_id", nullable = false,
             foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private LookupValue status;
+
+    @Column(name = "status_effective_date")
+    private LocalDate statusEffectiveDate;
 
     @Column(length = 2000)
     private String remarks;

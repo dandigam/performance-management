@@ -12,7 +12,6 @@ import com.rit.performance.mapper.CsxEmployeeMapper;
 import com.rit.performance.repository.CsxEmployeeRepository;
 import com.rit.performance.repository.LookupValueRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +24,7 @@ import java.util.Locale;
 public class CsxEmployeeServiceImpl implements CsxEmployeeService {
     private final CsxEmployeeRepository repository;
     private final LookupValueRepository lookupValueRepository;
+    private final com.rit.performance.repository.ClientRepository clientRepository;
 
     @Override
     @Transactional
@@ -35,6 +35,7 @@ public class CsxEmployeeServiceImpl implements CsxEmployeeService {
         }
 
         CsxEmployee employee = new CsxEmployee();
+        employee.setClient(findClient(request.getClientId()));
         employee.setFirstName(request.getFirstName().trim());
         employee.setLastName(trimToNull(request.getLastName()));
         employee.setEmail(email);
@@ -55,6 +56,7 @@ public class CsxEmployeeServiceImpl implements CsxEmployeeService {
 
         CsxEmployee employee = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("CSX employee not found: " + id));
+        employee.setClient(findClient(request.getClientId()));
         String email = normalizeEmail(request.getEmail());
         if (email != null && repository.existsByEmailIgnoreCaseAndIdNot(email, id)) {
             throw new DuplicateResourceException("CSX employee email already exists: " + email);
@@ -72,7 +74,13 @@ public class CsxEmployeeServiceImpl implements CsxEmployeeService {
 
     @Override
     public List<CsxEmployeeResponse> getAll() {
-        return repository.findAll(Sort.by(Sort.Direction.ASC, "firstName", "lastName")).stream()
+        return getAll(null);
+    }
+
+    @Override
+    public List<CsxEmployeeResponse> getAll(Long clientId) {
+        if (clientId != null) findClient(clientId);
+        return repository.findForClient(clientId).stream()
                 .map(CsxEmployeeMapper::toResponse)
                 .toList();
     }
@@ -88,6 +96,13 @@ public class CsxEmployeeServiceImpl implements CsxEmployeeService {
         if (id == null) return null;
         return lookupValueRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Business unit not found: " + id));
+    }
+
+    private com.rit.performance.entity.Client findClient(Long id) {
+        if (id == null || id <= 0)
+            throw new InvalidOperationException("A positive clientId is required");
+        return clientRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Client not found: " + id));
     }
 
     private LookupValue findDesignation(Long id) {

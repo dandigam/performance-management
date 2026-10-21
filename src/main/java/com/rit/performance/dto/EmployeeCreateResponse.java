@@ -15,6 +15,5 @@ public class EmployeeCreateResponse {
     private EmployeeBasicInfoResponse employee;
     private Long userId;
     private String username;
-    private String password;
     private String roleName;
 }

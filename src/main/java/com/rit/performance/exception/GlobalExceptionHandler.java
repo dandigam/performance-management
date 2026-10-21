@@ -1,67 +1,150 @@
 package com.rit.performance.exception;
 
+import com.rit.performance.dto.ApiMessageResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import java.util.HashMap;
-import java.util.Map;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice(basePackages = "com.rit.performance")
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    public ResponseEntity<ApiMessageResponse> handleMissingPart(
+            org.springframework.web.multipart.support.MissingServletRequestPartException ex) {
+        return response(HttpStatus.BAD_REQUEST, "MISSING_MULTIPART_FIELD",
+                "Required multipart field is missing: " + ex.getRequestPartName());
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiMessageResponse> handleUploadTooLarge(
+            org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        return response(HttpStatus.PAYLOAD_TOO_LARGE, "UPLOAD_TOO_LARGE",
+                "The upload exceeds the server size limit. SOW email PDF attachments must not exceed 10 MB.");
+    }
+
+    @ExceptionHandler(ApplicationException.class)
+    public ResponseEntity<ApiMessageResponse> handleApplication(ApplicationException ex) {
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(ex.getStatus());
+        if (ex.getRetryAfter() != null) {
+            response.header("Retry-After", ex.getRetryAfter());
+        }
+        return response.body(ApiMessageResponse.warning(ex.getCode(), ex.getMessage()));
+    }
+    @ExceptionHandler(com.rit.performance.reports.timesheet.TimesheetPdfNotFoundException.class)
+    public ResponseEntity<ApiMessageResponse> handleTimesheetPdfNotFound(
+            com.rit.performance.reports.timesheet.TimesheetPdfNotFoundException ex) {
+        return response(HttpStatus.NOT_FOUND, "TIMESHEET_NOT_FOUND", ex.getMessage());
+    }
+
+    @ExceptionHandler(com.rit.performance.reports.timesheet.TimesheetPdfForbiddenException.class)
+    public ResponseEntity<ApiMessageResponse> handleTimesheetPdfForbidden(
+            com.rit.performance.reports.timesheet.TimesheetPdfForbiddenException ex) {
+        return response(HttpStatus.FORBIDDEN, "TIMESHEET_PDF_FORBIDDEN", ex.getMessage());
+    }
+
+    @ExceptionHandler(com.rit.performance.reports.timesheet.TimesheetPdfException.class)
+    public ResponseEntity<ApiMessageResponse> handleTimesheetPdfGeneration(
+            com.rit.performance.reports.timesheet.TimesheetPdfException ex) {
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "TIMESHEET_PDF_GENERATION_FAILED", ex.getMessage());
+    }
+
+    @ExceptionHandler(com.rit.performance.reports.timesheet.TimesheetPdfUnavailableException.class)
+    public ResponseEntity<ApiMessageResponse> handleTimesheetPdfUnavailable(
+            com.rit.performance.reports.timesheet.TimesheetPdfUnavailableException ex) {
+        return response(HttpStatus.CONFLICT, "TIMESHEET_PDF_NOT_AVAILABLE", ex.getMessage());
+    }
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiMessageResponse> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        return response(HttpStatus.FORBIDDEN, "ACCESS_DENIED", ex.getMessage());
+    }
 
     @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<Map<String, String>> handleAuthentication(AuthenticationException ex) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<ApiMessageResponse> handleAuthentication(AuthenticationException ex) {
+        return response(HttpStatus.UNAUTHORIZED, "AUTHENTICATION_FAILED", ex.getMessage());
+    }
+
+    @ExceptionHandler(AccountUnavailableException.class)
+    public ResponseEntity<ApiMessageResponse> handleAccountUnavailable(AccountUnavailableException ex) {
+        return response(HttpStatus.FORBIDDEN, "ACCOUNT_UNAVAILABLE", ex.getMessage());
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<Map<String, String>> handleNotFound(ResourceNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<ApiMessageResponse> handleNotFound(ResourceNotFoundException ex) {
+        return response(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", ex.getMessage());
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
-    public ResponseEntity<Map<String, String>> handleDuplicate(DuplicateResourceException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<ApiMessageResponse> handleDuplicate(DuplicateResourceException ex) {
+        return response(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", ex.getMessage());
     }
 
     @ExceptionHandler(InvalidOperationException.class)
-    public ResponseEntity<Map<String, String>> handleInvalid(InvalidOperationException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<ApiMessageResponse> handleInvalid(InvalidOperationException ex) {
+        return response(HttpStatus.BAD_REQUEST, ex.getCode(), ex.getMessage());
     }
 
     @ExceptionHandler(FileStorageException.class)
-    public ResponseEntity<Map<String, String>> handleFileStorage(FileStorageException ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<ApiMessageResponse> handleFileStorage(FileStorageException ex) {
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "FILE_STORAGE_ERROR", ex.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, String>> handleIllegalArgument(IllegalArgumentException ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", ex.getMessage()));
+    public ResponseEntity<ApiMessageResponse> handleIllegalArgument(IllegalArgumentException ex) {
+        return response(HttpStatus.BAD_REQUEST, "INVALID_ARGUMENT", ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleValidation(MethodArgumentNotValidException ex) {
-        Map<String, String> errors = new HashMap<>();
-        for (FieldError error : ex.getBindingResult().getFieldErrors()) {
-            errors.put(error.getField(), error.getDefaultMessage());
-        }
-        return ResponseEntity.badRequest().body(errors);
+    public ResponseEntity<ApiMessageResponse> handleValidation(MethodArgumentNotValidException ex) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(field -> field.getField() + ": " + field.getDefaultMessage())
+                .distinct().collect(java.util.stream.Collectors.joining("; "));
+        return response(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", message);
     }
 
-    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
-    public ResponseEntity<Map<String, String>> handleMalformedRequest(Exception ex) {
-        return ResponseEntity.badRequest().body(Map.of("error", "Invalid request value"));
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class})
+    public ResponseEntity<ApiMessageResponse> handleMalformedRequest(Exception ex) {
+        return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Invalid request value");
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiMessageResponse> handleMethodValidation(HandlerMethodValidationException ex) {
+        String message = ex.getAllErrors().stream()
+                .map(error -> String.valueOf(error.getDefaultMessage()))
+                .distinct().collect(java.util.stream.Collectors.joining("; "));
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(ApiMessageResponse.warning("VALIDATION_ERROR", message));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, String>> handleGeneric(Exception ex) {
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "Internal server error"));
+    public ResponseEntity<ApiMessageResponse> handleGeneric(Exception ex, HttpServletRequest request) {
+        String message = "Unable to complete the request. Please try again.";
+        if ("DELETE".equalsIgnoreCase(request.getMethod())
+                && request.getRequestURI().matches(".*/milestones/[^/]+/positions/[^/]+$")) {
+            message = "Unable to remove the position. Please try again.";
+        }
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
+                message);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiMessageResponse> handleDataIntegrityViolation(
+            org.springframework.dao.DataIntegrityViolationException ex) {
+        return response(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE",
+                "A record with the same unique value already exists.");
+    }
+
+    private ResponseEntity<ApiMessageResponse> response(HttpStatus status, String code, String message) {
+        return ResponseEntity.status(status).body(ApiMessageResponse.warning(code, message));
+    }
+
+    private ResponseEntity<ApiMessageResponse> error(HttpStatus status, String code, String message) {
+        return ResponseEntity.status(status).body(ApiMessageResponse.error(code, message));
     }
 }

@@ -38,6 +38,8 @@ public class EmployeeUpdateRequest {
     private String employmentType;
     @Size(max = 50)
     private String workMode;
+    @Size(max = 20)
+    private String workLocation;
     @PastOrPresent
     private LocalDate joiningDate;
     @Positive
