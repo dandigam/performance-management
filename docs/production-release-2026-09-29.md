@@ -1,3 +1,5 @@
+> Historical migration note: The SQL migration files referenced below were removed from the repository. These migration instructions describe earlier releases; retrieve the scripts from Git history if needed. Their removal does not confirm that any database has been migrated.
+
 # September 29 production release
 
 Production target and already-applied migrations must be established before execution.

@@ -1,3 +1,5 @@
+> Historical migration note: The SQL migration files referenced below were removed from the repository. These migration instructions describe earlier releases; retrieve the scripts from Git history if needed. Their removal does not confirm that any database has been migrated.
+
 # In-app notifications
 
 The bell inbox is independent of email delivery and device-only preferences.
