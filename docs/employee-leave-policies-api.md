@@ -1,3 +1,5 @@
+> Historical migration note: The SQL migration files referenced below were removed from the repository. These migration instructions describe earlier releases; retrieve the scripts from Git history if needed. Their removal does not confirm that any database has been migrated.
+
 # Employee leave policy assignments
 
 Base path: `/api/v1/employees/{employeeId}/leave-policies`. Requests and responses use JSON. Dates use `YYYY-MM-DD`. Authentication follows the application's existing `/api/**` rules.

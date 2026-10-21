@@ -1,3 +1,5 @@
+> Historical migration note: The SQL migration files referenced below were removed from the repository. These migration instructions describe earlier releases; retrieve the scripts from Git history if needed. Their removal does not confirm that any database has been migrated.
+
 # Manager and lead leave approvals
 
 All endpoints require authentication. Approver identity comes from the logged-in employee. Leave requests capture the Level 1 and optional Level 2 approvers from the employee's leave policy assignment when submitted. Timesheet approvers are separate. A manager role alone grants no access.
