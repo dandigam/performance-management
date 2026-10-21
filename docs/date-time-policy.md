@@ -33,7 +33,9 @@ Activation takes effect immediately; the first activation uses the UI-supplied
 today when omitted. The response's `statusEffectiveDate` still contains today's
 business date. Other transitions ignore the supplied date, and reactivation preserves
 the first actualStartDate. This endpoint does not schedule future activation.
-General SOW writes no longer overwrite the workflow-managed submission date.
+General SOW creates and updates persist an explicitly supplied `submittedDate`.
+Omitting it or sending null preserves the existing submission date on update.
+Sending for approval still sets it to the current business date.
 
 New audit timestamps use UTC: JPA auditing, manually recorded events and native
 audit inserts. Hibernate JDBC time zone is UTC. Existing LocalDateTime response

@@ -812,7 +812,9 @@ public class SowServiceImpl implements SowService {
         sow.setBusinessUnit(lookupValueRepository.findById(request.getBusinessUnitId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Business unit not found: " + request.getBusinessUnitId())));
-        // Submission date is managed by the approval workflow.
+        if (request.getSubmittedDate() != null) {
+            sow.setSubmittedDate(request.getSubmittedDate());
+        }
         sow.setCsxProjectId(trimToNull(request.getCsxProjectId()));
         validateCsxEmployee(request.getProjectOwnerEmployeeId(), "Project owner");
         validateCsxEmployee(request.getCsxContactEmployeeId(), "CSX contact");

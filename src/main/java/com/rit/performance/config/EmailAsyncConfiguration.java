@@ -12,6 +12,20 @@ import org.springframework.util.Assert;
 @EnableAsync
 @Slf4j
 public class EmailAsyncConfiguration {
+    @Bean(name = "sowPdfEmailTaskExecutor")
+    public ThreadPoolTaskExecutor sowPdfEmailTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("sow-pdf-email-");
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(2);
+        // Each queued PDF can occupy 10 MiB; keep this queue small and bounded.
+        executor.setQueueCapacity(10);
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.setRejectedExecutionHandler(new java.util.concurrent.ThreadPoolExecutor.AbortPolicy());
+        return executor;
+    }
+
     @Bean(name = "emailTaskExecutor")
     public ThreadPoolTaskExecutor emailTaskExecutor(
             @Value("${app.mail.async.core-pool-size:2}") int corePoolSize,

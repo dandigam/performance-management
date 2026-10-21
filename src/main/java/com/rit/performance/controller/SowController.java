@@ -35,6 +35,18 @@ import java.util.List;
 public class SowController {
     private final SowService sowService;
     private final SowMilestonePositionAssignmentService positionAssignmentService;
+    private final com.rit.performance.service.SowPdfEmailService sowPdfEmailService;
+
+    @PostMapping(value = "/{sowId}/email", consumes = "multipart/form-data")
+    public ResponseEntity<ApiMessageResponse> emailPdf(
+            @PathVariable Long sowId,
+            @RequestParam("sowId") Long submittedSowId,
+            @RequestParam String toEmail,
+            @RequestPart("attachment") org.springframework.web.multipart.MultipartFile attachment) {
+        sowPdfEmailService.send(sowId, submittedSowId, toEmail, attachment);
+        return ResponseEntity.accepted().body(ApiMessageResponse.success(
+                "SOW email queued for sending. Delivery is not yet confirmed."));
+    }
 
     @DeleteMapping("/{sowId}/milestones/{milestoneId}")
     public ResponseEntity<ApiMessageResponse> deleteMilestone(

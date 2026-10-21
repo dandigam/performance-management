@@ -219,6 +219,11 @@ public class ApplicationEmailFactory {
         return sowNotification(sow, "created", "A new SOW has been created");
     }
 
+    public ApplicationEmail sowPdf(Sow sow, String recipient) {
+        ApplicationEmail email = sowNotification(sow, "pdf attached", "SOW document for review");
+        return new ApplicationEmail(recipient, email.subject(), email.body(), true);
+    }
+
     public ApplicationEmail sowUpdated(Sow sow, String changeType) {
         return sowNotification(sow, changeType,
                 "status updated".equals(changeType) ? "SOW status changed" : "A SOW has been updated");
@@ -249,6 +254,9 @@ public class ApplicationEmailFactory {
         String actorName = actorName(actor);
         String status = sow.getStatus() == null ? "Not available" : sow.getStatus().getName();
         String actionMessage = switch (changeType) {
+            case "pdf attached" -> "Please find attached the PDF for the SOW, " + sow.getSowName()
+                    + (sow.getClient() == null ? "" : ", for " + sow.getClient().getClientName())
+                    + ". Please review the attached document and contact the SOW owner with any questions.";
             case "created" -> "A new SOW, " + sow.getSowName() + ", has been created"
                     + (sow.getClient() == null ? "" : " for " + sow.getClient().getClientName())
                     + " by " + actorName + ". Please review the details below.";

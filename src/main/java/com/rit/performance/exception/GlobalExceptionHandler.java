@@ -14,6 +14,20 @@ import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice(basePackages = "com.rit.performance")
 public class GlobalExceptionHandler {
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    public ResponseEntity<ApiMessageResponse> handleMissingPart(
+            org.springframework.web.multipart.support.MissingServletRequestPartException ex) {
+        return response(HttpStatus.BAD_REQUEST, "MISSING_MULTIPART_FIELD",
+                "Required multipart field is missing: " + ex.getRequestPartName());
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiMessageResponse> handleUploadTooLarge(
+            org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        return response(HttpStatus.PAYLOAD_TOO_LARGE, "UPLOAD_TOO_LARGE",
+                "The upload exceeds the server size limit. SOW email PDF attachments must not exceed 10 MB.");
+    }
+
     @ExceptionHandler(ApplicationException.class)
     public ResponseEntity<ApiMessageResponse> handleApplication(ApplicationException ex) {
         ResponseEntity.BodyBuilder response = ResponseEntity.status(ex.getStatus());
