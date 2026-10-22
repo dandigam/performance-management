@@ -60,6 +60,7 @@ public class SecurityConfig {
                     auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/api/auth/change-password").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/sows/*/documents").authenticated()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",
                                 "/api/auth/forgot-password", "/api/auth/reset-password", "/api/auth/password-otp")

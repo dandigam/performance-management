@@ -13,6 +13,8 @@ import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,6 +25,7 @@ import java.util.UUID;
 @Service
 @Transactional
 public class DocumentService {
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
     private final DocumentRepository repository;
     private final Path storageDirectory;
 
@@ -80,6 +83,7 @@ public class DocumentService {
                 throw ex;
             }
         } catch (IOException ex) {
+            log.error("Unable to store uploaded file in {}", storageDirectory, ex);
             throw new FileStorageException("Unable to store uploaded file", ex);
         }
     }

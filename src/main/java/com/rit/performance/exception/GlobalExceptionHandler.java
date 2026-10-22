@@ -14,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice(basePackages = "com.rit.performance")
 public class GlobalExceptionHandler {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GlobalExceptionHandler.class);
     @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
     public ResponseEntity<ApiMessageResponse> handleMissingPart(
             org.springframework.web.multipart.support.MissingServletRequestPartException ex) {
@@ -124,6 +125,9 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiMessageResponse> handleGeneric(Exception ex, HttpServletRequest request) {
+        log.error("Unhandled API failure requestId={} method={} exceptionType={}",
+                org.slf4j.MDC.get("requestId"), request.getMethod(), ex.getClass().getName());
+        logFailureFrames(ex);
         String message = "Unable to complete the request. Please try again.";
         if ("DELETE".equalsIgnoreCase(request.getMethod())
                 && request.getRequestURI().matches(".*/milestones/[^/]+/positions/[^/]+$")) {
@@ -136,8 +140,26 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<ApiMessageResponse> handleDataIntegrityViolation(
             org.springframework.dao.DataIntegrityViolationException ex) {
+        Throwable cause = ex.getMostSpecificCause();
+        if (cause instanceof java.sql.SQLException sql) {
+            log.error("Database integrity failure requestId={} sqlState={} vendorCode={}",
+                    org.slf4j.MDC.get("requestId"), sql.getSQLState(), sql.getErrorCode());
+        } else {
+            log.error("Database integrity failure requestId={} causeType={}",
+                    org.slf4j.MDC.get("requestId"), cause.getClass().getName());
+        }
+        logFailureFrames(ex);
         return response(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE",
                 "A record with the same unique value already exists.");
+    }
+
+    private void logFailureFrames(Throwable exception) {
+        // Exception messages can contain SQL values, tokens or credentials. Log types and frames only.
+        Throwable cause = exception;
+        for (int depth = 0; cause != null && depth < 8; depth++, cause = cause.getCause()) {
+            log.error("Failure cause requestId={} type={} frames={}", org.slf4j.MDC.get("requestId"),
+                    cause.getClass().getName(), java.util.Arrays.toString(cause.getStackTrace()));
+        }
     }
 
     private ResponseEntity<ApiMessageResponse> response(HttpStatus status, String code, String message) {

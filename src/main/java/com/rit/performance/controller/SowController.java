@@ -35,8 +35,17 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SowController {
     private final SowService sowService;
+    private final com.rit.performance.service.SowDocumentService sowDocumentService;
     private final SowMilestonePositionAssignmentService positionAssignmentService;
     private final com.rit.performance.service.SowPdfEmailService sowPdfEmailService;
+
+    @PostMapping(value = "/{sowId}/documents", consumes = "application/json")
+    public ResponseEntity<Void> attachDocuments(
+            @PathVariable Long sowId,
+            @Valid @RequestBody com.rit.performance.dto.request.SowDocumentsAttachRequest request) {
+        sowDocumentService.attach(sowId, request.getDocumentList());
+        return ResponseEntity.noContent().build();
+    }
 
     @PostMapping(value = "/{sowId}/email", consumes = "multipart/form-data")
     public ResponseEntity<ApiMessageResponse> emailPdf(
