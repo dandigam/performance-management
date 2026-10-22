@@ -19,7 +19,7 @@ import java.time.Duration;
 public class PasswordResetController {
     private final PasswordResetService service;
     private final PasswordResetRateLimiter limiter;
-    public static final String ACK = "If an account exists for this email, a reset link has been sent.";
+    public static final String ACK = "Password reset requested successfully. Please check your email for the reset link.";
 
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiMessageResponse> forgot(@Valid @RequestBody ForgotPasswordRequest request,

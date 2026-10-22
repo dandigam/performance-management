@@ -21,7 +21,6 @@ public class SowAssignmentUpdateRequest {
     private Long leadId;
     private Long managerId;
 
-    private Boolean isPrimaryAssignment;
 
     @NotNull(message = "assignmentStartDate is required")
     private LocalDate assignmentStartDate;

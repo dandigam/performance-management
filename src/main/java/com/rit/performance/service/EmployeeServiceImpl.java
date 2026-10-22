@@ -442,7 +442,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .sowId(parent.getSowId())
                 .sowName(parent.getSowName())
                 .sowStatus(sowStatus)
-                .isPrimaryAssignment(parent.getIsPrimaryAssignment())
                 .assignmentStartDate(parent.getAssignmentStartDate())
                 .assignmentEndDate(parent.getAssignmentEndDate())
                 .assignmentStatus(parent.getAssignmentStatus())
@@ -701,7 +700,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .milestoneName(assignment == null ? null
                         : milestone == null ? "All milestones" : milestone.getMilestoneName())
                 .positionType(assignment == null ? null : summary.getPositionType())
-                .isPrimaryAssignment(null)
                 .managerId(assignment == null ? null : assignment.getManagerId())
                 .managerName(manager == null ? null : employeeName(manager))
                 .leadId(assignment == null ? null : assignment.getLeadId())
@@ -1290,7 +1288,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .milestoneName(assignment == null ? null
                         : milestone == null ? "All milestones" : milestone.getMilestoneName())
                 .positionType(assignment == null ? null : summary.getPositionType())
-                .isPrimaryAssignment(null)
                 .assignmentStartDate(assignment == null ? null : assignment.getEffectiveFrom())
                 .assignmentEndDate(assignment == null ? null : assignment.getEffectiveTo())
                 .assignmentStatus(assignment == null ? null
@@ -1343,7 +1340,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .designationId(summary.getDesignationId())
                 .designationName(designation == null ? null : designation.getName())
                 .positionType(summary.getPositionType())
-                .isPrimaryAssignment(null)
                 .assignmentStartDate(assignment.getEffectiveFrom())
                 .assignmentEndDate(assignment.getEffectiveTo())
                 .assignmentStatus(assignment.getStatus() == null ? "INACTIVE" : assignment.getStatus())

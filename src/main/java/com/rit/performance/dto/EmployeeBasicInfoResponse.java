@@ -52,8 +52,6 @@ public class EmployeeBasicInfoResponse {
     @JsonIgnore
     private String positionType;
     @JsonIgnore
-    private Boolean isPrimaryAssignment;
-    @JsonIgnore
     private LocalDate assignmentStartDate;
     @JsonIgnore
     private LocalDate assignmentEndDate;

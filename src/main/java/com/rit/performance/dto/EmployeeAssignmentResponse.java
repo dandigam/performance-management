@@ -22,7 +22,6 @@ public class EmployeeAssignmentResponse {
     private Long designationId;
     private String designationName;
     private String positionType;
-    private Boolean isPrimaryAssignment;
     private LocalDate assignmentStartDate;
     private LocalDate assignmentEndDate;
     private String assignmentStatus;

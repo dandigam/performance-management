@@ -19,7 +19,6 @@ public class EmployeeSowAssignmentResponse {
     private Long sowId;
     private String sowName;
     private String sowStatus;
-    private Boolean isPrimaryAssignment;
     private LocalDate assignmentStartDate;
     private LocalDate assignmentEndDate;
     private String assignmentStatus;

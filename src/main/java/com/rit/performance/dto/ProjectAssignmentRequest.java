@@ -29,7 +29,6 @@ public class ProjectAssignmentRequest {
     private String status;
     @Size(max = 20)
     private String positionType;
-    private Boolean isPrimaryAssignment;
 
     @JsonIgnore private boolean departmentIdPresent;
     @JsonIgnore private boolean designationIdPresent;

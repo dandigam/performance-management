@@ -36,7 +36,6 @@ public class EmployeeHierarchyMemberResponse {
     private Long milestoneId;
     private String milestoneName;
     private String positionType;
-    private Boolean isPrimaryAssignment;
     private Long managerId;
     private String managerName;
     private Long leadId;

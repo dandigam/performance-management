@@ -602,7 +602,6 @@ public class SowServiceImpl implements SowService {
                             .leadName(lead == null ? null : employeeName(lead))
                             .managerId(assignment.getManagerId())
                             .managerName(manager == null ? null : employeeName(manager))
-                            .isPrimaryAssignment(null)
                             .assignmentStartDate(assignment.getEffectiveFrom())
                             .assignmentEndDate(assignment.getEffectiveTo())
                             .assignmentStatus(assignment.getStatus())

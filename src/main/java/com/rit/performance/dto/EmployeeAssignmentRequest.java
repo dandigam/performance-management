@@ -29,7 +29,6 @@ public class EmployeeAssignmentRequest {
     @Positive
     private Long managerId;
 
-    private Boolean isPrimaryAssignment;
 
     private LocalDate effectiveFrom;
     private Long updatedBy;
