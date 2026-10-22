@@ -34,3 +34,4 @@ build/
 
 # Local uncommitted application secrets
 .local/
+/config/production.properties
