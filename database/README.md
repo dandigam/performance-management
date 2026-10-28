@@ -22,7 +22,9 @@ send invitations, create password-setup tokens, or change existing account permi
 An active SYSTEM_ROLE / EMPLOYEE lookup must already exist for default account creation.
 Reupload previously imported employees to provision missing accounts through a new batch.
 
-Manual SQL reference files under `database/migrations` are not executed at startup.
+Completed migration scripts have been removed. Schema updates are managed by Hibernate
+and the prod-only initializer described above. Read-only diagnostics and the explicitly
+named review-data cleanup script remain separate utilities; they are not run at startup.
 Flyway remains removed; old schema-history entries are not read. Existing review data,
 reviewer assignments, feature settings and employee joining dates are preserved.
 Application file logging continues using logging.file.name or APP_LOG_FILE.
