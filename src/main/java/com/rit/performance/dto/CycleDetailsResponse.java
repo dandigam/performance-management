@@ -27,6 +27,7 @@ public class CycleDetailsResponse {
     private Long applicableTypeId;
     private List<Long> scopeValueIds;
     private String status;
+    private LocalDateTime publishedDate;
     private Long createdBy;
     private LocalDateTime createdDate;
     private Long updatedBy;

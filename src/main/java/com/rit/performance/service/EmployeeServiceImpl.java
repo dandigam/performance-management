@@ -5,6 +5,7 @@ import com.rit.performance.dto.response.SowMilestonePositionAssignmentResponse;
 import com.rit.performance.dto.request.SowMilestonePositionAssignmentRequest;
 import com.rit.performance.entity.*;
 import com.rit.performance.repository.EmployeeAssignmentRepository;
+import com.rit.performance.repository.EmployeeOrgHierarchyRepository;
 import com.rit.performance.repository.EmployeeAddressRepository;
 import com.rit.performance.repository.EmployeeCompensationRepository;
 import com.rit.performance.repository.EmployeeProfessionalProfileRepository;
@@ -63,6 +64,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             "MALE", "FEMALE", "NON_BINARY", "OTHER", "PREFER_NOT_TO_SAY");
 
     private final EmployeeRepository employeeRepository;
+    private final EmployeeOrgHierarchyRepository hierarchyRepository;
     private final EmployeeAddressRepository employeeAddressRepository;
     private final EmployeeCompensationRepository employeeCompensationRepository;
     private final EmployeeProfessionalProfileRepository employeeProfessionalProfileRepository;
@@ -180,16 +182,20 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private void seedReviewsForNewEmployee(Employee employee, Long actorId, EmployeeAssignment assignment) {
+        // Hierarchy is configured separately; republish the cycle after it is ready.
+        if (!assigneeResolver.isConfigured(employee)) return;
         List<PerformanceCycles> cycles = cycleRepository.findAll().stream()
                 .filter(cycle -> "PUBLISHED".equalsIgnoreCase(cycle.getStatus())
                         || "ACTIVE".equalsIgnoreCase(cycle.getStatus()))
                 .toList();
         for (PerformanceCycles cycle : cycles) {
-            if (!employeeIsEligibleForCycle(employee, cycle)) {
+            PerformanceCycles lockedCycle = cycleRepository.findForPublication(cycle.getId()).orElseThrow();
+            if (!Set.of("ACTIVE", "PUBLISHED").contains(lockedCycle.getStatus().toUpperCase(java.util.Locale.ROOT))) continue;
+            if (!employeeIsEligibleForCycle(employee, lockedCycle)) {
                 continue;
             }
-            EmployeeReview savedReview = employeeReviewRepository
-                    .findByEmployeeIdAndPerformanceCycleId(employee.getId(), cycle.getId())
+            EmployeeReview savedReview = employeeReviewRepository.findForPublication(cycle.getId()).stream()
+                    .filter(review -> employee.getId().equals(review.getEmployee().getId())).findFirst()
                     .orElseGet(() -> employeeReviewRepository.save(EmployeeReview.builder()
                             .performanceCycle(cycle)
                             .employee(employee)
@@ -199,6 +205,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                             .createdBy(actorId)
                             .updatedBy(actorId)
                             .build()));
+            if (!savedReview.getAssessments().isEmpty()) continue;
             if (savedReview.getSowId() == null && assignment != null) {
                 savedReview.setSowId(assignment.getSowId());
                 employeeReviewRepository.save(savedReview);
@@ -245,7 +252,6 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .orElseThrow(() -> new InvalidOperationException(
                         "Invalid assessor role: " + config.getRoleId()));
         if (assigneeResolver.isPublishOnly(role)) return null;
-        if (!assigneeResolver.isApplicable(review.getEmployee(), role)) return null;
         Employee assessor = assigneeResolver.resolveIfAvailable(review.getEmployee(), role).orElse(null);
         if (assessor == null) return null;
         return EmployeeReviewAssessment.builder().employeeReview(review)
@@ -620,10 +626,14 @@ public class EmployeeServiceImpl implements EmployeeService {
         Map<Long, Sow> sows = sowRepository.findAll().stream()
                 .collect(Collectors.toMap(Sow::getId, Function.identity()));
 
-        validateHierarchyRole(normalizedRole, roles.get(employeeId), lookups);
+        Map<Long, EmployeeReview> cycleReviews = employeeReviewRepository.findByPerformanceCycleId(cycleId).stream()
+                .collect(Collectors.toMap(review -> review.getEmployee().getId(), Function.identity()));
         List<Long> visibleEmployeeIds = switch (normalizedRole) {
-            case "MANAGER" -> directManagerReportIds(employeeId, assignments);
-            case "TEAM_LEAD" -> directLeadReportIds(employeeId, assignments);
+            case "REPORTING_MANAGER_1", "REPORTING_MANAGER_2" -> cycleReviews.values().stream()
+                    .filter(review -> review.getAssessments().stream().anyMatch(assessment ->
+                            assessment.getAssessorEmployee().getId().equals(employeeId)
+                            && normalizedRole.equals(normalizeAssessmentRole(assessment.getAssessorRole()))))
+                    .map(review -> review.getEmployee().getId()).toList();
             default -> List.of(employeeId);
         };
         Map<Long, EmployeeReview> reviews = employeeReviewRepository
@@ -667,13 +677,13 @@ public class EmployeeServiceImpl implements EmployeeService {
         Sow sow = assignment == null ? null : sows.get(assignment.getSowId());
         SowMilestone milestone = assignment == null || summary.getMilestoneId() == null
                 ? null : sowMilestoneRepository.findById(summary.getMilestoneId()).orElse(null);
-        Employee manager = assignment == null ? null : employees.get(assignment.getManagerId());
-        Employee lead = assignment == null ? null : employees.get(assignment.getLeadId());
         EmployeeReview review = reviews.get(employee.getId());
         List<EmployeeReviewAssessment> assessments = review == null ? List.of() : review.getAssessments();
-        EmployeeReviewAssessment self = assessmentForRole(assessments, "EMPLOYEE");
-        EmployeeReviewAssessment teamLead = assessmentForRole(assessments, "TEAM_LEAD");
-        EmployeeReviewAssessment managerAssessment = assessmentForRole(assessments, "MANAGER");
+        EmployeeReviewAssessment self = assessmentForRole(assessments, "SELF");
+        EmployeeReviewAssessment manager1Assessment = assessmentForRole(assessments, "REPORTING_MANAGER_1");
+        EmployeeReviewAssessment manager2Assessment = assessmentForRole(assessments, "REPORTING_MANAGER_2");
+        Employee manager1 = manager1Assessment == null ? null : manager1Assessment.getAssessorEmployee();
+        Employee manager2 = manager2Assessment == null ? null : manager2Assessment.getAssessorEmployee();
         EmployeeReviewAssessment assigned = assessments.stream()
                 .filter(assessment -> assessment.getAssessorEmployee() != null
                         && viewerEmployeeId.equals(assessment.getAssessorEmployee().getId()))
@@ -700,10 +710,10 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .milestoneName(assignment == null ? null
                         : milestone == null ? "All milestones" : milestone.getMilestoneName())
                 .positionType(assignment == null ? null : summary.getPositionType())
-                .managerId(assignment == null ? null : assignment.getManagerId())
-                .managerName(manager == null ? null : employeeName(manager))
-                .leadId(assignment == null ? null : assignment.getLeadId())
-                .leadName(lead == null ? null : employeeName(lead)).status(employee.getStatus())
+                .reportingManager2Id(manager2 == null ? null : manager2.getId())
+                .reportingManager2Name(manager2 == null ? null : employeeName(manager2))
+                .reportingManager1Id(manager1 == null ? null : manager1.getId())
+                .reportingManager1Name(manager1 == null ? null : employeeName(manager1)).status(employee.getStatus())
                 .addressDetails(addressResponse(employee.getId()))
                 .compensationDetails(compensationResponse(employee.getId()))
                 .professionalDetails(professionalDetailsResponse(employee.getId()))
@@ -715,8 +725,8 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .reviewStatus(review == null ? null : review.getStatus())
                 .reviewProgressPercentage(review == null ? null : review.getProgressPercentage())
                 .selfAssessmentStatus(self == null ? null : self.getStatus())
-                .teamLeadAssessmentStatus(teamLead == null ? null : teamLead.getStatus())
-                .managerAssessmentStatus(managerAssessment == null ? null : managerAssessment.getStatus())
+                .reportingManager1AssessmentStatus(manager1Assessment == null ? null : manager1Assessment.getStatus())
+                .reportingManager2AssessmentStatus(manager2Assessment == null ? null : manager2Assessment.getStatus())
                 .assignedAssessmentId(assigned == null ? null : assigned.getId())
                 .assignedRoleName(assigned == null || assigned.getAssessorRole() == null
                         ? null : assigned.getAssessorRole().getName())
@@ -731,39 +741,17 @@ public class EmployeeServiceImpl implements EmployeeService {
     }
 
     private String normalizeAssessmentRole(LookupValue role) {
-        String value = role.getCode() == null || role.getCode().isBlank() ? role.getName() : role.getCode();
-        String normalized = value.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
-        if (normalized.equals("SELF") || normalized.equals("SELFASSESSOR")) return "EMPLOYEE";
-        if (normalized.equals("TL") || normalized.equals("LEAD") || normalized.equals("TEAMLEAD")) return "TEAM_LEAD";
-        return normalized;
-    }
-
-    private List<Long> directLeadReportIds(Long leadId, Map<Long, EmployeeAssignment> assignments) {
-        return assignments.values().stream().filter(assignment -> leadId.equals(assignment.getLeadId()))
-                .map(EmployeeAssignment::getEmployeeId).distinct().toList();
-    }
-
-    private List<Long> directManagerReportIds(Long managerId, Map<Long, EmployeeAssignment> assignments) {
-        return assignments.values().stream().filter(assignment -> managerId.equals(assignment.getManagerId()))
-                .map(EmployeeAssignment::getEmployeeId).distinct().toList();
+        return AssessmentAssigneeResolver.stageCode(role);
     }
 
     private String normalizeHierarchyRole(String roleType) {
         if (roleType == null || roleType.isBlank()) throw new InvalidOperationException("roleType is required");
-        String normalized = roleType.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
-        return switch (normalized) {
-            case "EMPLOYEE" -> "EMPLOYEE";
-            case "TL", "LEAD", "TEAMLEAD" -> "TEAM_LEAD";
-            case "MANAGER" -> "MANAGER";
-            default -> throw new InvalidOperationException("Unsupported roleType: " + roleType);
+        return switch (roleType.replaceAll("[^A-Za-z0-9]", "").toUpperCase()) {
+            case "SELF" -> "SELF";
+            case "REPORTINGMANAGER1" -> "REPORTING_MANAGER_1";
+            case "REPORTINGMANAGER2" -> "REPORTING_MANAGER_2";
+            default -> throw new InvalidOperationException("Unsupported performance stage: " + roleType);
         };
-    }
-
-    private void validateHierarchyRole(String requestedRole, EmployeeRole currentRole,
-            Map<Long, LookupValue> lookups) {
-        LookupValue role = currentRole == null ? null : lookups.get(currentRole.getRoleId());
-        if (role == null || !requestedRole.equals(normalizeAssessmentRole(role)))
-            throw new InvalidOperationException("roleType does not match the employee's current role");
     }
 
     @Override
@@ -790,20 +778,18 @@ public class EmployeeServiceImpl implements EmployeeService {
         Employee manager = employeeRepository.findById(managerEmployeeId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Manager employee not found: " + managerEmployeeId));
-        Map<Long, EmployeeAssignment> assignmentsByEmployee = java.util.stream.Stream.concat(
-                assignmentRepository.findByLeadIdAndStatusIgnoreCase(managerEmployeeId, "ACTIVE").stream(),
-                assignmentRepository.findByManagerIdAndStatusIgnoreCase(managerEmployeeId, "ACTIVE").stream())
-                .collect(Collectors.toMap(EmployeeAssignment::getEmployeeId, Function.identity(),
-                        (first, ignored) -> first));
-        if (assignmentsByEmployee.isEmpty()) {
-            return DirectReportsResponse.builder().managerEmployeeId(managerEmployeeId)
-                    .managerEmployeeName(employeeName(manager)).totalReports(0).employees(List.of()).build();
-        }
-
-        List<Employee> reports = employeeRepository.findByIdIn(assignmentsByEmployee.keySet().stream().toList())
-                .stream().filter(employee -> "ACTIVE".equalsIgnoreCase(employee.getStatus()))
+        List<Long> reportIds = hierarchyRepository.findAll().stream()
+                .filter(row -> row.getReportingManager() != null
+                        && managerEmployeeId.equals(row.getReportingManager().getId()))
+                .map(row -> row.getEmployee().getId()).toList();
+        List<Employee> reports = reportIds.isEmpty() ? List.of() : employeeRepository.findByIdIn(reportIds).stream()
+                .filter(employee -> "ACTIVE".equalsIgnoreCase(employee.getStatus()))
                 .sorted(Comparator.comparing(EmployeeServiceImpl::employeeName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
+        Map<Long, EmployeeAssignment> assignmentsByEmployee = assignmentRepository
+                .findByStatusIgnoreCaseOrderByEffectiveFromDesc("ACTIVE").stream()
+                .collect(Collectors.toMap(EmployeeAssignment::getEmployeeId, Function.identity(),
+                        (first, ignored) -> first));
         Map<Long, Employee> employees = employeeRepository.findAll().stream()
                 .collect(Collectors.toMap(Employee::getId, Function.identity()));
         Map<Long, LookupValue> lookupValues = lookupValueRepository.findAll().stream()

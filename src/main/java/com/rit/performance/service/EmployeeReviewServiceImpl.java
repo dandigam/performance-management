@@ -27,6 +27,9 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
     @org.springframework.beans.factory.annotation.Autowired
     private java.time.Clock businessClock;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private CurrentEmployeeService currentEmployeeService;
+
     private final EmployeeReviewRepository reviewRepository;
     private final EmployeeReviewAssessmentRepository assessmentRepository;
     private final EmployeeReviewAnswerRepository answerRepository;
@@ -38,8 +41,6 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
     private final PerformanceCycleQuestionRepository questionRepository;
     private final PerformanceCycleSectionRepository sectionRepository;
     private final LookupValueRepository lookupValueRepository;
-    private final PerformanceCycleAssessorRepository assessorConfigRepository;
-    private final AssessmentAssigneeResolver assigneeResolver;
     private final PerformanceCycleConfigRepository cycleRepository;
     private final EmailNotificationService emailNotificationService;
 
@@ -52,8 +53,6 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
             PerformanceCycleQuestionRepository questionRepository,
             PerformanceCycleSectionRepository sectionRepository,
             LookupValueRepository lookupValueRepository,
-            PerformanceCycleAssessorRepository assessorConfigRepository,
-            AssessmentAssigneeResolver assigneeResolver,
             EmailNotificationService emailNotificationService) {
         this.reviewRepository = reviewRepository; this.assessmentRepository = assessmentRepository;
         this.answerRepository = answerRepository; this.employeeRepository = employeeRepository;
@@ -62,7 +61,6 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
         this.timelineRepository = timelineRepository;
         this.questionRepository = questionRepository; this.sectionRepository = sectionRepository;
         this.lookupValueRepository = lookupValueRepository;
-        this.assessorConfigRepository = assessorConfigRepository; this.assigneeResolver = assigneeResolver;
         this.cycleRepository = cycleRepository;
         this.emailNotificationService = emailNotificationService;
     }
@@ -77,8 +75,6 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
         Map<Long, FinalRating> ratingsByReview = reviewIds.isEmpty() ? Map.of()
                 : finalRatingRepository.findByEmployeeReviewIdIn(reviewIds).stream()
                     .collect(Collectors.toMap(rating -> rating.getEmployeeReview().getId(), Function.identity()));
-        Map<Long, Employee> employees = employeeRepository.findAll().stream()
-                .collect(Collectors.toMap(Employee::getId, Function.identity()));
         Map<Long, LookupValue> lookups = lookupValueRepository.findAll().stream()
                 .collect(Collectors.toMap(LookupValue::getId, Function.identity()));
         Map<Long, Sow> sows = sowRepository.findAll().stream()
@@ -96,26 +92,20 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
         List<ReviewProgressEmployeeResponse> employeeRows = reviews.stream()
                 .sorted(java.util.Comparator.comparing(review -> employeeName(review.getEmployee()),
                         String.CASE_INSENSITIVE_ORDER))
-                .map(review -> toProgressEmployee(review, legacyAssignment(review), employees, lookups, sows,
+                .map(review -> toProgressEmployee(review, contextAssignment(review), lookups, sows,
                         ratingsByReview.get(review.getId()),
                         dueDatesByRole, dueDatesByLevel))
                 .toList();
         ReviewProgressSummaryResponse summary = ReviewProgressSummaryResponse.builder()
                 .totalEmployees(reviews.size())
-                .selfReviewsCompleted(countSubmitted(reviews, "EMPLOYEE"))
-                .teamLeadReviewsCompleted(countSubmitted(reviews, "TEAM_LEAD"))
-                .managerReviewsCompleted(countSubmitted(reviews, "MANAGER"))
+                .selfReviewsCompleted(countSubmitted(reviews, "SELF"))
+                .reportingManager1ReviewsCompleted(countSubmitted(reviews, "REPORTING_MANAGER_1"))
+                .reportingManager2ReviewsCompleted(countSubmitted(reviews, "REPORTING_MANAGER_2"))
                 .ratingsPublished(ratingsByReview.values().stream()
                         .filter(rating -> Boolean.TRUE.equals(rating.getPublished())).count())
                 .build();
-        java.time.LocalDateTime publishedDate = ratingsByReview.values().stream()
-                .filter(rating -> Boolean.TRUE.equals(rating.getPublished()))
-                .map(FinalRating::getPublishedDate)
-                .filter(java.util.Objects::nonNull)
-                .max(java.time.LocalDateTime::compareTo)
-                .orElse(null);
         return ReviewProgressResponse.builder().cycleId(cycleId).cycleName(cycle.getCycleName())
-                .cycleStatus(cycle.getStatus()).publishedDate(publishedDate)
+                .cycleStatus(cycle.getStatus()).publishedDate(cycle.getPublishedDate())
                 .summary(summary).employees(employeeRows).build();
     }
 
@@ -126,26 +116,24 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
     }
 
     private ReviewProgressEmployeeResponse toProgressEmployee(EmployeeReview review,
-            EmployeeAssignment legacyAssignment, Map<Long, Employee> employees, Map<Long, LookupValue> lookups,
+            EmployeeAssignment contextAssignment, Map<Long, LookupValue> lookups,
             Map<Long, Sow> sows, FinalRating rating, Map<Long, LocalDate> dueDatesByRole,
             Map<Integer, LocalDate> dueDatesByLevel) {
         Employee employee = review.getEmployee();
-        Long sowId = snapshotOrLegacy(review.getSowId(),
-                legacyAssignment == null ? null : legacyAssignment.getSowId());
+        Long sowId = snapshotOrContext(review.getSowId(),
+                contextAssignment == null ? null : contextAssignment.getSowId());
         Sow assignmentSow = sows.get(sowId);
         Long departmentId = assignmentSow == null || assignmentSow.getBusinessUnit() == null
                 ? null : assignmentSow.getBusinessUnit().getId();
         Long designationId = employee.getDesignationId();
-        Long managerId = legacyAssignment == null ? null : legacyAssignment.getManagerId();
-        Long leadId = legacyAssignment == null ? null : legacyAssignment.getLeadId();
         LookupValue department = lookups.get(departmentId);
         LookupValue designation = lookups.get(designationId);
         Sow sow = sows.get(sowId);
-        Employee manager = employees.get(managerId);
-        Employee lead = employees.get(leadId);
-        EmployeeReviewAssessment self = assessmentByRole(review, "EMPLOYEE");
-        EmployeeReviewAssessment teamLead = assessmentByRole(review, "TEAM_LEAD");
-        EmployeeReviewAssessment managerAssessment = assessmentByRole(review, "MANAGER");
+        EmployeeReviewAssessment self = assessmentByRole(review, "SELF");
+        EmployeeReviewAssessment manager1Assessment = assessmentByRole(review, "REPORTING_MANAGER_1");
+        EmployeeReviewAssessment manager2Assessment = assessmentByRole(review, "REPORTING_MANAGER_2");
+        Employee manager1 = manager1Assessment == null ? null : manager1Assessment.getAssessorEmployee();
+        Employee manager2 = manager2Assessment == null ? null : manager2Assessment.getAssessorEmployee();
         boolean published = rating != null && Boolean.TRUE.equals(rating.getPublished());
         EmployeeReviewAssessment pending = pendingAssessment(review, published);
         return ReviewProgressEmployeeResponse.builder()
@@ -154,10 +142,10 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
                 .designationName(designation == null ? null : designation.getName())
                 .departmentName(department == null ? null : department.getName())
                 .projectName(sow == null ? null : sow.getSowName())
-                .managerId(managerId)
-                .managerName(manager == null ? null : employeeName(manager))
-                .leadId(leadId)
-                .leadName(lead == null ? null : employeeName(lead))
+                .reportingManager2Id(manager2 == null ? null : manager2.getId())
+                .reportingManager2Name(manager2 == null ? null : employeeName(manager2))
+                .reportingManager1Id(manager1 == null ? null : manager1.getId())
+                .reportingManager1Name(manager1 == null ? null : employeeName(manager1))
                 .reviewId(review.getId()).currentStage(currentStage(review, published))
                 .pendingWithEmployeeId(pending == null || pending.getAssessorEmployee() == null
                         ? null : pending.getAssessorEmployee().getId())
@@ -167,8 +155,8 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
                 .lastUpdatedAt(lastUpdatedAt(review, rating))
                 .reviewStatus(review.getStatus()).progressPercentage(review.getProgressPercentage())
                 .selfAssessmentStatus(self == null ? null : self.getStatus())
-                .teamLeadAssessmentStatus(teamLead == null ? null : teamLead.getStatus())
-                .managerAssessmentStatus(managerAssessment == null ? null : managerAssessment.getStatus())
+                .reportingManager1AssessmentStatus(manager1Assessment == null ? null : manager1Assessment.getStatus())
+                .reportingManager2AssessmentStatus(manager2Assessment == null ? null : manager2Assessment.getStatus())
                 .assessments(review.getAssessments().stream()
                         .sorted(java.util.Comparator.comparing(EmployeeReviewAssessment::getAssessmentLevel))
                         .map(assessment -> {
@@ -285,15 +273,9 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
     }
 
     private String normalizedAssessmentRole(EmployeeReviewAssessment assessment) {
-        if (isSelfAssessment(assessment, assessment.getEmployeeReview().getEmployee().getId())) return "EMPLOYEE";
+        if (isSelfAssessment(assessment)) return "SELF";
         if (assessment.getAssessorRole() == null) return "UNKNOWN";
-        String value = assessment.getAssessorRole().getCode() == null
-                || assessment.getAssessorRole().getCode().isBlank()
-                ? assessment.getAssessorRole().getName() : assessment.getAssessorRole().getCode();
-        String normalized = value.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
-        if (normalized.equals("TL") || normalized.equals("LEAD") || normalized.equals("TEAMLEAD"))
-            return "TEAM_LEAD";
-        return normalized;
+        return AssessmentAssigneeResolver.stageCode(assessment.getAssessorRole());
     }
 
     private String currentStage(EmployeeReview review, boolean published) {
@@ -312,7 +294,7 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
                 .orElse(null);
     }
 
-    private java.time.LocalDateTime lastUpdatedAt(EmployeeReview review, FinalRating rating) {
+    private java.time.OffsetDateTime lastUpdatedAt(EmployeeReview review, FinalRating rating) {
         java.util.stream.Stream<java.time.LocalDateTime> reviewDates = java.util.stream.Stream.of(
                 review.getCreatedOn(), review.getUpdatedOn(), rating == null ? null : rating.getPublishedDate());
         java.util.stream.Stream<java.time.LocalDateTime> assessmentDates = review.getAssessments().stream()
@@ -322,105 +304,24 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
         return java.util.stream.Stream.concat(reviewDates, assessmentDates)
                 .filter(java.util.Objects::nonNull)
                 .max(java.time.LocalDateTime::compareTo)
+                .map(date -> date.atOffset(java.time.ZoneOffset.UTC))
                 .orElse(null);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public TeamReviewDashboardResponse getTeamReviews(Long assessorEmployeeId, Long cycleId) {
-        Employee assessor = employeeRepository.findById(assessorEmployeeId)
-                .orElseThrow(() -> new ResourceNotFoundException("Assessor employee not found: " + assessorEmployeeId));
-        PerformanceCycles cycle = cycleRepository.findById(cycleId)
-                .orElseThrow(() -> new ResourceNotFoundException("Performance cycle not found: " + cycleId));
-        List<EmployeeReviewAssessment> assignedReviews = assessmentRepository
-                .findAssignedReviewsForAssessor(assessorEmployeeId, cycleId);
-        List<Long> reportIds = assignedReviews.stream()
-                .map(assessment -> assessment.getEmployeeReview().getEmployee().getId())
-                .distinct().toList();
-        List<Employee> reports = reportIds.isEmpty() ? List.of() : employeeRepository.findByIdIn(reportIds).stream()
-                .filter(employee -> "ACTIVE".equalsIgnoreCase(employee.getStatus()))
-                .sorted(java.util.Comparator.comparing(this::employeeName, String.CASE_INSENSITIVE_ORDER)).toList();
-
-        Map<Long, EmployeeReview> reviewsByEmployee = reportIds.isEmpty() ? Map.of()
-                : reviewRepository.findByPerformanceCycleIdAndEmployeeIdIn(cycleId, reportIds).stream()
-                    .collect(Collectors.toMap(review -> review.getEmployee().getId(), Function.identity()));
-        List<Long> reviewIds = reviewsByEmployee.values().stream().map(EmployeeReview::getId).toList();
-        Map<Long, List<EmployeeReviewAssessment>> assessmentsByReview = reviewIds.isEmpty() ? Map.of()
-                : assessmentRepository.findByEmployeeReviewIdInOrderByEmployeeReviewIdAscAssessmentLevelAsc(reviewIds)
-                    .stream().collect(Collectors.groupingBy(a -> a.getEmployeeReview().getId()));
-
-        List<TeamReviewMemberResponse> members = reports.stream().map(employee -> toTeamMember(employee,
-                reviewsByEmployee.get(employee.getId()), assessmentsByReview, assessorEmployeeId)).toList();
-        return TeamReviewDashboardResponse.builder().cycleId(cycleId).cycleName(cycle.getCycleName())
-                .assessorEmployeeId(assessorEmployeeId).assessorEmployeeName(employeeName(assessor))
-                .teamMembers(members).build();
-    }
-
-    private TeamReviewMemberResponse toTeamMember(Employee employee, EmployeeReview review,
-            Map<Long, List<EmployeeReviewAssessment>> assessmentsByReview, Long assessorEmployeeId) {
-        if (review == null) return baseTeamMember(employee).workflowState("NOT_ENROLLED").actionRequired(false).build();
-        List<EmployeeReviewAssessment> assessments = assessmentsByReview.getOrDefault(review.getId(), List.of());
-        EmployeeReviewAssessment self = assessments.stream().filter(a -> isSelfAssessment(a, employee.getId()))
-                .findFirst().orElse(null);
-        EmployeeReviewAssessment assigned = assessments.stream()
-                .filter(a -> a.getAssessorEmployee() != null
-                        && assessorEmployeeId.equals(a.getAssessorEmployee().getId())
-                        && !isSelfAssessment(a, employee.getId()))
-                .findFirst().orElse(null);
-        boolean previousLevelPending = assigned != null && assessments.stream()
-                .filter(a -> a.getAssessmentLevel() < assigned.getAssessmentLevel())
-                .anyMatch(a -> a.getStatus() != EmployeeReviewStatus.SUBMITTED);
-        String state;
-        boolean actionRequired = false;
-        if (self == null || self.getStatus() == EmployeeReviewStatus.NOT_STARTED) state = "SELF_NOT_STARTED";
-        else if (self.getStatus() == EmployeeReviewStatus.IN_PROGRESS) state = "SELF_IN_PROGRESS";
-        else if (previousLevelPending) state = "AWAITING_PREVIOUS_REVIEW";
-        else if (assigned != null && assigned.getStatus() == EmployeeReviewStatus.NOT_STARTED) {
-            state = "PENDING_MY_REVIEW"; actionRequired = true;
-        } else if (assigned != null && assigned.getStatus() == EmployeeReviewStatus.IN_PROGRESS) {
-            state = "MY_REVIEW_IN_PROGRESS"; actionRequired = true;
-        } else if (assigned != null && assigned.getStatus() == EmployeeReviewStatus.SUBMITTED) {
-            state = "MY_REVIEW_COMPLETED";
-        } else if (assessments.stream().anyMatch(a -> !isSelfAssessment(a, employee.getId())
-                && a.getStatus() != EmployeeReviewStatus.SUBMITTED)) state = "AWAITING_PREVIOUS_REVIEW";
-        else state = "AWAITING_ASSIGNMENT";
-
-        TeamReviewMemberResponse.TeamReviewMemberResponseBuilder builder = baseTeamMember(employee)
-                .reviewId(review.getId()).reviewStatus(review.getStatus()).workflowState(state)
-                .actionRequired(actionRequired);
-        if (self != null) builder.selfAssessmentId(self.getId()).selfAssessmentStatus(self.getStatus());
-        if (assigned != null) builder.assignedAssessmentId(assigned.getId())
-                .assignedAssessmentLevel(assigned.getAssessmentLevel())
-                .assignedRoleId(assigned.getAssessorRole() == null ? null : assigned.getAssessorRole().getId())
-                .assignedRoleName(assigned.getAssessorRole() == null ? null : assigned.getAssessorRole().getName())
-                .assignedAssessmentStatus(assigned.getStatus())
-                .assignedProgressPercentage(assigned.getStatus() == EmployeeReviewStatus.SUBMITTED
-                        ? new BigDecimal("100.00") : assigned.getProgressPercentage());
-        return builder.build();
-    }
-
-    private TeamReviewMemberResponse.TeamReviewMemberResponseBuilder baseTeamMember(Employee employee) {
-        return TeamReviewMemberResponse.builder().employeeId(employee.getId())
-                .employeeName(employeeName(employee));
-    }
-
-    private boolean isSelfAssessment(EmployeeReviewAssessment assessment, Long employeeId) {
-        if (assessment.getAssessorRole() != null && "EMPLOYEE".equalsIgnoreCase(assessment.getAssessorRole().getCode()))
-            return true;
-        return assessment.getAssessorEmployee() != null
-                && employeeId.equals(assessment.getAssessorEmployee().getId())
-                && assessment.getAssessmentLevel() != null && assessment.getAssessmentLevel() == 1;
+    private boolean isSelfAssessment(EmployeeReviewAssessment assessment) {
+        return assessment.getAssessorRole() != null
+                && "SELF".equals(AssessmentAssigneeResolver.stageCode(assessment.getAssessorRole()));
     }
 
     private String employeeName(Employee employee) {
         return (employee.getFirstName() + " " + (employee.getLastName() == null ? "" : employee.getLastName())).trim();
     }
 
-    private Long snapshotOrLegacy(Long snapshotValue, Long legacyValue) {
+    private Long snapshotOrContext(Long snapshotValue, Long legacyValue) {
         return snapshotValue == null ? legacyValue : snapshotValue;
     }
 
-    private EmployeeAssignment legacyAssignment(EmployeeReview review) {
+    private EmployeeAssignment contextAssignment(EmployeeReview review) {
         LocalDate reviewDate = review.getCreatedOn() == null ? LocalDate.now(businessClock)
                 : review.getCreatedOn().atOffset(java.time.ZoneOffset.UTC).atZoneSameInstant(businessClock.getZone()).toLocalDate();
         return employeeAssignmentRepository.findEffectiveOnDate(review.getEmployee().getId(), reviewDate).stream()
@@ -544,26 +445,27 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
 
     @Override
     public EmployeeReviewResponse saveAssessment(EmployeeAssessmentRequest request) {
+        User actor = currentEmployeeService.currentUser();
+        Long actingEmployeeId = actor.getEmployee().getId();
+        requireMatchingAssessor(actingEmployeeId, request.getAssessorEmployeeId());
         if (request.getStatus() != EmployeeReviewStatus.IN_PROGRESS && request.getStatus() != EmployeeReviewStatus.SUBMITTED)
             throw new InvalidOperationException("Assessment status must be IN_PROGRESS or SUBMITTED");
         EmployeeReview review = findEmployeeReview(request.getEmployeeId(), request.getCycleId());
-        Long actingEmployeeId = request.getAssessorEmployeeId() != null
-                ? request.getAssessorEmployeeId() : request.getEmployeeId();
+        requireReviewAssignment(review, actingEmployeeId);
         EmployeeReviewAssessment assessment = request.getAssessmentId() == null
                 ? findCurrentAssessment(review, actingEmployeeId)
                 : assessmentRepository.findById(request.getAssessmentId())
                     .orElseThrow(() -> new ResourceNotFoundException("Employee review assessment not found"));
         if (!assessment.getEmployeeReview().getId().equals(review.getId()))
             throw new InvalidOperationException("Assessment does not belong to the supplied employee and cycle");
-        if (request.getAssessorEmployeeId() != null
-                && !assessment.getAssessorEmployee().getId().equals(request.getAssessorEmployeeId()))
-            throw new InvalidOperationException("Assessment is assigned to a different assessor");
+        if (!assessment.getAssessorEmployee().getId().equals(actingEmployeeId))
+            throw new org.springframework.security.access.AccessDeniedException("This assessment is not assigned to you");
         if (assessment.getStatus() == EmployeeReviewStatus.SUBMITTED)
             throw new InvalidOperationException("Submitted assessments cannot be edited");
         ensurePreviousLevelSubmitted(review, assessment);
         ensureDeadlineOpen(review, assessment);
         startAssessment(assessment);
-        boolean selfAssessment = isSelfAssessment(assessment, review.getEmployee().getId());
+        boolean selfAssessment = isSelfAssessment(assessment);
         if (selfAssessment) {
             if (request.getAnswers() == null)
                 throw new InvalidOperationException("answers are required for an employee self-assessment");
@@ -573,7 +475,7 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
             throw new InvalidOperationException("Question answers are not accepted for reviewer assessments");
         }
         assessment.setOverallRating(request.getOverallRating()); assessment.setOverallComment(request.getOverallComment());
-        assessment.setUpdatedBy(request.getUpdatedBy());
+        assessment.setUpdatedBy(actor.getId());
         if (request.getStatus() == EmployeeReviewStatus.SUBMITTED) {
             if (selfAssessment) validateMandatoryQuestions(review, assessment);
             assessment.setStatus(EmployeeReviewStatus.SUBMITTED);
@@ -588,12 +490,16 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
         }
         assessmentRepository.save(assessment);
         if (assessment.getStatus() == EmployeeReviewStatus.SUBMITTED) {
-            createNextAssessment(review, assessment, request.getUpdatedBy());
             review.getAssessments().stream()
                     .filter(next -> next.getAssessmentLevel() > assessment.getAssessmentLevel())
                     .min(java.util.Comparator.comparing(EmployeeReviewAssessment::getAssessmentLevel))
+                    .filter(next -> next.getStatus() != EmployeeReviewStatus.SUBMITTED)
                     .ifPresent(next -> {
                         applyStageExtension(review, next);
+                        if (next.getDueDate() == null) {
+                            next.setDueDate(effectiveDueDate(next, timelineRepository
+                                    .findByPerformanceCycleIdOrderByDisplayOrderAsc(review.getPerformanceCycle().getId())));
+                        }
                         assessmentRepository.save(next);
                         publishWorkflow(new NotificationEvents.ReviewAlert(next.getAssessorEmployee(), review.getId(),
                                 "ASSESSMENT_READY", "Review assessment ready",
@@ -609,9 +515,12 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
     @Override
     public EmployeeReviewResponse updateReviewerAssessment(Long assessorEmployeeId, Long employeeId,
             Long cycleId, ReviewerAssessmentUpdateRequest request) {
+        Employee reviewer = currentEmployeeService.currentEmployee();
+        requireMatchingAssessor(reviewer.getId(), assessorEmployeeId);
         EmployeeReview review = findEmployeeReview(employeeId, cycleId);
-        EmployeeReviewAssessment assessment = findCurrentAssessment(review, assessorEmployeeId);
-        if (isSelfAssessment(assessment, employeeId))
+        requireReviewAssignment(review, reviewer.getId());
+        EmployeeReviewAssessment assessment = findCurrentAssessment(review, reviewer.getId());
+        if (isSelfAssessment(assessment))
             throw new InvalidOperationException("Use the employee assessment API for self-assessments");
 
         return saveAssessment(EmployeeAssessmentRequest.builder()
@@ -623,9 +532,39 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
                 .answers(List.of())
                 .overallRating(request.getOverallRating())
                 .overallComment(request.getOverallComment())
-                .updatedBy(request.getUpdatedBy() == null
-                        ? assessorEmployeeId : request.getUpdatedBy())
                 .build());
+    }
+
+    @Override
+    public EmployeeReviewResponse updateAssignedAssessment(Long assessmentId, ReviewerAssessmentUpdateRequest request) {
+        Employee reviewer = currentEmployeeService.currentEmployee();
+        EmployeeReviewAssessment assessment = assessmentRepository.findById(assessmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee review assessment not found"));
+        if (!assessment.getAssessorEmployee().getId().equals(reviewer.getId()))
+            throw new org.springframework.security.access.AccessDeniedException("This assessment is not assigned to you");
+        if (isSelfAssessment(assessment))
+            throw new InvalidOperationException("Use the employee assessment API for self-assessments");
+        EmployeeReview review = assessment.getEmployeeReview();
+        return saveAssessment(EmployeeAssessmentRequest.builder()
+                .employeeId(review.getEmployee().getId())
+                .cycleId(review.getPerformanceCycle().getId())
+                .assessmentId(assessmentId)
+                .status(request.getStatus())
+                .overallRating(request.getOverallRating())
+                .overallComment(request.getOverallComment())
+                .build());
+    }
+
+    private void requireMatchingAssessor(Long authenticatedEmployeeId, Long suppliedAssessorId) {
+        if (suppliedAssessorId != null && !authenticatedEmployeeId.equals(suppliedAssessorId))
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "You cannot update another reviewer's assessment");
+    }
+
+    private void requireReviewAssignment(EmployeeReview review, Long reviewerEmployeeId) {
+        if (review.getAssessments().stream().noneMatch(a ->
+                reviewerEmployeeId.equals(a.getAssessorEmployee().getId())))
+            throw new org.springframework.security.access.AccessDeniedException("This review is not assigned to you");
     }
 
     private void startAssessment(EmployeeReviewAssessment assessment) {
@@ -731,49 +670,12 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
                 || (answer.getComment() != null && !answer.getComment().isBlank());
     }
 
-    private void createNextAssessment(EmployeeReview review, EmployeeReviewAssessment current, Long createdBy) {
-        List<PerformanceCycleAssessor> configs = assessorConfigRepository
-                .findByPerformanceCycleIdOrderByDisplayOrderAsc(review.getPerformanceCycle().getId()).stream()
-                .filter(config -> Boolean.TRUE.equals(config.getActive()))
-                .toList();
-        for (PerformanceCycleAssessor config : configs) {
-            if (config.getDisplayOrder() <= current.getAssessmentLevel()) continue;
-            LookupValue role = lookupValueRepository.findById(config.getRoleId())
-                    .orElseThrow(() -> new InvalidOperationException(
-                            "Invalid assessor role: " + config.getRoleId()));
-            if (assigneeResolver.isPublishOnly(role)
-                    || !assigneeResolver.isApplicable(review.getEmployee(), role)) continue;
-            Employee assessor = assigneeResolver.resolveIfAvailable(review.getEmployee(), role).orElse(null);
-            if (assessor == null) continue;
-            if (assessmentRepository.existsByEmployeeReviewIdAndAssessmentLevel(
-                    review.getId(), config.getDisplayOrder())) return;
-            EmployeeReviewAssessment next = EmployeeReviewAssessment.builder().employeeReview(review)
-                    .assessmentLevel(config.getDisplayOrder()).assessorRole(role)
-                    .assessorEmployee(assessor)
-                    .status(EmployeeReviewStatus.NOT_STARTED).progressPercentage(BigDecimal.ZERO)
-                    .createdBy(createdBy).updatedBy(createdBy).build();
-            assessmentRepository.save(next);
-            review.getAssessments().add(next);
-            return;
-        }
-    }
-
     void applyStageExtension(EmployeeReview review, EmployeeReviewAssessment assessment) {
         Integer daysPerStage = review.getExtensionDaysPerStage();
         if (daysPerStage == null) return;
         assessment.setDueDate(LocalDate.now(businessClock).plusDays(daysPerStage));
         assessment.setReopenReason(review.getExtensionReason());
         assessment.setReopenedDate(LocalDateTime.now(java.time.ZoneOffset.UTC));
-    }
-
-    @Override
-    public EmployeeReviewResponse updateReview(Long id, EmployeeReviewRequest request) {
-        throw new InvalidOperationException("Use POST /api/employee-reviews/assessment for assessment updates");
-    }
-
-    @Override
-    public EmployeeReviewResponse submitReview(Long id) {
-        throw new InvalidOperationException("Submit an individual assessment using POST /api/employee-reviews/assessment");
     }
 
     private EmployeeReview findReview(Long id) { return reviewRepository.findById(id)

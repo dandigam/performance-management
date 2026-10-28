@@ -80,7 +80,7 @@ public class EmployeeSummaryService {
             var name = java.util.stream.Stream.of(employee.getFirstName(), employee.getLastName())
                     .filter(Objects::nonNull).map(String::trim).filter(value -> !value.isEmpty())
                     .collect(Collectors.joining(" "));
-            return new EmployeeSummaryResponse(employee.getId(), name, employee.getRitId(), employee.getEmail(),
+            return new EmployeeSummaryResponse(employee.getId(), name, employee.getRitId(), employee.getCsxRacfId(), employee.getEmail(),
                     employee.getDesignationId(), designation == null ? null : designation.getName(),
                     employee.getEmploymentType(), employee.getWorkMode(), employee.getWorkLocation(),
                     employee.getStatus(), department == null ? null : department.getId(),

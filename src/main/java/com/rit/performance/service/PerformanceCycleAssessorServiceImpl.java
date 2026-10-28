@@ -2,6 +2,7 @@ package com.rit.performance.service;
 
 import com.rit.performance.entity.PerformanceCycleAssessor;
 import com.rit.performance.repository.PerformanceCycleAssessorRepository;
+import com.rit.performance.repository.LookupValueRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,13 +15,17 @@ import java.util.List;
 public class PerformanceCycleAssessorServiceImpl implements PerformanceCycleAssessorService {
 
     private final PerformanceCycleAssessorRepository repository;
+    private final LookupValueRepository lookupValueRepository;
 
-    public PerformanceCycleAssessorServiceImpl(PerformanceCycleAssessorRepository repository) {
+    public PerformanceCycleAssessorServiceImpl(PerformanceCycleAssessorRepository repository,
+            LookupValueRepository lookupValueRepository) {
+        this.lookupValueRepository = lookupValueRepository;
         this.repository = repository;
     }
 
     @Override
     public PerformanceCycleAssessor create(PerformanceCycleAssessor assessor) {
+        validateStage(assessor);
         if (assessor.getWeightage() == null) {
             assessor.setWeightage(BigDecimal.ZERO);
         }
@@ -44,6 +49,7 @@ public class PerformanceCycleAssessorServiceImpl implements PerformanceCycleAsse
 
     @Override
     public PerformanceCycleAssessor update(Long id, PerformanceCycleAssessor assessor) {
+        validateStage(assessor);
         PerformanceCycleAssessor existing = findById(id);
         existing.setPerformanceCycleId(assessor.getPerformanceCycleId());
         existing.setAssessorName(assessor.getAssessorName());
@@ -59,6 +65,13 @@ public class PerformanceCycleAssessorServiceImpl implements PerformanceCycleAsse
     @Override
     public void delete(Long id) {
         repository.delete(findById(id));
+    }
+
+    private void validateStage(PerformanceCycleAssessor assessor) {
+        var role = lookupValueRepository.findById(assessor.getRoleId())
+                .orElseThrow(() -> new EntityNotFoundException("Performance stage not found"));
+        AssessmentAssigneeResolver.stageCode(role);
+        assessor.setAssessorName(role.getName());
     }
 
     private PerformanceCycleAssessor findById(Long id) {

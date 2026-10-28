@@ -13,6 +13,19 @@ import java.util.List;
 import java.util.Optional;
 
 public interface EmployeeOrgHierarchyRepository extends JpaRepository<EmployeeOrgHierarchy, Long> {
+    @Query("""
+            select new com.rit.performance.dto.ReportingTeamMemberResponse(
+                e.id, trim(concat(coalesce(e.firstName, ''), ' ', coalesce(e.lastName, ''))),
+                e.ritId, d.name, e.status)
+            from EmployeeOrgHierarchy h
+            join h.employee e
+            left join LookupValue d on d.id = e.designationId
+            where h.reportingManager.id = :managerEmployeeId and upper(e.status) = 'ACTIVE'
+            order by lower(trim(concat(coalesce(e.firstName, ''), ' ', coalesce(e.lastName, '')))), e.id
+            """)
+    List<com.rit.performance.dto.ReportingTeamMemberResponse> findReportingTeam(
+            @org.springframework.data.repository.query.Param("managerEmployeeId") Long managerEmployeeId);
+
     Optional<EmployeeOrgHierarchy> findByEmployee_Id(Long employeeId);
 
     @EntityGraph(attributePaths = {"employee", "reportingManager"})

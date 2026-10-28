@@ -83,10 +83,17 @@ public class WorkflowNotificationListener {
         }
     }
 
-    @EventListener
-    public void review(NotificationEvents.ReviewAlert event) {
-        employee(event.recipient(), "PERFORMANCE_REVIEW", event.eventType(), event.title(), event.message(),
-                "EMPLOYEE_REVIEW", event.reviewId(), event.eventType() + ":" + event.occurrence());
+    @org.springframework.scheduling.annotation.Async("notificationTaskExecutor")
+    @org.springframework.transaction.event.TransactionalEventListener(
+            phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void bellNotification(NotificationEvents.ReviewAlert event) {
+        if (event.recipientEmployeeId() == null) return;
+        users.findByEmployeeId(event.recipientEmployeeId()).filter(this::active).ifPresentOrElse(
+                user -> create(user, "PERFORMANCE_REVIEW", event.eventType(), event.title(), event.message(),
+                        "EMPLOYEE_REVIEW", event.reviewId(), event.eventType() + ":" + event.occurrence()),
+                () -> log.info("Skipping in-app event {} for employee {}: no active user account",
+                        event.eventType(), event.recipientEmployeeId()));
     }
 
     private void employee(Employee employee, String category, String event, String title, String message,

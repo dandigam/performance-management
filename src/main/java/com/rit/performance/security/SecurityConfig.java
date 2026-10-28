@@ -61,6 +61,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/api/auth/change-password").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/employee-org-hierarchy/export").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/employees/me/reporting-team").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/sows/*/documents").authenticated()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/auth/login", "/api/auth/refresh", "/api/auth/logout",

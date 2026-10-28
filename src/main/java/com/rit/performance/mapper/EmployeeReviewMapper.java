@@ -23,7 +23,6 @@ public final class EmployeeReviewMapper {
                 .employeeId(entity.getEmployee() == null ? null : entity.getEmployee().getId())
                 .cycleId(entity.getPerformanceCycle() == null ? null : entity.getPerformanceCycle().getId())
                 .status(entity.getStatus())
-                .progressPercentage(entity.getProgressPercentage())
                 .createdBy(entity.getCreatedBy()).createdDate(entity.getCreatedOn())
                 .updatedBy(entity.getUpdatedBy()).updatedDate(entity.getUpdatedOn())
                 .assessmentStages(assessments == null ? List.of() : assessments.stream()

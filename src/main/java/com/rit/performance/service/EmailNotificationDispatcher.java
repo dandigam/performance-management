@@ -20,6 +20,7 @@ public class EmailNotificationDispatcher {
     private final EmailNotificationRepository repository;
     private final JavaMailSender mailSender;
     private final NotificationRecipientResolver recipientResolver;
+    private final org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @Value("${app.mail.from:}") private String from;
     @Value("${app.mail.max-retries:3}") private int maxRetries;
@@ -27,7 +28,25 @@ public class EmailNotificationDispatcher {
     @Scheduled(fixedDelayString = "${app.mail.dispatch-delay-ms:30000}")
     public void dispatch() {
         repository.findReadyToSend(LocalDateTime.now(java.time.ZoneOffset.UTC), maxRetries, PageRequest.of(0, 50))
-                .forEach(this::send);
+                .forEach(notification -> deliver(notification.getId()));
+    }
+
+    @org.springframework.scheduling.annotation.Async("emailTaskExecutor")
+    @org.springframework.transaction.event.TransactionalEventListener(
+            phase = org.springframework.transaction.event.TransactionPhase.AFTER_COMMIT)
+    public void queued(QueuedEmailReady event) {
+        deliver(event.notificationId());
+    }
+
+    private void deliver(Long id) {
+        new org.springframework.transaction.support.TransactionTemplate(transactionManager)
+                .executeWithoutResult(transaction -> repository.findForDelivery(id)
+                        .filter(notification -> notification.getStatus() == EmailDeliveryStatus.PENDING)
+                        .filter(notification -> notification.getRetryCount() < maxRetries)
+                        .filter(notification -> notification.getNextAttemptDate() == null
+                                || !notification.getNextAttemptDate().isAfter(
+                                        LocalDateTime.now(java.time.ZoneOffset.UTC)))
+                        .ifPresent(this::send));
     }
 
     private void send(EmailNotification notification) {

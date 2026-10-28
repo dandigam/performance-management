@@ -13,7 +13,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface EmailNotificationRepository extends JpaRepository<EmailNotification, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select email from EmailNotification email where email.id = :id")
+    java.util.Optional<EmailNotification> findForDelivery(@Param("id") Long id);
+
     boolean existsByDeduplicationKey(String deduplicationKey);
+
+
 
     @Query("""
             select email from EmailNotification email

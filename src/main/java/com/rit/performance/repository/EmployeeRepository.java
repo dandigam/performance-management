@@ -42,6 +42,7 @@ public interface EmployeeRepository
               and (:search is null
                 or lower(concat(concat(coalesce(e.firstName, ''), ' '), coalesce(e.lastName, ''))) like :search escape '!'
                 or lower(e.ritId) like :search escape '!'
+                or lower(e.csxRacfId) like :search escape '!'
                 or lower(e.email) like :search escape '!'
                 or exists (select d.id from LookupValue d where d.id = e.designationId
                     and lower(d.name) like :search escape '!')

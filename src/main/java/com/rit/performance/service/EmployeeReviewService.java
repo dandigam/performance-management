@@ -1,10 +1,8 @@
 package com.rit.performance.service;
 
-import com.rit.performance.dto.EmployeeReviewRequest;
 import com.rit.performance.dto.EmployeeReviewResponse;
 import com.rit.performance.dto.EmployeeCycleReviewResponse;
 import com.rit.performance.dto.EmployeeAssessmentRequest;
-import com.rit.performance.dto.TeamReviewDashboardResponse;
 import com.rit.performance.dto.ReviewerAssessmentUpdateRequest;
 import com.rit.performance.dto.ReviewProgressResponse;
 import com.rit.performance.dto.ReopenAssessmentsRequest;
@@ -26,11 +24,7 @@ public interface EmployeeReviewService {
     EmployeeReviewResponse updateReviewerAssessment(Long assessorEmployeeId, Long employeeId, Long cycleId,
             ReviewerAssessmentUpdateRequest request);
 
-    EmployeeReviewResponse updateReview(Long id, EmployeeReviewRequest request);
-
-    EmployeeReviewResponse submitReview(Long id);
-
-    TeamReviewDashboardResponse getTeamReviews(Long assessorEmployeeId, Long cycleId);
+    EmployeeReviewResponse updateAssignedAssessment(Long assessmentId, ReviewerAssessmentUpdateRequest request);
 
     ReviewProgressResponse getReviewProgress(Long cycleId);
 

@@ -113,9 +113,9 @@ public class EmployeeController {
         return ResponseEntity.ok(employeeService.getHierarchy(employeeId, roleType, cycleId));
     }
 
-    @GetMapping("/{teamLeadEmployeeId}/direct-reports")
-    public ResponseEntity<DirectReportsResponse> getDirectReports(@PathVariable Long teamLeadEmployeeId) {
-        return ResponseEntity.ok(employeeService.getDirectReports(teamLeadEmployeeId));
+    @GetMapping("/{managerEmployeeId}/direct-reports")
+    public ResponseEntity<DirectReportsResponse> getDirectReports(@PathVariable Long managerEmployeeId) {
+        return ResponseEntity.ok(employeeService.getDirectReports(managerEmployeeId));
     }
 
     @PutMapping("/{employeeId}")

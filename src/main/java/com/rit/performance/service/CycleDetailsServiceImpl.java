@@ -110,7 +110,7 @@ public class CycleDetailsServiceImpl implements CycleDetailsService {
         }
 
         if (StringUtils.isNotBlank(request.getCycleDetails().getStatus()) && request.getCycleDetails().getStatus().equals("ACTIVE")) {
-            publishService.publish(saved.getId(), null);
+            publishService.publish(saved.getId(), null, null);
         }
         return toEnrichedResponse(saved);
     }
@@ -246,6 +246,7 @@ public class CycleDetailsServiceImpl implements CycleDetailsService {
                                                        PerformanceCycleAssessorRequest request) {
         LookupValue role = lookupValueRepository.findById(request.getRoleId())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid roleId: " + request.getRoleId()));
+        AssessmentAssigneeResolver.stageCode(role);
         if (!lookupValueRepository.existsById(request.getActionTypeId())) {
             throw new IllegalArgumentException("Invalid actionTypeId: " + request.getActionTypeId());
         }

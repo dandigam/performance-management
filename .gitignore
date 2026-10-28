@@ -36,3 +36,6 @@ build/
 .local/
 /documents/
 /config/production.properties
+
+# Generated application logs and rotated archives
+/logs/

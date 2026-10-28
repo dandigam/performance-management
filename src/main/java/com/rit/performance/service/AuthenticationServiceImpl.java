@@ -26,6 +26,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final FeatureFlagService featureFlagService;
 
     @Override
     @Transactional
@@ -101,6 +102,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                 .roleId(user.getRole().getId()).roleCode(user.getRole().getCode())
                 .employeeId(employee == null ? null : employee.getId())
                 .employeeName(employeeName).status(user.getStatus())
-                .portalAccess(user.getPortalAccess()).build();
+                .portalAccess(user.getPortalAccess())
+                .features(featureFlagService.forLogin(user.getRole().getId())).build();
     }
 }

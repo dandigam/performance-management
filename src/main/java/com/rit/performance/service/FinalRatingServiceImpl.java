@@ -115,6 +115,8 @@ public class FinalRatingServiceImpl extends WorkflowEventSource implements Final
         if (review.getStatus() != EmployeeReviewStatus.SUBMITTED)
             throw new InvalidOperationException("All review assessments must be submitted before publishing");
         EmployeeReviewAssessment finalAssessment = finalAssessment(review);
+        if (finalAssessment.getAssessorEmployee().getId().equals(review.getEmployee().getId()))
+            throw new InvalidOperationException("A reporting manager assessment is required before publishing");
         if (finalAssessment.getStatus() != EmployeeReviewStatus.SUBMITTED)
             throw new InvalidOperationException("Final assessment must be submitted before publishing");
         if (finalAssessment.getOverallRating() == null)

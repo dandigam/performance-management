@@ -23,6 +23,11 @@ public class NotificationRecipientResolver {
         add(to, primary);
         var cc = new LinkedHashSet<String>();
         var bcc = new LinkedHashSet<String>();
+        // Performance emails belong only to the employee or assigned assessor.
+        // Apply this at delivery time for both queued and direct async emails.
+        if (category != null && "PERFORMANCE_REVIEW".equalsIgnoreCase(category.trim())) {
+            return new Recipients(List.copyOf(to), List.of(), List.of());
+        }
         if (category != null && !category.isBlank()) {
             var codes = new LinkedHashSet<String>();
             codes.add(category.trim().toUpperCase(Locale.ROOT));

@@ -3,7 +3,7 @@ package com.rit.performance.dto;
 import java.util.List;
 
 public record EmployeeSummaryResponse(
-        Long employeeId, String employeeName, String ritId, String email,
+        Long employeeId, String employeeName, String ritId, String racfId, String email,
         Long designationId, String designationName, String employmentType,
         String workMode, String workLocation, String status,
         Long departmentId, String departmentName, List<ProjectSummary> currentProjects) {

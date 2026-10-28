@@ -50,7 +50,8 @@ public class Employee extends BaseEntity {
     @Column(name = "employment_type")
     private String employmentType;
 
-    @Column(name = "joining_date")
+    // Performance-only employees do not require an onboarding joining date.
+    @Column(name = "joining_date", nullable = true)
     private LocalDate joiningDate;
 
     @Column(name = "work_mode")

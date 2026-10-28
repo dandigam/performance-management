@@ -16,6 +16,10 @@ public class CurrentEmployeeService {
     private final UserRepository users;
 
     public Employee currentEmployee() {
+        return currentUser().getEmployee();
+    }
+
+    public User currentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof AuthenticatedUser principal))
@@ -24,6 +28,6 @@ public class CurrentEmployeeService {
                 .orElseThrow(() -> new AuthenticationException("User account is not available."));
         if (!"ACTIVE".equalsIgnoreCase(user.getStatus()) || user.getEmployee() == null)
             throw new AuthenticationException("An active employee account is required.");
-        return user.getEmployee();
+        return user;
     }
 }

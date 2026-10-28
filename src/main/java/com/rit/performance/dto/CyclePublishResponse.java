@@ -15,7 +15,9 @@ public class CyclePublishResponse {
     private Long cycleId;
     private String cycleStatus;
     private int eligibleEmployees;
-    private int reviewsCreated;
-    private int reviewsSkipped;
-    private int assessmentsCreated;
+    private int selectedEmployees;
+    private int excludedEmployees;
+    private int alreadySubmittedEmployees;
+    private int emailsScheduled;
+    private int bellNotificationsScheduled;
 }

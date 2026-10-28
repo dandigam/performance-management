@@ -36,10 +36,10 @@ public class EmployeeHierarchyMemberResponse {
     private Long milestoneId;
     private String milestoneName;
     private String positionType;
-    private Long managerId;
-    private String managerName;
-    private Long leadId;
-    private String leadName;
+    private Long reportingManager2Id;
+    private String reportingManager2Name;
+    private Long reportingManager1Id;
+    private String reportingManager1Name;
     private String status;
     private EmployeeAddressResponse addressDetails;
     private EmployeeCompensationResponse compensationDetails;
@@ -53,8 +53,8 @@ public class EmployeeHierarchyMemberResponse {
     private EmployeeReviewStatus reviewStatus;
     private BigDecimal reviewProgressPercentage;
     private EmployeeReviewStatus selfAssessmentStatus;
-    private EmployeeReviewStatus teamLeadAssessmentStatus;
-    private EmployeeReviewStatus managerAssessmentStatus;
+    private EmployeeReviewStatus reportingManager1AssessmentStatus;
+    private EmployeeReviewStatus reportingManager2AssessmentStatus;
     private Long assignedAssessmentId;
     private String assignedRoleName;
     private EmployeeReviewStatus assignedAssessmentStatus;

@@ -12,6 +12,22 @@ import org.springframework.util.Assert;
 @EnableAsync
 @Slf4j
 public class EmailAsyncConfiguration {
+    @Bean(name = "notificationTaskExecutor")
+    public ThreadPoolTaskExecutor notificationTaskExecutor(
+            @Value("${app.notifications.async.queue-capacity:10000}") int queueCapacity) {
+        Assert.isTrue(queueCapacity > 0, "Notification queue capacity must be positive");
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setThreadNamePrefix("bell-notification-");
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(queueCapacity);
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.setRejectedExecutionHandler((task, pool) ->
+                log.error("Bell notification task was not accepted: executor is full or shutting down"));
+        return executor;
+    }
+
     @Bean(name = "sowPdfEmailTaskExecutor")
     public ThreadPoolTaskExecutor sowPdfEmailTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();

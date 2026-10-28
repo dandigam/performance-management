@@ -28,7 +28,10 @@ public class EmailNotificationService {
                 .recipientEmail("").subject(email.subject()).body(email.body())
                 .deduplicationKey("ONBOARDING_SUBMITTED:" + onboarding.getId() + ":"
                         + onboarding.getVersion()).build();
-        if (!repository.existsByDeduplicationKey(notification.getDeduplicationKey())) repository.save(notification);
+        if (!repository.existsByDeduplicationKey(notification.getDeduplicationKey())) {
+            EmailNotification saved = repository.save(notification);
+            events.publishEvent(new QueuedEmailReady(saved.getId()));
+        }
     }
     public void queuePasswordChanged(User user) {
         Employee employee = user.getEmployee();
@@ -127,7 +130,12 @@ public class EmailNotificationService {
 
     private void queue(EmailNotification notification) {
         if (notification.getRecipientEmail() == null || notification.getRecipientEmail().isBlank()) return;
-        if (!repository.existsByDeduplicationKey(notification.getDeduplicationKey())) repository.save(notification);
+        if (!repository.existsByDeduplicationKey(notification.getDeduplicationKey())) {
+            EmailNotification saved = repository.save(notification);
+            if (saved.getEventType() == EmailEventType.ASSESSMENT_READY) {
+                events.publishEvent(new QueuedEmailReady(saved.getId()));
+            }
+        }
     }
 
     private String employeeName(Employee employee) {

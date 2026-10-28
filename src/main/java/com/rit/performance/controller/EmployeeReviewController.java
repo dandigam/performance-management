@@ -1,10 +1,8 @@
 package com.rit.performance.controller;
 
-import com.rit.performance.dto.EmployeeReviewRequest;
 import com.rit.performance.dto.EmployeeReviewResponse;
 import com.rit.performance.dto.EmployeeCycleReviewResponse;
 import com.rit.performance.dto.EmployeeAssessmentRequest;
-import com.rit.performance.dto.TeamReviewDashboardResponse;
 import com.rit.performance.dto.ReviewerAssessmentUpdateRequest;
 import com.rit.performance.dto.ReviewProgressResponse;
 import com.rit.performance.dto.ReopenAssessmentsRequest;
@@ -44,13 +42,6 @@ public class EmployeeReviewController {
         return ResponseEntity.ok(service.getEmployeeReview(employeeId, cycleId, assessorId));
     }
 
-    @GetMapping("/assessor/{assessorEmployeeId}/team")
-    public ResponseEntity<TeamReviewDashboardResponse> getTeamReviews(
-            @PathVariable Long assessorEmployeeId,
-            @RequestParam Long cycleId) {
-        return ResponseEntity.ok(service.getTeamReviews(assessorEmployeeId, cycleId));
-    }
-
     @GetMapping("/progress")
     public ResponseEntity<ReviewProgressResponse> getReviewProgress(@RequestParam Long cycleId) {
         return ResponseEntity.ok(service.getReviewProgress(cycleId));
@@ -76,6 +67,13 @@ public class EmployeeReviewController {
         return ResponseEntity.ok(service.saveAssessment(request));
     }
 
+    @PutMapping("/assessments/{assessmentId}")
+    public ResponseEntity<EmployeeReviewResponse> updateAssignedAssessment(
+            @PathVariable Long assessmentId,
+            @Valid @RequestBody ReviewerAssessmentUpdateRequest request) {
+        return ResponseEntity.ok(service.updateAssignedAssessment(assessmentId, request));
+    }
+
     @PutMapping("/assessment")
     public ResponseEntity<EmployeeReviewResponse> updateReviewerAssessment(
             @RequestParam Long assessorId,
@@ -86,14 +84,4 @@ public class EmployeeReviewController {
                 assessorId, employeeId, cycleId, request));
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<EmployeeReviewResponse> update(@PathVariable Long id,
-                                                         @Valid @RequestBody EmployeeReviewRequest request) {
-        return ResponseEntity.ok(service.updateReview(id, request));
-    }
-
-    @PostMapping("/{id}/submit")
-    public ResponseEntity<EmployeeReviewResponse> submit(@PathVariable Long id) {
-        return ResponseEntity.ok(service.submitReview(id));
-    }
 }

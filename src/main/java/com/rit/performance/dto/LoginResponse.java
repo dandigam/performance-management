@@ -27,4 +27,6 @@ public class LoginResponse {
     private String employeeName;
     private String status;
     private String portalAccess;
+    @Builder.Default
+    private java.util.Map<String, Boolean> features = java.util.Map.of();
 }

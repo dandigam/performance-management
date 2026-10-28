@@ -10,26 +10,24 @@ import java.util.List;
 import java.util.Optional;
 
 public interface EmployeeReviewAssessmentRepository extends JpaRepository<EmployeeReviewAssessment, Long> {
+    @Query("""
+            select a from EmployeeReviewAssessment a
+            join fetch a.employeeReview r
+            join fetch r.employee e
+            join fetch a.assessorRole
+            where a.assessorEmployee.id = :reviewerEmployeeId
+              and r.performanceCycle.id = :cycleId
+            order by lower(e.firstName), lower(e.lastName), e.id, a.assessmentLevel, a.id
+            """)
+    List<EmployeeReviewAssessment> findAssignedTeamAssessments(
+            @Param("reviewerEmployeeId") Long reviewerEmployeeId, @Param("cycleId") Long cycleId);
+
     List<EmployeeReviewAssessment> findByEmployeeReviewIdOrderByAssessmentLevelAsc(Long employeeReviewId);
     List<EmployeeReviewAssessment> findByEmployeeReviewIdAndAssessorEmployeeIdOrderByAssessmentLevelAsc(
             Long reviewId, Long assessorEmployeeId);
     boolean existsByEmployeeReviewIdAndAssessmentLevel(Long reviewId, Integer assessmentLevel);
     boolean existsByEmployeeReviewIdAndAssessorEmployeeIdAndStatus(
             Long reviewId, Long assessorEmployeeId, EmployeeReviewStatus status);
-
-    List<EmployeeReviewAssessment> findByEmployeeReviewIdInOrderByEmployeeReviewIdAscAssessmentLevelAsc(
-            List<Long> reviewIds);
-
-    @Query("""
-            select assessment
-            from EmployeeReviewAssessment assessment
-            where assessment.assessorEmployee.id = :assessorEmployeeId
-              and assessment.employeeReview.performanceCycle.id = :cycleId
-              and assessment.employeeReview.employee.id <> :assessorEmployeeId
-            order by assessment.employeeReview.employee.id, assessment.assessmentLevel
-            """)
-    List<EmployeeReviewAssessment> findAssignedReviewsForAssessor(
-            @Param("assessorEmployeeId") Long assessorEmployeeId, @Param("cycleId") Long cycleId);
 
     @Query("""
             select assessment

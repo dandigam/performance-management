@@ -47,6 +47,10 @@ public class PerformanceCycles extends BaseEntity {
     @Column(name = "status", nullable = false, length = 30)
     @Builder.Default
     private String status = "DRAFT";
+
+    @Column(name = "published_date")
+    private LocalDateTime publishedDate;
+
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "performance_cycle_scope_values",
             joinColumns = @JoinColumn(name = "performance_cycle_id"))

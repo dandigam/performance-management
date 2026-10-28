@@ -14,10 +14,15 @@ import java.util.List;
 @Entity
 @Table(name = "employee_review_assessments", uniqueConstraints = @UniqueConstraint(
         name = "uk_review_assessment_level", columnNames = {"employee_review_id", "assessment_level"}))
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @SuperBuilder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@SuperBuilder
 public class EmployeeReviewAssessment extends BaseEntity {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -35,7 +40,8 @@ public class EmployeeReviewAssessment extends BaseEntity {
     @JoinColumn(name = "assessor_employee_id", nullable = false)
     private Employee assessorEmployee;
 
-    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 30)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
     @Builder.Default
     private EmployeeReviewStatus status = EmployeeReviewStatus.NOT_STARTED;
 
@@ -47,17 +53,23 @@ public class EmployeeReviewAssessment extends BaseEntity {
     private BigDecimal overallRating;
     @Column(name = "overall_comment", columnDefinition = "TEXT")
     private String overallComment;
-    @Column(name = "started_date") private LocalDateTime startedDate;
-    @Column(name = "submitted_date") private LocalDateTime submittedDate;
-    @Column(name = "due_date") private LocalDate dueDate;
-    @Column(name = "reopen_reason", length = 2000) private String reopenReason;
-    @Column(name = "reopened_date") private LocalDateTime reopenedDate;
+    @Column(name = "started_date")
+    private LocalDateTime startedDate;
+    @Column(name = "submitted_date")
+    private LocalDateTime submittedDate;
+    @Column(name = "due_date")
+    private LocalDate dueDate;
+    @Column(name = "reopen_reason", length = 2000)
+    private String reopenReason;
+    @Column(name = "reopened_date")
+    private LocalDateTime reopenedDate;
     @OneToMany(mappedBy = "employeeReviewAssessment", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     @Builder.Default
     private List<EmployeeReviewAnswer> answers = new ArrayList<>();
 
-    @PrePersist void prePersist() {
+    @PrePersist
+    void prePersist() {
         if (progressPercentage == null) progressPercentage = BigDecimal.ZERO;
     }
 }

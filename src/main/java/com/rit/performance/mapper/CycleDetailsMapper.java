@@ -41,6 +41,7 @@ public final class CycleDetailsMapper {
                 .applicableTypeId(entity.getApplicableTypeId())
                 .scopeValueIds(entity.getScopeValueIds())
                 .status(entity.getStatus())
+                .publishedDate(entity.getPublishedDate())
                 .createdBy(entity.getCreatedBy())
                 .createdDate(entity.getCreatedOn())
                 .updatedBy(entity.getUpdatedBy())

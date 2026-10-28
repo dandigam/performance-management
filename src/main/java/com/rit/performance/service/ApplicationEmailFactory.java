@@ -172,20 +172,29 @@ public class ApplicationEmailFactory {
         Context context = employeeContext(employee);
         context.setVariable("cycleName", cycle.getCycleName());
         context.setVariable("actionUrl", url("/login"));
-        return new ApplicationEmail(employee.getEmail(), cycle.getCycleName() + " is now open",
-                htmlTemplateEngine.process("performance-cycle-published", context), true, "PERFORMANCE_REVIEW");
+        return new ApplicationEmail(employee.getEmail(), "Action required: " + cycle.getCycleName() + " — Self-assessment",
+                htmlTemplateEngine.process("performance-cycle-published", context), true);
     }
 
     public ApplicationEmail assessmentReady(EmployeeReview review, EmployeeReviewAssessment assessment) {
         Employee reviewer = assessment.getAssessorEmployee();
         Context context = employeeContext(reviewer);
         context.setVariable("employeeName", employeeName(review.getEmployee()));
+        context.setVariable("cycleName", review.getPerformanceCycle().getCycleName());
+        String previousStageName = review.getAssessments().stream()
+                .filter(previous -> previous.getAssessmentLevel() < assessment.getAssessmentLevel())
+                .max(java.util.Comparator.comparing(EmployeeReviewAssessment::getAssessmentLevel))
+                .map(previous -> previous.getAssessorRole() == null ? "Previous assessment"
+                        : previous.getAssessorRole().getName())
+                .orElse("Previous assessment");
+        context.setVariable("previousStageName", previousStageName);
         context.setVariable("roleName", assessment.getAssessorRole() == null
                 ? "reviewer" : assessment.getAssessorRole().getName());
         context.setVariable("dueDate", assessment.getDueDate() == null ? null : formatDate(assessment.getDueDate()));
         context.setVariable("reopenReason", assessment.getReopenReason());
         context.setVariable("actionUrl", url("/login"));
-        return new ApplicationEmail(reviewer.getEmail(), employeeName(review.getEmployee()) + "'s review is ready",
+        return new ApplicationEmail(reviewer.getEmail(), "Action required: " + employeeName(review.getEmployee())
+                + " - " + review.getPerformanceCycle().getCycleName() + " review",
                 htmlTemplateEngine.process("assessment-ready", context), true, "PERFORMANCE_REVIEW");
     }
 

@@ -1,101 +1,74 @@
 package com.rit.performance.service;
 
 import com.rit.performance.entity.Employee;
-import com.rit.performance.entity.EmployeeAssignment;
-import com.rit.performance.entity.EmployeeRole;
 import com.rit.performance.entity.LookupValue;
-import com.rit.performance.entity.User;
 import com.rit.performance.exception.InvalidOperationException;
-import com.rit.performance.repository.EmployeeAssignmentRepository;
-import com.rit.performance.repository.EmployeeRepository;
-import com.rit.performance.repository.EmployeeRoleRepository;
-import com.rit.performance.repository.LookupValueRepository;
-import com.rit.performance.repository.UserRepository;
+import com.rit.performance.repository.EmployeeOrgHierarchyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class AssessmentAssigneeResolver {
-    private final EmployeeAssignmentRepository assignmentRepository;
-    private final EmployeeRepository employeeRepository;
-    private final EmployeeRoleRepository employeeRoleRepository;
-    private final LookupValueRepository lookupValueRepository;
-    private final UserRepository userRepository;
+    private final EmployeeOrgHierarchyRepository hierarchyRepository;
 
-    public Employee resolve(Employee subject, LookupValue role) {
-        return resolve(subject, role, false);
-    }
-
-    public Optional<Employee> resolveIfAvailable(Employee subject, LookupValue role) {
-        try {
-            return Optional.of(resolve(subject, role));
-        } catch (InvalidOperationException | IllegalStateException exception) {
-            return Optional.empty();
-        }
-    }
-
-    public Employee resolve(Employee subject, LookupValue role, boolean teamLeadPrecedes) {
-        String roleName = role.getName().trim();
-        String normalized = normalize(role);
-        if (normalized.equals("EMPLOYEE") || normalized.equals("SELF") || normalized.equals("SELFASSESSOR"))
-            return subject;
-        if (normalized.equals("TEAMLEAD") || normalized.equals("LEAD")) return leadOf(subject.getId(), roleName);
-        if (normalized.equals("MANAGER")) return managerOf(subject.getId(), roleName);
-        if (normalized.equals("MANAGERSMANAGER")) return managerOf(managerOf(subject.getId(), roleName).getId(), roleName);
-        return userRepository.findByRoleNameIgnoreCaseAndStatusIgnoreCaseOrderByIdAsc(roleName, "ACTIVE").stream()
-                .map(User::getEmployee).filter(java.util.Objects::nonNull).findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "No active employee user can be resolved for assessor role " + roleName));
-    }
-
-    public boolean isTeamLead(LookupValue role) {
-        return "TEAMLEAD".equals(normalize(role));
+    public static String stageCode(LookupValue role) {
+        String value = role.getCode() == null || role.getCode().isBlank() ? role.getName() : role.getCode();
+        return switch (value.replaceAll("[^A-Za-z0-9]", "").toUpperCase()) {
+            case "SELF" -> "SELF";
+            case "REPORTINGMANAGER1" -> "REPORTING_MANAGER_1";
+            case "REPORTINGMANAGER2" -> "REPORTING_MANAGER_2";
+            case "HR" -> "HR";
+            default -> throw new InvalidOperationException("Unsupported performance stage: " + value);
+        };
     }
 
     public boolean isPublishOnly(LookupValue role) {
-        return "HR".equals(normalize(role));
+        return "HR".equals(stageCode(role));
     }
 
-    public boolean isApplicable(Employee subject, LookupValue assessorRole) {
-        String assessor = normalize(assessorRole);
-        if (assessor.equals("EMPLOYEE") || assessor.equals("SELF") || assessor.equals("SELFASSESSOR")) return true;
-        EmployeeRole currentRole = employeeRoleRepository
-                .findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDesc(subject.getId())
-                .orElse(null);
-        LookupValue subjectRole = currentRole == null ? null
-                : lookupValueRepository.findById(currentRole.getRoleId()).orElse(null);
-        if (subjectRole == null) return true;
-        String subjectRoleCode = normalize(subjectRole);
-        if (assessor.equals("TEAMLEAD") || assessor.equals("LEAD")) return subjectRoleCode.equals("EMPLOYEE");
-        if (assessor.equals("MANAGER"))
-            return subjectRoleCode.equals("EMPLOYEE") || subjectRoleCode.equals("TEAMLEAD")
-                    || subjectRoleCode.equals("LEAD");
-        return true;
+    public boolean isConfigured(Employee employee) {
+        return hierarchyRepository.findByEmployee_Id(employee.getId()).isPresent();
     }
 
-    private String normalize(LookupValue role) {
-        String value = role.getCode() == null || role.getCode().isBlank() ? role.getName() : role.getCode();
-        return value.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+    public Optional<Employee> resolveIfAvailable(Employee subject, LookupValue role) {
+        return switch (stageCode(role)) {
+            case "SELF" -> Optional.of(subject);
+            case "REPORTING_MANAGER_1" -> reportingManager(subject, 1);
+            case "REPORTING_MANAGER_2" -> reportingManager(subject, 2);
+            default -> Optional.empty();
+        };
     }
 
-    private Employee managerOf(Long employeeId, String roleName) {
-        Long managerId = assignmentRepository.findActiveByEmployeeId(employeeId)
-                .map(EmployeeAssignment::getManagerId).orElseThrow(() -> new InvalidOperationException(
-                        "No current manager found for employee " + employeeId
-                                + " while resolving assessor role " + roleName));
-        return employeeRepository.findById(managerId).orElseThrow(() ->
-                new InvalidOperationException("Manager employee not found: " + managerId));
+    private Optional<Employee> reportingManager(Employee subject, int level) {
+        var chain = reportingChain(subject);
+        return chain.size() < level ? Optional.empty() : Optional.of(chain.get(level - 1));
     }
 
-    private Employee leadOf(Long employeeId, String roleName) {
-        Long leadId = assignmentRepository.findActiveByEmployeeId(employeeId)
-                .map(EmployeeAssignment::getLeadId).orElseThrow(() -> new InvalidOperationException(
-                        "No current team lead found for employee " + employeeId
-                                + " while resolving assessor role " + roleName));
-        return employeeRepository.findById(leadId).orElseThrow(() ->
-                new InvalidOperationException("Team Lead employee not found: " + leadId));
+    public java.util.List<Employee> reportingChain(Employee subject) {
+        Employee current = subject;
+        java.util.List<Employee> chain = new ArrayList<>();
+        Set<Long> visited = new HashSet<>();
+        visited.add(subject.getId());
+        // Only the subject and Manager 1 rows are needed to identify two assessors.
+        while (current != null && chain.size() < 2) {
+            Long currentId = current.getId();
+            var row = hierarchyRepository.findByEmployee_Id(currentId).orElseThrow(() ->
+                    new InvalidOperationException("Missing organization hierarchy for employee " + currentId));
+            current = row.getReportingManager();
+            if (current != null) {
+                if (!visited.add(current.getId()))
+                    throw new InvalidOperationException("Reporting cycle for employee " + subject.getId());
+                if (!"ACTIVE".equalsIgnoreCase(current.getStatus()))
+                    throw new InvalidOperationException("Inactive reporting manager: " + current.getId());
+                chain.add(current);
+            }
+        }
+        return chain;
     }
 }

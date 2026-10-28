@@ -27,6 +27,16 @@ public class ApplicationEmailSender {
     @Async("emailTaskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void send(ApplicationEmail event) {
+        deliver(event);
+    }
+
+    @Async("emailTaskExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void sendPerformanceEmails(PerformancePublicationEmails event) {
+        event.emails().forEach(this::deliver);
+    }
+
+    private void deliver(ApplicationEmail event) {
         if (!enabled) {
             return;
         }

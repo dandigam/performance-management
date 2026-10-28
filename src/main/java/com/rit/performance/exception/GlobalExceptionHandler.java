@@ -149,8 +149,19 @@ public class GlobalExceptionHandler {
                     org.slf4j.MDC.get("requestId"), cause.getClass().getName());
         }
         logFailureFrames(ex);
-        return response(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE",
-                "A record with the same unique value already exists.");
+        if (cause instanceof java.sql.SQLException sql) {
+            if (sql.getErrorCode() == 1062 || "23505".equals(sql.getSQLState())) {
+                return response(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE",
+                        "A record with the same unique value already exists.");
+            }
+            if (sql.getErrorCode() == 1048 || sql.getErrorCode() == 1364
+                    || "23502".equals(sql.getSQLState())) {
+                return response(HttpStatus.BAD_REQUEST, "REQUIRED_DATABASE_VALUE",
+                        "A value required by the database is missing. Check that the database schema supports this operation.");
+            }
+        }
+        return response(HttpStatus.CONFLICT, "DATABASE_CONSTRAINT_VIOLATION",
+                "The record could not be saved because a database constraint was violated.");
     }
 
     private void logFailureFrames(Throwable exception) {

@@ -14,7 +14,7 @@ import lombok.Setter;
 public class ReviewProgressSummaryResponse {
     private long totalEmployees;
     private long selfReviewsCompleted;
-    private long teamLeadReviewsCompleted;
-    private long managerReviewsCompleted;
+    private long reportingManager1ReviewsCompleted;
+    private long reportingManager2ReviewsCompleted;
     private long ratingsPublished;
 }
