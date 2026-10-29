@@ -82,9 +82,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final EmployeeReviewAssessmentRepository employeeReviewAssessmentRepository;
     private final EmployeeReviewRepository employeeReviewRepository;
     private final PerformanceCycleConfigRepository cycleRepository;
-    private final PerformanceCycleAssessorRepository assessorConfigRepository;
     private final VendorRepository vendorRepository;
-    private final AssessmentAssigneeResolver assigneeResolver;
     private final SowMilestonePositionAssignmentService positionAssignmentService;
     private final EmployeeAuditService employeeAuditService;
     private final ApplicationEventPublisher events;
@@ -164,9 +162,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         user.setEmployee(employee);
         user = userRepository.save(user);
 
-        if (assignment != null) {
-            seedReviewsForNewEmployee(employee, request.getCreatedBy(), assignment);
-        }
 
         EmployeeCreateResponse response = EmployeeCreateResponse.builder()
                 .employee(currentEmployeeResponse(employee, assignment))
@@ -179,85 +174,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         events.publishEvent(emailFactory.employeeAdminNotification(employee, true));
         return response;
-    }
-
-    private void seedReviewsForNewEmployee(Employee employee, Long actorId, EmployeeAssignment assignment) {
-        // Hierarchy is configured separately; republish the cycle after it is ready.
-        if (!assigneeResolver.isConfigured(employee)) return;
-        List<PerformanceCycles> cycles = cycleRepository.findAll().stream()
-                .filter(cycle -> "PUBLISHED".equalsIgnoreCase(cycle.getStatus())
-                        || "ACTIVE".equalsIgnoreCase(cycle.getStatus()))
-                .toList();
-        for (PerformanceCycles cycle : cycles) {
-            PerformanceCycles lockedCycle = cycleRepository.findForPublication(cycle.getId()).orElseThrow();
-            if (!Set.of("ACTIVE", "PUBLISHED").contains(lockedCycle.getStatus().toUpperCase(java.util.Locale.ROOT))) continue;
-            if (!employeeIsEligibleForCycle(employee, lockedCycle)) {
-                continue;
-            }
-            EmployeeReview savedReview = employeeReviewRepository.findForPublication(cycle.getId()).stream()
-                    .filter(review -> employee.getId().equals(review.getEmployee().getId())).findFirst()
-                    .orElseGet(() -> employeeReviewRepository.save(EmployeeReview.builder()
-                            .performanceCycle(cycle)
-                            .employee(employee)
-                            .status(EmployeeReviewStatus.NOT_STARTED)
-                            .progressPercentage(BigDecimal.ZERO)
-                            .sowId(assignment == null ? null : assignment.getSowId())
-                            .createdBy(actorId)
-                            .updatedBy(actorId)
-                            .build()));
-            if (!savedReview.getAssessments().isEmpty()) continue;
-            if (savedReview.getSowId() == null && assignment != null) {
-                savedReview.setSowId(assignment.getSowId());
-                employeeReviewRepository.save(savedReview);
-            }
-
-            List<PerformanceCycleAssessor> assessorConfigs = assessorConfigRepository
-                    .findByPerformanceCycleIdOrderByDisplayOrderAsc(cycle.getId()).stream()
-                    .filter(config -> Boolean.TRUE.equals(config.getActive()))
-                    .filter(config -> !employeeReviewAssessmentRepository
-                            .existsByEmployeeReviewIdAndAssessmentLevel(
-                                    savedReview.getId(), config.getDisplayOrder()))
-                    .toList();
-            List<EmployeeReviewAssessment> assessments = assessorConfigs.stream()
-                    .map(config -> newAssessment(savedReview, config, actorId))
-                    .filter(Objects::nonNull)
-                    .toList();
-            if (!assessments.isEmpty()) {
-                employeeReviewAssessmentRepository.saveAll(assessments);
-            }
-        }
-    }
-
-    private boolean employeeIsEligibleForCycle(Employee employee, PerformanceCycles cycle) {
-        LookupValue applicableType = lookupValueRepository.findById(cycle.getApplicableTypeId())
-                .orElseThrow(() -> new InvalidOperationException(
-                        "Cycle has an invalid applicable type: " + cycle.getId()));
-        String code = applicableType.getCode() == null ? "" : applicableType.getCode().toUpperCase();
-        List<Long> scopeIds = cycle.getScopeValueIds() == null ? List.of() : cycle.getScopeValueIds();
-        return switch (code) {
-            case "ALL" -> true;
-            case "DEPARTMENT" -> assignmentRepository.findByDepartmentIdInAndStatusIgnoreCase(scopeIds, "ACTIVE").stream()
-                    .map(EmployeeAssignment::getEmployeeId)
-                    .anyMatch(employee.getId()::equals);
-            case "DESIGNATION" -> employee.getDesignationId() != null
-                    && scopeIds.contains(employee.getDesignationId());
-            case "EMPLOYEE" -> scopeIds.contains(employee.getId());
-            default -> false;
-        };
-    }
-
-    private EmployeeReviewAssessment newAssessment(EmployeeReview review, PerformanceCycleAssessor config,
-            Long createdBy) {
-        LookupValue role = lookupValueRepository.findById(config.getRoleId())
-                .orElseThrow(() -> new InvalidOperationException(
-                        "Invalid assessor role: " + config.getRoleId()));
-        if (assigneeResolver.isPublishOnly(role)) return null;
-        Employee assessor = assigneeResolver.resolveIfAvailable(review.getEmployee(), role).orElse(null);
-        if (assessor == null) return null;
-        return EmployeeReviewAssessment.builder().employeeReview(review)
-                .assessmentLevel(config.getDisplayOrder()).assessorRole(role).assessorEmployee(assessor)
-                .status(EmployeeReviewStatus.NOT_STARTED).progressPercentage(BigDecimal.ZERO)
-                .createdBy(createdBy).updatedBy(createdBy).build();
     }
 
     private EmployeeAssignment createInitialAssignment(Long employeeId, EmployeeCreateRequest request) {
@@ -321,7 +237,6 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         assignment = assignmentRepository.save(assignment);
 
-        seedReviewsForNewEmployee(employee, request.getUpdatedBy(), assignment);
         Long employeeAssignmentId = assignment.getId();
         List<SowMilestonePositionAssignmentResponse> milestoneAssignments = request
                 .getMilestoneAssignments().stream()
@@ -858,9 +773,6 @@ public class EmployeeServiceImpl implements EmployeeService {
         employeeRepository.save(employee);
         LookupValue role = updateEmployeeRoleWhenChanged(employee, request);
         ensureEmployeeUser(employee, role);
-        if (hasAssignmentUpdate && assignment != null) {
-            seedReviewsForNewEmployee(employee, request.getUpdatedBy(), assignment);
-        }
         EmployeeBasicInfoResponse response = currentEmployeeResponse(employee, assignment);
         employeeAuditService.record(employeeId, "EMPLOYEE", "UPDATED",
                 oldSnapshot, response, request.getUpdatedBy());

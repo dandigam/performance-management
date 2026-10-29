@@ -58,8 +58,12 @@ public class AssessmentAssigneeResolver {
         // Only the subject and Manager 1 rows are needed to identify two assessors.
         while (current != null && chain.size() < 2) {
             Long currentId = current.getId();
-            var row = hierarchyRepository.findByEmployee_Id(currentId).orElseThrow(() ->
-                    new InvalidOperationException("Missing organization hierarchy for employee " + currentId));
+            var row = hierarchyRepository.findByEmployee_Id(currentId).orElse(null);
+            if (row == null) {
+                // An assigned manager may be the top of the organization without their own row.
+                if (!chain.isEmpty()) break;
+                throw new InvalidOperationException("Missing organization hierarchy for employee " + currentId);
+            }
             current = row.getReportingManager();
             if (current != null) {
                 if (!visited.add(current.getId()))

@@ -30,7 +30,6 @@ import com.rit.performance.repository.PerformanceCycleTimelineRepository;
 import com.rit.performance.repository.PerformanceCycleQuestionRepository;
 import com.rit.performance.repository.PerformanceCycleSectionRepository;
 import lombok.AllArgsConstructor;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,7 +49,6 @@ public class CycleDetailsServiceImpl implements CycleDetailsService {
     private final PerformanceCycleSectionRepository sectionRepository;
     private final PerformanceCycleQuestionRepository questionRepository;
     private final PerformanceCycleRatingScaleService ratingScaleService;
-    private final ReviewCyclePublishService publishService;
 
 
     @Override
@@ -109,9 +107,6 @@ public class CycleDetailsServiceImpl implements CycleDetailsService {
             ratingScaleService.saveForCycle(saved.getId(), request.getRatingScale());
         }
 
-        if (StringUtils.isNotBlank(request.getCycleDetails().getStatus()) && request.getCycleDetails().getStatus().equals("ACTIVE")) {
-            publishService.publish(saved.getId(), null, null);
-        }
         return toEnrichedResponse(saved);
     }
 

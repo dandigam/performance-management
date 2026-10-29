@@ -110,31 +110,17 @@ public class PasswordResetService {
         events.publishEvent(emailFactory.passwordOtp(recipient.trim(), otp, "INVITED".equalsIgnoreCase(user.getStatus())));
     }
 
-    /** Older callers cannot bypass OTP verification. */
-    public void reset(String raw, String password) {
-        throw new ApplicationException(HttpStatus.BAD_REQUEST, "OTP_REQUIRED",
-                "Request a verification code and include it with your new password.");
+    /** Compatibility overload for clients that still include an OTP. */
+    @Transactional
+    public void reset(String raw, String password, String otp) {
+        reset(raw, password);
     }
 
-    @Transactional(noRollbackFor = com.rit.performance.exception.InvalidPasswordOtpException.class)
-    public void reset(String raw, String password, String otp) {
+    @Transactional
+    public void reset(String raw, String password) {
         PasswordResetToken token = lockValidToken(raw);
         User user = token.getUser();
         Long id = user.getId();
-        if (token.getOtpAttempts() >= 5) throw new com.rit.performance.exception.InvalidPasswordOtpException(true);
-        if (token.getOtpHash() == null || otp == null || otp.isBlank()) {
-            throw new ApplicationException(HttpStatus.BAD_REQUEST, "OTP_REQUIRED",
-                    "Request a verification code and include it with your new password.");
-        }
-        if (token.getOtpExpiresAt() == null || !token.getOtpExpiresAt().isAfter(clock.instant())) {
-            throw new ApplicationException(HttpStatus.BAD_REQUEST, "OTP_EXPIRED", "The code has expired. Please request another code.");
-        }
-        if (!otp.matches("[0-9]{6}") || !encoder.matches(otp, token.getOtpHash())) {
-            token.setOtpAttempts(token.getOtpAttempts() + 1);
-            tokens.save(token);
-            // This specific exception commits only the attempt counter. No password changes have occurred.
-            throw new com.rit.performance.exception.InvalidPasswordOtpException(token.getOtpAttempts() >= 5);
-        }
 
         PasswordPolicy.validate(password);
         if (encoder.matches(password, user.getPassword())) {

@@ -9,10 +9,10 @@ The separate `EmployeeHierarchyImportController` serves
 - `GET /{importId}`: retrieve the persisted preview or committed result.
 - `GET /{importId}/errors`: download row errors as XLSX.
 
-Columns, in order: RACF ID, First name, Last name, Email, Reporting manager RACF ID.
+Columns, in order: RACF ID, First name, Last name, Email, Reporting manager RACF ID, Employee location, Gender, System Role, Designation.
 RACF IDs are trimmed and matched without case sensitivity. Duplicate RACF rows are errors.
 First name, last name and email are required only when creating a new employee.
-Existing employee details and RIT IDs are preserved; this import updates their reporting relationship only.
+Existing names, email addresses and RIT IDs are preserved. Nonblank Employee location, Gender, System Role and Designation cells insert or update those fields; blank cells preserve stored values.
 A supplied email for an existing employee is ignored along with the supplied names.
 Blank manager cells preserve existing relationships. There is no manager-clearing operation in this import.
 Managers must exist already or appear as an employee row in the same file.
@@ -28,7 +28,7 @@ new employees. All rows must be valid to commit. This keeps connected reporting 
 and allows final-graph validation independently of Excel row order. Commit rechecks current data
 and takes the same hierarchy write lock used by the existing hierarchy service.
 
-Limit: one worksheet, 2000 data rows, 5 MB. Cells must be text; formulas and numeric cells are rejected.
+Limit: one data worksheet (plus the template's very-hidden Options worksheet), 2000 data rows, 5 MB. Cells must be text; formulas and numeric cells are rejected.
 Validation stores the uploader, upload time, filename, original workbook, counts and row outcomes.
 Successful commit saves the result in the same transaction as employee, account, role and hierarchy changes.
 A failed database transaction rolls back the batch; callers can retry after fixing the underlying conflict.
@@ -97,7 +97,7 @@ Content-Disposition: attachment; filename="employee-hierarchy-template.xlsx"
 <binary XLSX file>
 ```
 
-The workbook contains one worksheet named `Hierarchy` with these columns in this order:
+The workbook contains a data worksheet named `Hierarchy` and a very-hidden `Options` worksheet supporting the dropdowns, with these columns in this order:
 
 | Column | Required | Behavior |
 | --- | --- | --- |
@@ -106,6 +106,10 @@ The workbook contains one worksheet named `Hierarchy` with these columns in this
 | Last name | New employees only | Trimmed; ignored for existing employees |
 | Email | New employees only | Trimmed and lowercased; ignored for existing employees |
 | Reporting manager RACF ID | No | Trimmed and converted to uppercase; resolves the manager employee ID |
+| Employee location | No | Dropdown of active WORK_MODE codes ONSITE and OFFSHORE; stores the code in employees.work_mode |
+| Gender | No | MALE, FEMALE, NON_BINARY, OTHER, PREFER_NOT_TO_SAY |
+| System Role | No | Dropdown of permitted active SYSTEM_ROLE names; updates account and employee role mapping |
+| Designation | No | Dropdown of active DESIGNATION names; stores the lookup ID |
 
 Example Excel data (all cells must be text):
 
@@ -433,8 +437,8 @@ Commit also ensures each employee row has a linked `users` account and a current
 `employee_roles` mapping. This applies even when the hierarchy action is UNCHANGED.
 Managers referenced by RACF ID are not provisioned unless they also have an employee row in the file.
 
-- New employees receive the active SYSTEM_ROLE / EMPLOYEE lookup role.
-- Existing employees with an account keep its username, password, role, status and portal access.
+- New employees receive the supplied System Role, or the active SYSTEM_ROLE / EMPLOYEE lookup role when blank.
+- Existing employees with an account keep its username, password, status and portal access. Its role changes only when System Role is supplied.
 - If an account exists but its current employee-role mapping is missing, the mapping uses that account's role.
 - If an account is missing, the employee's current role mapping is reused when present; otherwise EMPLOYEE is used.
 - Missing accounts use the stored employee email, never the ignored uploaded email for an existing employee.
@@ -459,3 +463,30 @@ Authorization: Bearer <admin-access-token>
 
 No request body is required. Success returns `204 No Content`. This action sends the invitation;
 import itself never invokes it. Existing user-management permissions and account status checks apply.
+
+## Additional employee fields and dropdowns
+
+Download a fresh template to obtain the four new columns and current active options.
+The original five-column format remains accepted, including previously validated uploads.
+Lookup names or codes are accepted without case sensitivity. Unknown, inactive or ambiguous
+values produce row errors; edited dropdown contents never override server reference data.
+Gender also accepts spaces or hyphens in place of underscores.
+Employee location accepts only active WORK_MODE values ONSITE and OFFSHORE and updates work_mode; work_location is preserved.
+All four columns are optional: blank cells preserve existing values and leave new employee
+fields unset; a blank new employee role defaults to EMPLOYEE. These columns cannot clear values.
+
+Only ADMIN can assign privileged roles or change an existing privileged account's role.
+HR templates offer only EMPLOYEE, and HR cannot use pasted values to bypass this restriction.
+Permissions and lookup availability are rechecked under the committing caller's authentication.
+Role updates synchronize users.role and the current employee_roles mapping, close the previous
+mapping using the business date, and invalidate existing access sessions via sessionVersion.
+No invitations or OTPs are generated by this import.
+
+Preview rows additionally expose employeeLocation, gender, systemRole and designation with
+uploaded values (gender normalized). Actions and counters continue to describe hierarchy
+changes only: an UNCHANGED hierarchy row can still update these four employee fields.
+The entire upload, including employee details and role changes, commits atomically.
+Existing stored previews may omit the new properties until commit revalidates the saved file.
+The earlier five-column request/response examples remain valid examples for legacy uploads;
+new previews include the four additional row properties. Example values should come from
+the dropdowns in the downloaded template rather than from hardcoded location/designation lists.

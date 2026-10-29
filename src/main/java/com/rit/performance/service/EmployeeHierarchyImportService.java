@@ -9,6 +9,8 @@ import com.rit.performance.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.util.CellRangeAddressList;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -25,7 +27,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class EmployeeHierarchyImportService {
-    private static final String[] HEADERS = {"RACF ID", "First name", "Last name", "Email", "Reporting manager RACF ID"};
+    private static final String[] HEADERS = {"RACF ID", "First name", "Last name", "Email", "Reporting manager RACF ID",
+            "Employee location", "Gender", "System Role", "Designation"};
+    private static final List<String> GENDERS = List.of("MALE", "FEMALE", "NON_BINARY", "OTHER", "PREFER_NOT_TO_SAY");
     private final EmployeeRepository employees;
     private final EmployeeOrgHierarchyRepository hierarchy;
     private final EmployeeHierarchyImportRepository imports;
@@ -37,7 +41,39 @@ public class EmployeeHierarchyImportService {
     private final ObjectMapper mapper = new ObjectMapper();
 
     public byte[] template() throws IOException {
-        return workbook(Collections.singletonList(HEADERS));
+        try (var book = new XSSFWorkbook(new ByteArrayInputStream(workbook(Collections.singletonList(HEADERS))));
+             var output = new ByteArrayOutputStream()) {
+            var options = book.createSheet("Options");
+            List<List<String>> lists = List.of(options("WORK_MODE").stream()
+                            .filter(v -> Set.of("ONSITE", "OFFSHORE").contains(key(v.getCode())))
+                            .map(LookupValue::getCode).toList(), GENDERS,
+                    optionNames("SYSTEM_ROLE"), optionNames("DESIGNATION"));
+            var sheet = book.getSheetAt(0);
+            for (int column = 0; column < lists.size(); column++) {
+                List<String> values = lists.get(column);
+                for (int i = 0; i < values.size(); i++) {
+                    var row = options.getRow(i);
+                    if (row == null) row = options.createRow(i);
+                    row.createCell(column).setCellValue(values.get(i));
+                }
+                if (values.isEmpty()) continue;
+                var name = book.createName();
+                name.setNameName("ImportOptions" + column);
+                String letter = org.apache.poi.ss.util.CellReference.convertNumToColString(column);
+                name.setRefersToFormula("'Options'!$" + letter + "$1:$" + letter + "$" + values.size());
+                var helper = sheet.getDataValidationHelper();
+                var validation = helper.createValidation(helper.createFormulaListConstraint(name.getNameName()),
+                        new CellRangeAddressList(1, 2000, column + 5, column + 5));
+                validation.setEmptyCellAllowed(true);
+                validation.setShowErrorBox(true);
+                validation.setErrorStyle(DataValidation.ErrorStyle.STOP);
+                validation.createErrorBox("Invalid selection", "Choose a value from the dropdown.");
+                sheet.addValidationData(validation);
+            }
+            book.setSheetVisibility(1, SheetVisibility.VERY_HIDDEN);
+            book.write(output);
+            return output.toByteArray();
+        }
     }
 
     @Transactional
@@ -94,7 +130,9 @@ public class EmployeeHierarchyImportService {
         // All employees now exist, so manager references are independent of file order.
         for (Row row : result.rows()) {
             Employee employee = byRacf.get(row.racfId());
-            ensureAccountAndRole(employee);
+            applyDetails(employee, row);
+            ensureAccountAndRole(employee, row.systemRole().isEmpty() ? null : resolve("SYSTEM_ROLE", row.systemRole()));
+            if (!row.systemRole().isEmpty()) applyRole(employee, resolve("SYSTEM_ROLE", row.systemRole()));
             var existing = hierarchy.findByEmployee_Id(employee.getId());
             var link = existing.orElseGet(EmployeeOrgHierarchy::new);
             link.setEmployee(employee);
@@ -125,12 +163,97 @@ public class EmployeeHierarchyImportService {
                 .orElseThrow(() -> new InvalidOperationException("EMPLOYEE role lookup is not configured"));
     }
 
-    private void ensureAccountAndRole(Employee employee) {
+    private boolean isAdmin() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
+
+    private List<LookupValue> options(String type) {
+        return lookups.findByLookupTypeCodeIgnoreCaseAndLookupTypeActiveTrueAndActiveTrueOrderByDisplayOrderAscIdAsc(type);
+    }
+
+    private List<String> optionNames(String type) {
+        return options(type).stream().filter(v -> !"SYSTEM_ROLE".equals(type) || isAdmin()
+                        || "EMPLOYEE".equalsIgnoreCase(v.getCode()))
+                .map(LookupValue::getName).toList();
+    }
+
+    private LookupValue resolve(String type, String value) {
+        var matches = options(type).stream().filter(v -> v.getCode().equalsIgnoreCase(value)
+                || v.getName().equalsIgnoreCase(value)).toList();
+        if (matches.size() != 1) throw new InvalidOperationException(
+                type + " value '" + value + "' must match one active lookup name or code");
+        return matches.get(0);
+    }
+
+    private void validateDetails(Row row, Employee employee, List<String> errors) {
+        try {
+            if (!row.employeeLocation().isEmpty()) employeeLocation(row.employeeLocation());
+        } catch (InvalidOperationException ex) { errors.add(ex.getMessage()); }
+        if (!row.gender().isEmpty() && !GENDERS.contains(row.gender()))
+            errors.add("Gender must be one of " + String.join(", ", GENDERS));
+        try {
+            if (!row.designation().isEmpty()) resolve("DESIGNATION", row.designation());
+        } catch (InvalidOperationException ex) { errors.add(ex.getMessage()); }
+        try {
+            if (!row.systemRole().isEmpty()) {
+                var role = resolve("SYSTEM_ROLE", row.systemRole());
+                if (!isAdmin()) {
+                    var account = employee == null ? null : users.findByEmployeeId(employee.getId()).orElse(null);
+                    var currentRole = account == null ? accountRole(employee) : account.getRole();
+                    if (!"EMPLOYEE".equalsIgnoreCase(role.getCode()) || currentRole == null
+                            || !"EMPLOYEE".equalsIgnoreCase(currentRole.getCode()))
+                        errors.add("Only ADMIN may assign or change privileged system roles");
+                }
+            }
+        } catch (InvalidOperationException ex) { errors.add(ex.getMessage()); }
+    }
+
+    private void applyDetails(Employee employee, Row row) {
+        if (!row.employeeLocation().isEmpty()) employee.setWorkMode(employeeLocation(row.employeeLocation()).getCode());
+        if (!row.gender().isEmpty()) employee.setGender(row.gender());
+        if (!row.designation().isEmpty()) employee.setDesignationId(resolve("DESIGNATION", row.designation()).getId());
+        employees.save(employee);
+    }
+
+    private LookupValue employeeLocation(String value) {
+        LookupValue mode = resolve("WORK_MODE", value);
+        if (!Set.of("ONSITE", "OFFSHORE").contains(key(mode.getCode())))
+            throw new InvalidOperationException("Employee location must be ONSITE or OFFSHORE");
+        return mode;
+    }
+
+    private void applyRole(Employee employee, LookupValue role) {
+        var account = users.findByEmployeeId(employee.getId()).orElseThrow();
+        account = users.findForSecurityUpdate(account.getId()).orElseThrow();
+        if (account.getRole() == null || !role.getId().equals(account.getRole().getId())) {
+            account.setRole(role);
+            account.setSessionVersion(account.getSessionVersion() + 1);
+            users.save(account);
+        }
+        var current = employeeRoles.findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDesc(employee.getId());
+        if (current.isPresent() && role.getId().equals(current.get().getRoleId())) return;
+        LocalDate today = LocalDate.now(businessClock);
+        if (current.isPresent()) {
+            current.get().setIsCurrent(false);
+            current.get().setEffectiveTo(today);
+            employeeRoles.save(current.get());
+        }
+        var replacement = new EmployeeRole();
+        replacement.setEmployeeId(employee.getId());
+        replacement.setRoleId(role.getId());
+        replacement.setEffectiveFrom(today);
+        replacement.setIsCurrent(true);
+        employeeRoles.save(replacement);
+    }
+
+    private void ensureAccountAndRole(Employee employee, LookupValue requestedRole) {
         var account = users.findByEmployeeId(employee.getId()).orElse(null);
         var current = employeeRoles.findFirstByEmployeeIdAndIsCurrentTrueOrderByEffectiveFromDesc(employee.getId());
         if (account != null && current.isPresent()) return;
         // Preserve assigned roles and existing account security settings.
-        var role = account == null ? accountRole(employee) : account.getRole();
+        var role = requestedRole != null ? requestedRole : account == null ? accountRole(employee) : account.getRole();
         if (account == null) {
             String username = employee.getEmail().trim().toLowerCase(Locale.ROOT);
             if (users.existsByUsernameIgnoreCase(username))
@@ -223,6 +346,7 @@ public class EmployeeHierarchyImportService {
                     errors.add("Email is already used by another employee, account, or new row");
             }
             Employee existingEmployee = byRacf.get(row.racfId());
+            validateDetails(row, existingEmployee, errors);
             boolean needsAccount = isNew || users.findByEmployeeId(existingEmployee.getId()).isEmpty();
             if (needsAccount) {
                 String email = isNew ? row.email() : Objects.toString(existingEmployee.getEmail(), "").trim().toLowerCase(Locale.ROOT);
@@ -230,7 +354,10 @@ public class EmployeeHierarchyImportService {
                     errors.add("Portal account requires a valid employee email of at most 50 characters");
                 if (!isNew && users.existsByUsernameIgnoreCase(email))
                     errors.add("Stored employee email is already used by another portal account");
-                try { accountRole(existingEmployee); }
+                try {
+                    if (row.systemRole().isEmpty()) accountRole(existingEmployee);
+                    else resolve("SYSTEM_ROLE", row.systemRole());
+                }
                 catch (InvalidOperationException ex) { errors.add(ex.getMessage()); }
             }
             if (!row.managerRacfId().isEmpty() && !available.contains(row.managerRacfId())) errors.add("Manager RACF ID not found in employees or file");
@@ -246,11 +373,12 @@ public class EmployeeHierarchyImportService {
                     || existing.getReportingManager() != null && Objects.equals(
                     key(existing.getReportingManager().getCsxRacfId()), row.managerRacfId()))) action = "UNCHANGED";
             checked.add(new Row(row.rowNumber(), row.racfId(), row.firstName(), row.lastName(), row.email(),
-                    row.managerRacfId(), errors.isEmpty() ? action : "ERROR", errors));
+                    row.managerRacfId(), row.employeeLocation(), row.gender(), row.systemRole(), row.designation(),
+                    errors.isEmpty() ? action : "ERROR", errors));
         }
         int errors = (int) checked.stream().filter(r -> !r.errors().isEmpty()).count();
         return new EmployeeHierarchyImportResponse(job.getId(), errors == 0 ? "VALIDATED" : "INVALID",
-                "Existing employee details are preserved. Blank manager cells keep the current manager. "
+                "Existing names and emails are preserved. Nonblank location, gender, system role and designation update employee details. Blank cells preserve current values. "
                         + "New employees are ACTIVE with generated RIT IDs. Missing portal accounts and employee roles will be created. No invitations will be sent. "
                         + "All rows must be valid before this batch can be committed.",
                 (int) checked.stream().filter(r -> r.errors().isEmpty() && !byRacf.containsKey(r.racfId())).count(),
@@ -263,23 +391,29 @@ public class EmployeeHierarchyImportService {
 
     private List<Row> parse(byte[] bytes) throws IOException {
         try (var workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
-            if (workbook.getNumberOfSheets() != 1) throw new InvalidOperationException("Use exactly one worksheet");
+            if (workbook.getNumberOfSheets() != 1 && !(workbook.getNumberOfSheets() == 2
+                    && "Options".equals(workbook.getSheetName(1)) && workbook.isSheetVeryHidden(1)))
+                throw new InvalidOperationException("Use the Hierarchy worksheet and optional hidden Options worksheet only");
             var sheet = workbook.getSheetAt(0);
             if (sheet.getLastRowNum() > 2000) throw new InvalidOperationException("Maximum 2000 data rows");
             var header = sheet.getRow(0);
-            if (header == null || header.getLastCellNum() != HEADERS.length) throw new InvalidOperationException("Use the supplied template headers");
-            for (int i = 0; i < HEADERS.length; i++) if (!HEADERS[i].equalsIgnoreCase(cell(header, i)))
+            if (header == null || (header.getLastCellNum() != HEADERS.length && header.getLastCellNum() != 5))
+                throw new InvalidOperationException("Use the supplied template headers");
+            int columns = header.getLastCellNum();
+            for (int i = 0; i < columns; i++) if (!HEADERS[i].equalsIgnoreCase(cell(header, i)))
                 throw new InvalidOperationException("Expected column " + (i + 1) + ": " + HEADERS[i]);
             List<Row> result = new ArrayList<>();
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 var row = sheet.getRow(i);
                 if (row == null) continue;
-                if (row.getLastCellNum() > HEADERS.length) throw new InvalidOperationException("Unexpected extra column at row " + (i + 1));
-                String[] values = new String[5];
-                for (int j = 0; j < 5; j++) values[j] = cell(row, j);
+                if (row.getLastCellNum() > columns) throw new InvalidOperationException("Unexpected extra column at row " + (i + 1));
+                String[] values = new String[HEADERS.length];
+                Arrays.fill(values, "");
+                for (int j = 0; j < columns; j++) values[j] = cell(row, j);
                 if (Arrays.stream(values).allMatch(String::isEmpty)) continue;
                 result.add(new Row(i + 1, key(values[0]), values[1], values[2],
-                        values[3].toLowerCase(Locale.ROOT), key(values[4]), "", List.of()));
+                        values[3].toLowerCase(Locale.ROOT), key(values[4]), values[5],
+                        key(values[6]).replace('-', '_').replace(' ', '_'), values[7], values[8], "", List.of()));
             }
             if (result.isEmpty()) throw new InvalidOperationException("The workbook has no data rows");
             return result;

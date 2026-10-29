@@ -464,8 +464,16 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
             throw new InvalidOperationException("Submitted assessments cannot be edited");
         ensurePreviousLevelSubmitted(review, assessment);
         ensureDeadlineOpen(review, assessment);
-        startAssessment(assessment);
         boolean selfAssessment = isSelfAssessment(assessment);
+        if (!selfAssessment) {
+            BigDecimal rating = request.getOverallRating();
+            if (rating == null && request.getStatus() == EmployeeReviewStatus.SUBMITTED)
+                throw new InvalidOperationException("Overall rating is required before submitting a manager assessment");
+            if (rating != null && (rating.compareTo(BigDecimal.ONE) < 0
+                    || rating.compareTo(BigDecimal.valueOf(5)) > 0))
+                throw new InvalidOperationException("Overall rating must be between 1 and 5");
+        }
+        startAssessment(assessment);
         if (selfAssessment) {
             if (request.getAnswers() == null)
                 throw new InvalidOperationException("answers are required for an employee self-assessment");

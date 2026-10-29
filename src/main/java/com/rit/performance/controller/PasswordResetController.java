@@ -43,7 +43,7 @@ public class PasswordResetController {
             throw new ApplicationException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS,
                     "RATE_LIMIT_EXCEEDED", "Too many requests. Please try again later.", "900");
         }
-        service.reset(request.getToken(), request.getNewPassword(), request.getOtp());
+        service.reset(request.getToken(), request.getNewPassword());
         return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
                 .body(ApiMessageResponse.success("Password reset successfully."));
     }
