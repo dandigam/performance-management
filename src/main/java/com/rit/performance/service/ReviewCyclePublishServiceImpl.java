@@ -29,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -48,6 +50,7 @@ public class ReviewCyclePublishServiceImpl extends WorkflowEventSource implement
     private final PerformanceCycleAssessorRepository assessorConfigRepository;
     private final AssessmentAssigneeResolver assigneeResolver;
     private final ApplicationEmailFactory emailFactory;
+    private final UserInvitationService invitationService;
 
 
     @Override
@@ -80,6 +83,15 @@ public class ReviewCyclePublishServiceImpl extends WorkflowEventSource implement
         // Validate every new enrollee before creating any records.
         selectedEmployees.stream().filter(employee -> !reviewsByEmployeeId.containsKey(employee.getId()))
                 .forEach(assigneeResolver::reportingChain);
+        // Include existing selections so HR can recover a missed setup invitation on republish.
+        // Stable account lock order also serializes invitation checks across concurrent cycles.
+        Map<Long, ApplicationEmail> setupEmails = new HashMap<>();
+        for (Employee employee : selectedEmployees.stream().sorted(Comparator.comparing(Employee::getId)).toList()) {
+            Optional<ApplicationEmail> setupEmail = invitationService.ensurePerformanceLogin(employee, cycle);
+            if (setupEmail.isPresent()) {
+                setupEmails.put(employee.getId(), setupEmail.get());
+            }
+        }
         List<EmployeeReview> newReviews = selectedEmployees.stream()
                 .filter(employee -> !reviewsByEmployeeId.containsKey(employee.getId()))
                 .map(employee -> newReview(cycle, employee, publishedBy))
@@ -107,11 +119,16 @@ public class ReviewCyclePublishServiceImpl extends WorkflowEventSource implement
                 cycle.getId() + ":" + review.getEmployee().getId())));
 
         // One background task sends the batch only after publication commits.
-        List<ApplicationEmail> publicationEmails = newReviews.stream()
-                .map(EmployeeReview::getEmployee)
-                .filter(employee -> employee.getEmail() != null && !employee.getEmail().isBlank())
-                .map(employee -> emailFactory.cyclePublished(cycle, employee))
-                .toList();
+        List<ApplicationEmail> publicationEmails = new ArrayList<>();
+        for (Employee employee : selectedEmployees) {
+            ApplicationEmail setupEmail = setupEmails.get(employee.getId());
+            if (setupEmail != null) {
+                publicationEmails.add(setupEmail);
+            } else if (!reviewsByEmployeeId.containsKey(employee.getId())
+                    && employee.getEmail() != null && !employee.getEmail().isBlank()) {
+                publicationEmails.add(emailFactory.cyclePublished(cycle, employee));
+            }
+        }
         if (!publicationEmails.isEmpty()) {
             publishWorkflow(new PerformancePublicationEmails(publicationEmails));
         }

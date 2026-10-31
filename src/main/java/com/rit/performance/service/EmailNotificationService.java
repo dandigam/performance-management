@@ -53,6 +53,23 @@ public class EmailNotificationService {
     }
 
     public void queueAssessmentReady(EmployeeReview review, EmployeeReviewAssessment assessment) {
+        queueAssessmentReady(review, assessment, "ASSESSMENT_READY:" + assessment.getId());
+    }
+
+    public void resendAssessmentReady(EmployeeReviewAssessment assessment) {
+        queueAssessmentReady(assessment.getEmployeeReview(), assessment,
+                "ASSESSMENT_RESEND:" + assessment.getId() + ":" + UUID.randomUUID());
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isAssessmentResendCoolingDown(Long assessmentId, java.time.Clock clock) {
+        return repository.findFirstByDeduplicationKeyStartingWithOrderByIdDesc("ASSESSMENT_RESEND:" + assessmentId + ":")
+                .map(email -> email.getCreatedOn() != null && email.getCreatedOn().plusSeconds(60)
+                        .isAfter(java.time.LocalDateTime.now(clock.withZone(java.time.ZoneOffset.UTC))))
+                .orElse(false);
+    }
+
+    private void queueAssessmentReady(EmployeeReview review, EmployeeReviewAssessment assessment, String deduplicationKey) {
         Employee reviewer = assessment.getAssessorEmployee();
         if (reviewer == null) return;
         ApplicationEmail email = emailFactory.assessmentReady(review, assessment);
@@ -60,7 +77,7 @@ public class EmailNotificationService {
                 .recipientEmail(reviewer.getEmail()).recipientName(employeeName(reviewer))
                 .subject(email.subject()).body(email.body())
                 .employeeReviewId(review.getId()).cycleId(review.getPerformanceCycle().getId())
-                .deduplicationKey("ASSESSMENT_READY:" + assessment.getId()).build());
+                .deduplicationKey(deduplicationKey).build());
     }
 
     public void queueAssessmentReopened(EmployeeReview review, EmployeeReviewAssessment assessment,

@@ -7,6 +7,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Long> {
+    boolean existsByUserIdAndUsedFalseAndExpiresAtAfter(Long userId, java.time.Instant now);
+
     @Query("select t.user.id from PasswordResetToken t where t.tokenHash = :hash")
     Optional<Long> findUserIdByHash(@Param("hash") String hash);
 

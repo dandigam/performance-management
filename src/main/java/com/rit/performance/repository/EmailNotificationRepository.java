@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface EmailNotificationRepository extends JpaRepository<EmailNotification, Long> {
+    java.util.Optional<EmailNotification> findFirstByDeduplicationKeyStartingWithOrderByIdDesc(String prefix);
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("select email from EmailNotification email where email.id = :id")
     java.util.Optional<EmailNotification> findForDelivery(@Param("id") Long id);

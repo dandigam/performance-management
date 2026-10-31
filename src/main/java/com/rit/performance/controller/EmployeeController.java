@@ -1,6 +1,10 @@
 package com.rit.performance.controller;
 
 import com.rit.performance.dto.EmployeeBasicInfoResponse;
+import com.rit.performance.dto.EmployeeSelfProfileResponse;
+import com.rit.performance.service.EmployeeSelfProfileService;
+import com.rit.performance.service.EmployeePerformanceService;
+import com.rit.performance.dto.EmployeePerformanceResponse;
 import com.rit.performance.dto.EmployeeCreateRequest;
 import com.rit.performance.dto.EmployeeCreateResponse;
 import com.rit.performance.dto.DirectReportsResponse;
@@ -34,6 +38,26 @@ public class EmployeeController {
     private final EmployeeService employeeService;
     private final EmployeeAuditService employeeAuditService;
     private final com.rit.performance.service.EmployeeSummaryService employeeSummaryService;
+    private final EmployeeSelfProfileService employeeSelfProfileService;
+    private final EmployeePerformanceService employeePerformanceService;
+
+    @GetMapping("/{employeeId}/performance")
+    public ResponseEntity<EmployeePerformanceResponse> getPerformance(@PathVariable Long employeeId) {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(employeePerformanceService.getPerformance(employeeId));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<EmployeeSelfProfileResponse> getMyProfile() {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(employeeSelfProfileService.getMyProfile());
+    }
+
+    @GetMapping("/me/documents")
+    public ResponseEntity<List<DocumentResponse>> getMyDocuments() {
+        return ResponseEntity.ok().cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(employeeSelfProfileService.getMyDocuments());
+    }
 
     @GetMapping("/check-contact")
     public ResponseEntity<com.rit.performance.dto.ApiMessageResponse> checkContactAvailability(

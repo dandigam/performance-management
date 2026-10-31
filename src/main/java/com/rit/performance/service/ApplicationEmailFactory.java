@@ -169,9 +169,14 @@ public class ApplicationEmailFactory {
     }
 
     public ApplicationEmail cyclePublished(PerformanceCycles cycle, Employee employee) {
+        return cyclePublished(cycle, employee, null);
+    }
+
+    public ApplicationEmail cyclePublished(PerformanceCycles cycle, Employee employee, String setupUrl) {
         Context context = employeeContext(employee);
         context.setVariable("cycleName", cycle.getCycleName());
-        context.setVariable("actionUrl", url("/login"));
+        context.setVariable("setupRequired", setupUrl != null);
+        context.setVariable("actionUrl", setupUrl == null ? url("/login") : setupUrl);
         return new ApplicationEmail(employee.getEmail(), "Action required: " + cycle.getCycleName() + " — Self-assessment",
                 htmlTemplateEngine.process("performance-cycle-published", context), true);
     }

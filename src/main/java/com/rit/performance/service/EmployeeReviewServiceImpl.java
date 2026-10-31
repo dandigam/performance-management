@@ -245,13 +245,13 @@ public class EmployeeReviewServiceImpl extends WorkflowEventSource implements Em
         return getReviewProgress(cycleId);
     }
 
-    private LocalDate effectiveDueDate(
+    static LocalDate effectiveDueDate(
             EmployeeReviewAssessment assessment, List<PerformanceCycleTimeline> timelines) {
         if (assessment.getDueDate() != null) return assessment.getDueDate();
         return timelineDueDate(assessment, timelines);
     }
 
-    private LocalDate timelineDueDate(
+    private static LocalDate timelineDueDate(
             EmployeeReviewAssessment assessment, List<PerformanceCycleTimeline> timelines) {
         return timelines.stream()
                 .filter(timeline -> assessment.getAssessorRole() != null
